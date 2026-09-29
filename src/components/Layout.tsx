@@ -68,13 +68,13 @@ export function ChannelLink({ channel, location, className, children }: { channe
   </a>
 }
 
-/** Mobile-only action bar: a compact pair of pills in the corner. Hidden over the contact section and footer
- *  (so it never covers form fields, buttons or footer links) and — unless WhatsApp is configured — over the
+/** Mobile-only action bar: a compact pair of pills in the corner. Hidden over Services, Contact and the footer
+ *  (so it never covers service chips, CTAs, form fields or footer links) and — unless WhatsApp is configured — over the
  *  hero, which already shows Let's Talk. */
 export function MobileActions() {
   const [hidden, setHidden] = useState(!whatsappReady)
   useEffect(() => {
-    const watched = [document.getElementById('contact'), document.querySelector('footer'), whatsappReady ? null : document.getElementById('home')].filter((el): el is HTMLElement => !!el)
+    const watched = [document.getElementById('services'), document.getElementById('contact'), document.querySelector('footer'), whatsappReady ? null : document.getElementById('home')].filter((el): el is HTMLElement => !!el)
     const visible = new Set<Element>()
     const observer = new IntersectionObserver(entries => {
       entries.forEach(e => (e.isIntersecting ? visible.add(e.target) : visible.delete(e.target)))
@@ -97,11 +97,15 @@ export function Footer() {
         <div><Brand/><p>Revenue-Led Digital Transformation</p><span className="footer-tag">Strategy meets execution.<br/>Digital meets business growth.</span></div>
         <div><h2>Services</h2>{footerServices.map(([name, pillar]) => <a key={name} href="#services" onClick={() => openPillar(pillar)}>{name}</a>)}</div>
         <div><h2>Company</h2>{footerCompany.map(([name, id]) => <a key={id} href={`#${id}`}>{name}</a>)}</div>
-        <div><h2>Connect</h2><p>Mumbai, Maharashtra</p>
-          {channels.map(c => <ChannelLink key={c.key} channel={c} location="footer" className="footer-link"><ChannelIcon channel={c} size={15}/>{c.key === 'email' || c.key === 'phone' ? c.detail : c.label}</ChannelLink>)}
+        <div>
+          <h2>Connect</h2>
+          {channels.filter(c => c.key !== 'email' && c.key !== 'phone').map(c => <ChannelLink key={c.key} channel={c} location="footer" className="footer-link"><ChannelIcon channel={c} size={15}/>{c.label}</ChannelLink>)}
+          {!whatsappReady && !socialChannels.length && <span className="pending-contact">WhatsApp and official social<br/>profiles coming soon</span>}
+          {whatsappReady && !socialChannels.length && <span className="pending-contact">Official social profiles coming soon</span>}
+          <h2 className="footer-sub">Contact</h2>
+          <p>Mumbai, Maharashtra</p>
+          {channels.filter(c => c.key === 'email' || c.key === 'phone').map(c => <ChannelLink key={c.key} channel={c} location="footer" className="footer-link"><ChannelIcon channel={c} size={15}/>{c.detail}</ChannelLink>)}
           <a href="#contact" onClick={() => openEnquiry('talk')}>Start a conversation <ArrowUpRight size={14} aria-hidden="true"/></a>
-          {!channels.length && <span className="pending-contact">WhatsApp, email, phone and<br/>official social profiles coming soon</span>}
-          {!!channels.length && !socialChannels.length && <span className="pending-contact">Official social profiles coming soon</span>}
         </div>
       </div>
       <div className="footer-bottom">

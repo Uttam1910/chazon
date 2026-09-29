@@ -32,12 +32,13 @@ export const problems = [
   { channel: 'Processes', symptom: 'Too much manual work', fix: 'Workflows that run without chasing' },
 ] as const
 
-export type Pillar = { title: string; line: string; summary: string; items: string[]; enquiry: string }
+// Four parts of one growth system: Build → Grow → Convert → Automate. `statement` is the one-line positioning shown with each visual.
+export type Pillar = { title: string; verb: string; line: string; statement: string; items: string[] }
 export const pillars: Pillar[] = [
-  { title: 'Digital Foundation', line: 'Build the infrastructure your business needs to grow.', summary: 'The platforms every other activity depends on — built to convert, not just to exist.', enquiry: 'Website', items: ['Website Development', 'E-commerce Development', 'Landing Pages', 'Google Business Profile', 'Digital Platform Setup', 'UI/UX & Conversion Optimisation'] },
-  { title: 'Digital Growth', line: 'Turn attention into qualified demand.', summary: 'Search, social, content and advertising working toward one outcome: the right leads.', enquiry: 'Performance Marketing', items: ['Performance Marketing', 'Google Ads', 'Meta Ads', 'Social Media Marketing', 'SEO', 'Lead Generation', 'Content Strategy', 'Digital Campaigns'] },
-  { title: 'Revenue & Commerce', line: 'Turn digital activity into commercial outcomes.', summary: 'The strategy and customer journey that move a visitor from interest to purchase — and back again.', enquiry: 'Digital Revenue Strategy', items: ['Digital Revenue Strategy', 'E-commerce Strategy', 'Marketplace Strategy', 'Conversion Optimisation', 'Customer Journey Mapping', 'Pricing & Merchandising', 'Digital Commerce Consulting'] },
-  { title: 'Automation & Retention', line: 'Connect customers, communication and follow-up.', summary: 'Systems that respond, follow up and bring customers back — without manual chasing.', enquiry: 'Business Automation', items: ['WhatsApp Business Solutions', 'Lead Follow-up Automation', 'Customer Communication', 'Marketing Automation', 'CRM Workflows', 'AI-powered Customer Support', 'Repeat Purchase / Retention Systems'] },
+  { title: 'Digital Foundation', verb: 'Build', line: 'The platforms your business depends on.', statement: 'We build the digital platforms your business depends on — designed to convert, not just to exist.', items: ['Website Development', 'E-commerce Development', 'Landing Pages', 'Google Business Profile', 'Digital Platform Setup', 'UI/UX & Conversion Optimisation'] },
+  { title: 'Digital Growth', verb: 'Grow', line: 'Attention into qualified demand.', statement: 'We turn digital attention into qualified demand — every channel working toward the same leads.', items: ['Performance Marketing', 'Google Ads', 'Meta Ads', 'Social Media Marketing', 'SEO', 'Lead Generation', 'Content Strategy', 'Digital Campaigns'] },
+  { title: 'Revenue & Commerce', verb: 'Convert', line: 'Visitors into repeat customers.', statement: 'We don’t just drive traffic. We improve what happens after it arrives — from first visit to repeat purchase.', items: ['Digital Revenue Strategy', 'E-commerce Strategy', 'Marketplace Strategy', 'Conversion Optimisation', 'Customer Journey Mapping', 'Pricing & Merchandising', 'Digital Commerce Consulting'] },
+  { title: 'Automation & Retention', verb: 'Automate', line: 'Follow-up that never slips.', statement: 'We connect customer communication, follow-up and retention into one automated system.', items: ['WhatsApp Business Solutions', 'Lead Follow-up Automation', 'Customer Communication', 'Marketing Automation', 'CRM Workflows', 'AI-powered Customer Support', 'Repeat Purchase / Retention Systems'] },
 ]
 
 export const channelFirst = ['“I need Instagram.”', 'Instagram', 'Posts', '???'] as const

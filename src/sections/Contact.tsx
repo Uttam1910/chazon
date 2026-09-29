@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { ArrowUpRight, MessageCircle, SearchCheck } from 'lucide-react'
 import { ChannelIcon, ChannelLink, Label } from '../components/Layout'
 import { config, directChannels, socialChannels, track } from '../config'
-import { auditScope, budgets, enquiryServices, industries } from '../content'
+import { auditScope, budgets, enquiryServices, industries, pillars } from '../content'
 import type { EnquiryDetail, EnquiryMode } from '../actions'
 
 function EnquiryForm({ mode, service, setService }: { mode: EnquiryMode; service: string; setService: (s: string) => void }) {
@@ -32,7 +32,7 @@ function EnquiryForm({ mode, service, setService }: { mode: EnquiryMode; service
       <label>Email <span aria-hidden="true">*</span><input type="email" name="email" autoComplete="email" required placeholder="you@business.com"/></label>
       <label>Website / Instagram<input name="website" placeholder="Website or @handle" maxLength={200}/></label>
       <label>Business category <span aria-hidden="true">*</span><select name="category" defaultValue="" required><option value="" disabled>Select your industry</option>{industries.map(([x]) => <option key={x}>{x}</option>)}<option>Other</option></select></label>
-      <label>What do you need help with? <span aria-hidden="true">*</span><select name="service" value={service} onChange={e => setService(e.target.value)} required><option value="" disabled>Select a service</option>{enquiryServices.map(x => <option key={x}>{x}</option>)}</select></label>
+      <label>What do you need help with? <span aria-hidden="true">*</span><select name="service" value={service} onChange={e => setService(e.target.value)} required><option value="" disabled>Select a service</option><optgroup label="Service pillars">{pillars.map(p => <option key={p.title}>{p.title}</option>)}</optgroup><optgroup label="Specific needs">{enquiryServices.map(x => <option key={x}>{x}</option>)}</optgroup></select></label>
       <label>Monthly marketing budget <small>(optional)</small><select name="budget" defaultValue=""><option value="">Select a range</option>{budgets.map(x => <option key={x}>{x}</option>)}</select></label>
       <label className="full">Message<textarea name="message" rows={4} maxLength={3000} placeholder={mode === 'audit' ? 'What would you like the audit to focus on?' : 'Where is your business today, and what are you trying to achieve?'}/></label>
     </div>

@@ -58,11 +58,35 @@ assert(await page.locator('#enquiry').isVisible(), 'Mobile menu Let’s Talk did
 await page.getByRole('button', { name: 'Open navigation' }).click()
 await page.getByRole('navigation').getByRole('link', { name: 'Services', exact: true }).click()
 assert(!(await page.getByRole('button', { name: 'Close navigation' }).count()), 'Mobile navigation did not close')
+// Mobile Services: a compact stepper — one pillar at a time, changed only by the visitor.
+const pillarNames = ['Digital Foundation', 'Digital Growth', 'Revenue & Commerce', 'Automation & Retention']
+const serviceCounts = [6, 8, 7, 7]
+const visiblePillar = () => page.evaluate(() => [...document.querySelectorAll('.svc-panel')].findIndex(p => !p.hidden))
+assert(await page.locator('.svc-panel:visible').count() === 1 && await visiblePillar() === 0, 'Mobile stepper should show exactly one pillar, starting with 01')
+await page.waitForTimeout(3000)
+assert(await visiblePillar() === 0, 'Stepper must not advance on its own')
+for (let i = 0; i < 4; i++) {
+  const panel = page.locator(`#pillar-${i}`)
+  assert(await panel.locator('h3').textContent() === pillarNames[i], `Pillar ${i} heading`)
+  assert((await panel.locator('.svc-count').textContent()).replace(/\s/g, '') === `0${i + 1}/04`, `Pillar ${i} counter`)
+  assert(await panel.locator('.svc-chips li').count() === serviceCounts[i], `Pillar ${i} should list ${serviceCounts[i]} services`)
+  assert(await panel.locator(['.fv', '.gv', '.rv', '.av'][i]).isVisible(), `Pillar ${i} visual missing`)
+  const height = await page.locator('#services').evaluate(e => e.getBoundingClientRect().height)
+  assert(height <= 1100, `Services section too tall on mobile: ${Math.round(height)}px`)
+  await panel.getByRole('button', { name: /^Next pillar/ }).click()
+  assert(await visiblePillar() === (i + 1) % 4, `Next from pillar ${i} did not advance`)
+}
+await page.locator('#pillar-0').getByRole('button', { name: /^Previous pillar/ }).click()
+assert(await visiblePillar() === 3, 'Previous should wrap from 01 to 04')
 await page.locator('#pillar-tab-1').click()
-assert(await page.locator('#pillar-1').isVisible(), 'Service pillar did not open')
-assert(!(await page.locator('#pillar-0').isVisible()), 'Previous service pillar did not close')
-await page.locator('#pillar-tab-1').click()
-assert(!(await page.locator('#pillar-1').isVisible()), 'Service pillar did not collapse on mobile')
+assert(await visiblePillar() === 1, 'Step tab did not select its pillar')
+await page.locator('#pillar-tab-1').press('ArrowRight')
+assert(await visiblePillar() === 2 && await page.evaluate(() => document.activeElement.id) === 'pillar-tab-2', 'Arrow key should move to the next step')
+const swipe = async dx => { const box = await page.locator('.svc-panel:visible .svc-visual').boundingBox(); const y = box.y + 40; await page.locator('.svc-panel:visible').dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 200, clientY: y }); await page.locator('.svc-panel:visible').dispatchEvent('pointerup', { pointerType: 'touch', clientX: 200 + dx, clientY: y + 5 }) }
+await swipe(-120)
+assert(await visiblePillar() === 3, 'Swipe left should show the next pillar')
+await swipe(120)
+assert(await visiblePillar() === 2, 'Swipe right should show the previous pillar')
 await page.getByRole('button', { name: /Website.*Few enquiries/ }).click()
 await page.getByText('Conversion-led pages and a clear path to enquire').waitFor()
 await page.getByRole('button', { name: /Technology/ }).click()
@@ -70,9 +94,8 @@ await page.getByText('Websites, commerce and digital platforms built to convert.
 await page.getByRole('button', { name: 'Hospitality', exact: true }).click()
 await page.getByText('Help guests discover your business, explore the experience and make an enquiry or booking.').waitFor()
 // A pillar CTA opens the enquiry form with the related service preselected.
-await page.locator('#pillar-tab-2').click()
-await page.getByRole('link', { name: 'Discuss Revenue & Commerce' }).click()
-assert(await page.locator('select[name="service"]').inputValue() === 'Digital Revenue Strategy', 'Pillar CTA did not preselect service')
+await page.getByRole('link', { name: 'Let’s Talk about Revenue & Commerce' }).click()
+assert(await page.locator('select[name="service"]').inputValue() === 'Revenue & Commerce', 'Pillar CTA did not preselect its pillar')
 // Audit CTA switches the form to audit mode.
 await page.getByRole('link', { name: 'Get a Digital Growth Audit' }).click()
 await page.getByText('What the audit looks at').waitFor()
@@ -98,17 +121,35 @@ if (await page.locator('.setup-notice').count()) {
 }
 // Contact panel: with nothing configured, channels are absent (never placeholder links) and a clear note says what will appear.
 assert(await page.locator('.connect').isVisible(), 'Connect panel missing')
-const deadLinks = await page.evaluate(() => [...document.querySelectorAll('a')].filter(a => { const h = a.getAttribute('href') || ''; return !h || h === '#' || /example|placeholder|wa\.me\/$|mailto:$|tel:$/.test(h) }).map(a => a.textContent))
+const deadLinks = await page.evaluate(() => [...document.querySelectorAll('a')].filter(a => { const h = a.getAttribute('href') || ''; return !h || h === '#' || /example\.com|placeholder|wa\.me\/$|mailto:$|tel:$/.test(h) }).map(a => a.textContent))
 assert(!deadLinks.length, `Empty or placeholder links: ${deadLinks}`)
 const configured = await page.locator('.direct-link, .social-link').count()
 if (!configured) assert(await page.locator('.connect-pending').count() === 2, 'Unconfigured channels should show pending notes')
-for (const target of ['#contact', 'footer']) {
+for (const target of ['#services', '#contact', 'footer']) {
   await page.locator(target).evaluate(e => e.scrollIntoView({ behavior: 'instant' })); await page.waitForTimeout(400)
   assert(await page.locator('.mobile-actions').evaluate(e => e.classList.contains('is-hidden')), `Mobile action bar should be hidden over ${target}`)
 }
 // Footer service link opens the matching pillar.
 await page.locator('footer').getByRole('link', { name: 'Business Automation' }).click()
 assert(await page.locator('#pillar-3').isVisible(), 'Footer service link did not open its pillar')
+
+// Desktop Services: an ARIA tab explorer; click and arrow keys switch the stage; every CTA preselects its pillar.
+await page.setViewportSize({ width: 1280, height: 900 })
+await page.goto(base, { waitUntil: 'networkidle' })
+assert(await page.locator('[role=tab]').count() === 4, 'Desktop should show four pillar tabs')
+for (let i = 0; i < 4; i++) {
+  await page.locator(`#pillar-tab-${i}`).click()
+  assert(await page.locator(`#pillar-tab-${i}`).getAttribute('aria-selected') === 'true', `Tab ${i} not selected`)
+  assert(await page.locator('.svc-panel:visible').count() === 1 && await page.locator(`#pillar-${i}`).isVisible(), `Tab ${i} did not show its panel`)
+  assert(await page.locator(`#pillar-${i} .svc-chips li`).count() === serviceCounts[i], `Desktop pillar ${i} services`)
+  await page.locator(`#pillar-${i} .svc-cta`).click()
+  assert(await page.locator('select[name="service"]').inputValue() === pillarNames[i], `Desktop CTA ${i} did not preselect ${pillarNames[i]}`)
+}
+await page.locator('#pillar-tab-3').focus()
+await page.keyboard.press('ArrowRight')
+assert(await page.evaluate(() => document.activeElement.id) === 'pillar-tab-0' && await page.locator('#pillar-0').isVisible(), 'ArrowRight should wrap to the first pillar')
+await page.keyboard.press('End')
+assert(await page.locator('#pillar-3').isVisible(), 'End key should select the last pillar')
 assert(!errors.length, errors.join('\n'))
-console.log('PASS mobile menu (5 items + Let’s Talk), service accordion, problem map, ecosystem, industries, CTA → form prefill, audit mode, required/email/phone validation, honest unconfigured form state, contact panel with no placeholder links, mobile bar clear of contact/footer, footer → pillar; no JavaScript exceptions, console errors or HTTP errors')
+console.log('PASS mobile menu (5 items + Let’s Talk), mobile stepper (one pillar at a time, no auto-advance, next/previous wrap, step tabs, arrow keys, swipe, 4 visuals, all 28 services, section ≤1,100px), desktop tabs (click + arrow keys), each pillar CTA → pillar preselected, problem map, ecosystem, industries, CTA → form prefill, audit mode, required/email/phone validation, honest unconfigured form state, contact panel with no placeholder links, mobile bar clear of services/contact/footer, footer → pillar; no JavaScript exceptions, console errors or HTTP errors')
 await browser.close()

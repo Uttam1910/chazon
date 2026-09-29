@@ -4,15 +4,15 @@ import { heroStages } from '../content'
 import { prefersReducedMotion } from '../hooks'
 
 // Fig. 01 — each stage adds to the one before it; the bars compound into growth. The whole figure is
-// readable at once; the highlight walks through the stages a single time, then rests on Grow.
+// readable at once; a slow, steady highlight keeps cycling through the stages (static under reduced motion).
 function RevenueEngine() {
   const last = heroStages.length - 1
   const [active, setActive] = useState(() => (prefersReducedMotion() ? last : 0))
   useEffect(() => {
     if (prefersReducedMotion()) return
-    const timer = window.setInterval(() => setActive(i => { if (i + 1 >= last) window.clearInterval(timer); return Math.min(i + 1, last) }), 420)
+    const timer = window.setInterval(() => setActive(i => (i + 1) % heroStages.length), 1800)
     return () => window.clearInterval(timer)
-  }, [last])
+  }, [])
   return <figure className="engine" aria-labelledby="engine-caption">
     <div className="engine-head" aria-hidden="true"><span>The revenue engine</span><span>Fig. 01</span></div>
     <ol className="engine-stages">
