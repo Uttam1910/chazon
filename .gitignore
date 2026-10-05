@@ -1,7 +1,14 @@
 node_modules
 dist
+.env
 .env.local
+.env.*.local
 *.tsbuildinfo
 test-results
 .npm-cache
 .tools
+# API: generated Prisma client and uploaded media (use persistent storage in production)
+apps/api/src/generated
+apps/api/uploads
+# Local demo database created by `npm run demo`
+.demo

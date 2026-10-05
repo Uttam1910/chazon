@@ -1,0 +1,309 @@
+// Chazon Admin data model. Change it with `npm run db:migrate` — never edit applied migrations.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Admin users & sessions ----------
+
+enum AdminRole {
+  ADMIN // everything, including admin users
+  EDITOR // leads, audits, content and media
+}
+
+model AdminUser {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String
+  passwordHash String
+  role         AdminRole  @default(EDITOR)
+  active       Boolean    @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  sessions     Session[]
+  notes        LeadNote[]
+  activities   Activity[]
+  media        Media[]
+}
+
+/// Server-side session. `id` is an HMAC of the random cookie token, so a database leak exposes no usable session.
+model Session {
+  id        String    @id
+  userId    String
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  userAgent String?
+  ip        String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ---------- Leads ----------
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  WON
+  LOST
+}
+
+model Lead {
+  id           String     @id @default(cuid())
+  name         String
+  businessName String
+  email        String
+  phone        String
+  website      String?
+  category     String?
+  service      String?
+  budget       String?
+  message      String?
+  /// Channel the lead came from: "Website", "Manual" or "Demo".
+  source       String     @default("Website")
+  /// Campaign / referrer detail captured by the website form (utm_source or referring domain), when available.
+  sourceDetail String?
+  status       LeadStatus @default(NEW)
+  archivedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  notes        LeadNote[]
+  activities   Activity[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([archivedAt])
+}
+
+model LeadNote {
+  id        String     @id @default(cuid())
+  leadId    String
+  lead      Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    AdminUser? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime   @default(now())
+
+  @@index([leadId])
+}
+
+// ---------- Digital Growth Audits ----------
+
+enum AuditStatus {
+  NEW
+  REVIEWING
+  AUDIT_READY
+  SENT
+  CLOSED
+}
+
+model GrowthAudit {
+  id           String      @id @default(cuid())
+  name         String
+  businessName String
+  email        String
+  phone        String
+  website      String?
+  category     String?
+  requirements String?
+  budget       String?
+  source       String      @default("Website")
+  sourceDetail String?
+  status       AuditStatus @default(NEW)
+  /// Internal notes; never shown publicly.
+  notes        String?
+  archivedAt   DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  activities   Activity[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// Timeline entries for leads and audits (created, status changes, notes, email delivery).
+model Activity {
+  id        String       @id @default(cuid())
+  leadId    String?
+  lead      Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  auditId   String?
+  audit     GrowthAudit? @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  type      String
+  message   String
+  actorId   String?
+  actor     AdminUser?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt DateTime     @default(now())
+
+  @@index([leadId])
+  @@index([auditId])
+}
+
+// ---------- Content ----------
+
+enum Pillar {
+  BUILD
+  GROW
+  CONVERT
+  AUTOMATE
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Service {
+  id               String    @id @default(cuid())
+  title            String
+  slug             String    @unique
+  pillar           Pillar
+  shortDescription String?
+  description      String?
+  icon             String?
+  imageUrl         String?
+  order            Int       @default(0)
+  published        Boolean   @default(true)
+  archivedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([pillar, order])
+}
+
+model CaseStudy {
+  id              String        @id @default(cuid())
+  /// Client or project name.
+  title           String
+  slug            String        @unique
+  industry        String?
+  summary         String?
+  challenge       String?
+  strategy        String?
+  execution       String?
+  deliverables    String[]
+  /// Leave empty (or describe the project as ongoing) until results are verified.
+  result          String?
+  /// [{ label, value }] — verified metrics only.
+  metrics         Json          @default("[]")
+  coverImage      String?
+  images          String[]
+  seoTitle        String?
+  metaDescription String?
+  ogImage         String?
+  status          ContentStatus @default(DRAFT)
+  publishedAt     DateTime?
+  order           Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status])
+}
+
+model Insight {
+  id              String        @id @default(cuid())
+  title           String
+  slug            String        @unique
+  excerpt         String?
+  /// Markdown.
+  content         String        @default("")
+  featuredImage   String?
+  category        String
+  authorName      String?
+  tags            String[]
+  seoTitle        String?
+  metaDescription String?
+  ogImage         String?
+  status          ContentStatus @default(DRAFT)
+  publishedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status, publishedAt])
+}
+
+model Industry {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  order       Int      @default(0)
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Testimonial {
+  id          String   @id @default(cuid())
+  name        String
+  company     String?
+  designation String?
+  quote       String
+  photoUrl    String?
+  order       Int      @default(0)
+  published   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Media {
+  id           String     @id @default(cuid())
+  /// Stored file name under the uploads directory.
+  filename     String     @unique
+  originalName String
+  mimeType     String
+  size         Int
+  width        Int?
+  height       Int?
+  alt          String     @default("")
+  /// Site-relative URL, e.g. /uploads/abc.webp.
+  url          String
+  uploadedById String?
+  uploadedBy   AdminUser? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime   @default(now())
+}
+
+// ---------- Settings & SEO ----------
+
+/// Single row (id = "default"): public, non-secret website configuration.
+model WebsiteSettings {
+  id            String   @id @default("default")
+  companyName   String   @default("Chazon Digital Ventures")
+  tagline       String   @default("Revenue-Led Digital Transformation")
+  description   String   @default("")
+  email         String   @default("")
+  phone         String   @default("")
+  whatsapp      String   @default("")
+  location      String   @default("Mumbai, Maharashtra")
+  linkedinUrl   String   @default("")
+  instagramUrl  String   @default("")
+  facebookUrl   String   @default("")
+  ctaTalkLabel  String   @default("Let’s Talk")
+  ctaAuditLabel String   @default("Get a Digital Growth Audit")
+  updatedAt     DateTime @updatedAt
+}
+
+/// Page-level SEO. `page` is one of: global, home, insights, work.
+model SeoSetting {
+  id            String   @id @default(cuid())
+  page          String   @unique
+  title         String?
+  description   String?
+  canonicalUrl  String?
+  ogTitle       String?
+  ogDescription String?
+  ogImage       String?
+  noindex       Boolean  @default(false)
+  nofollow      Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+}
