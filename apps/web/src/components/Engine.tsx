@@ -25,7 +25,7 @@ export function Engine({ active }: { active: number | null }) {
         const [from, to] = quadrant(i, 3.2)
         // The bottom arc's label runs right-to-left along the circle, so its text path is drawn the other way round.
         const label = i === 2 ? arcPath(C, R, to, from, 0) : arcPath(C, R, from, to)
-        return <g key={verb} className={`engine-arc ${active === null || active === i ? 'is-on' : ''}`}>
+        return <g key={verb} className={`engine-arc p${i} ${active === null || active === i ? 'is-on' : ''}`}>
           <path className="engine-arc-band" d={arcPath(C, R, from, to)}/>
           <path id={`engine-label-${i}`} d={label} fill="none" stroke="none"/>
           <text className="engine-arc-label"><textPath href={`#engine-label-${i}`} startOffset="50%" textAnchor="middle">{`0${i + 1} · ${verb.toUpperCase()}`}</textPath></text>

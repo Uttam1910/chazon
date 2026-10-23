@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ArrowUpRight, CheckCircle2, MessageCircle, Quote, Zap } from 'lucide-react'
 import { homeFaqs, pillarPath, problems } from '../content'
 import { formatDate } from '../format'
 import { Link } from '../router'
@@ -8,7 +8,7 @@ import { useSite } from '../site-data'
 import { Engine } from '../components/Engine'
 import { PageShell } from '../components/Layout'
 import { AuditBand, FinalCta, ProcessList } from '../components/Sections'
-import { Cta, EngineMark, Eyebrow, Faq, SectionHead, TextLink } from '../components/ui'
+import { Cta, Eyebrow, Faq, PillarIcon, SectionHead, TextLink } from '../components/ui'
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -73,13 +73,20 @@ function Hero() {
           <li>Founder-led</li><li>Strategy and execution together</li><li>Based in Mumbai</li>
         </ul>
       </div>
-      <Engine active={active}/>
+      <div className="hero-visual">
+        <span className="hero-glow" aria-hidden="true"/>
+        <Engine active={active}/>
+        {/* Illustrative workflow moments around the engine (decorative, not data). */}
+        <div className="float-card fc-1" aria-hidden="true"><span className="fc-icon"><MessageCircle size={18}/></span><span><strong>New enquiry</strong><small>Website form → CRM</small></span></div>
+        <div className="float-card fc-2" aria-hidden="true"><span className="fc-icon"><Zap size={18}/></span><span><strong>Follow-up sent</strong><small>WhatsApp · automatically</small></span></div>
+        <div className="float-card fc-3" aria-hidden="true"><span className="fc-icon"><CheckCircle2 size={18}/></span><span><strong>Journey tracked</strong><small>Visit → enquiry → customer</small></span></div>
+      </div>
     </div>
     <div className="container">
       <ol className="hero-pillars" aria-label="The four pillars">
-        {pillars.map((p, i) => <li key={p.key}>
+        {pillars.map((p, i) => <li key={p.key} className={`p${i}`}>
           <Link to={pillarPath(p)} onPointerEnter={() => point(i)} onPointerLeave={() => point(null)} onFocus={() => point(i)} onBlur={() => point(null)}>
-            <span className="mono">0{i + 1}</span>
+            <PillarIcon index={i}/>
             <strong>{p.verb}</strong>
             <span>{p.scope}</span>
             <ArrowUpRight className="hero-pillar-arrow" size={20} aria-hidden="true"/>
@@ -97,10 +104,11 @@ function Disconnect() {
       <SectionHead index="01" eyebrow="The disconnect" id="disconnect-title" title={<>Having a digital presence is not the same as having a <em>growth engine.</em></>}
         intro="Most businesses already have the pieces. They’re just not working together. Do any of these sound familiar?"/>
       <ul className="problems">
-        {[problems[0], problems[2], problems[4]].map(({ quote, fix, pillar }) => <li key={quote}>
+        {[problems[0], problems[2], problems[4]].map(({ quote, fix, pillar }) => <li key={quote} className={`p${pillar}`}>
+          <Quote className="problem-mark" size={28} aria-hidden="true"/>
           <blockquote><p>“{quote}”</p></blockquote>
           <p className="problem-fix">{fix}</p>
-          <Link className="problem-tag" to={pillarPath(pillars[pillar])}><EngineMark active={pillar}/><span>{pillars[pillar].verb}</span><ArrowRight size={16} aria-hidden="true"/></Link>
+          <Link className="problem-tag" to={pillarPath(pillars[pillar])}><PillarIcon index={pillar} size={16}/><span>{pillars[pillar].verb}</span><ArrowRight size={16} aria-hidden="true"/></Link>
         </li>)}
       </ul>
       <p className="disconnect-turn">That’s where <em>Chazon</em> comes in.</p>
@@ -114,20 +122,14 @@ function System() {
     <div className="container">
       <SectionHead index="02" eyebrow="What we do" id="system-title" title={<>Four pillars. <em>One growth system.</em></>}
         intro="Build the foundation, grow qualified demand, convert it into revenue and automate what keeps customers coming back. Each pillar makes the next one work harder."/>
-      <ol className="pillar-rows">
-        {pillars.map((p, i) => <li key={p.key} className="pillar-row">
-          <div className="pillar-row-id">
-            <EngineMark active={i}/>
-            <span className="mono">0{i + 1}</span>
-            <h3>{p.verb}<small>{p.title}</small></h3>
-          </div>
-          <div className="pillar-row-problem"><p className="mono">The problem</p><p>{p.problem}</p></div>
-          <div className="pillar-row-what">
-            <p className="mono">What we provide</p>
-            <p>{p.statement}</p>
-            <ul className="chips" aria-label={`${p.title} services`}>{p.items.map(item => <li key={item}>{item}</li>)}</ul>
-          </div>
-          <div className="pillar-row-link"><TextLink to={pillarPath(p)}>Explore {p.verb}<span className="visually-hidden">: {p.title}</span></TextLink></div>
+      <ol className="pillar-cards">
+        {pillars.map((p, i) => <li key={p.key} className={`pillar-card p${i}`}>
+          <div className="pillar-card-head"><PillarIcon index={i} size={26}/><span className="mono">0{i + 1}</span></div>
+          <h3>{p.verb}<small>{p.title}</small></h3>
+          <p className="pillar-card-problem"><span className="mono">The problem</span>{p.problem}</p>
+          <p>{p.statement}</p>
+          <ul className="chips" aria-label={`${p.title} services`}>{p.items.slice(0, 5).map(item => <li key={item}>{item}</li>)}</ul>
+          <TextLink to={pillarPath(p)}>Explore {p.verb}<span className="visually-hidden">: {p.title}</span></TextLink>
         </li>)}
       </ol>
     </div>

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowRight, ArrowUpRight, ChevronRight } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, ChevronRight, LayoutTemplate, MousePointerClick, TrendingUp, Workflow } from 'lucide-react'
 import { track } from '../config'
 import { Link } from '../router'
 import { arcPath, quadrant } from '../geometry'
@@ -91,6 +91,12 @@ export function Faq({ items, title = 'Questions businesses ask', id = 'faq' }: {
       </div>
     </div>
   </section>
+}
+
+/** Each pillar's icon, drawn in its accent colour by the surrounding .p0–.p3 class. Decorative. */
+export function PillarIcon({ index, size = 22 }: { index: number; size?: number }) {
+  const Icon = [LayoutTemplate, TrendingUp, MousePointerClick, Workflow][index]
+  return <span className="pillar-icon" aria-hidden="true"><Icon size={size}/></span>
 }
 
 /** The four-part ring in miniature, with one pillar (0–3) highlighted. Decorative. */
