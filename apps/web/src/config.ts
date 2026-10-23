@@ -16,6 +16,12 @@ export const config = {
   instagram: import.meta.env.VITE_INSTAGRAM_URL || '',
   linkedin: import.meta.env.VITE_LINKEDIN_URL || '',
   facebook: import.meta.env.VITE_FACEBOOK_URL || '',
+  // Optional scheduling page (e.g. Calendly or Cal.com). Without it, discovery calls are requested through the form.
+  bookingUrl: safeHttps(import.meta.env.VITE_BOOKING_URL || ''),
+}
+
+function safeHttps(value: string) {
+  try { return new URL(value).protocol === 'https:' ? value : '' } catch { return '' }
 }
 
 // Social profiles are shown only for HTTPS URLs on the platform's own domain, so a typo can't publish a broken or foreign link.
@@ -53,13 +59,19 @@ export function buildChannels(values: ContactValues) {
 }
 export type Channels = ReturnType<typeof buildChannels>
 
+/** Conversion events: CTA clicks, form starts/submissions/errors, contact and booking clicks, service page views.
+ *  Always dispatched as a `chazon:analytics` DOM event. If a tag manager has been added to the page (window.dataLayer),
+ *  the event is pushed there too, where its consent settings apply. No script is loaded here, and callers must never
+ *  pass form values or personal data. */
 export function track(event: string, details: Record<string, string> = {}) {
-  // Connect an approved analytics adapter here. Never send form values or personal data.
+  if (typeof window === 'undefined') return
   window.dispatchEvent(new CustomEvent('chazon:analytics', { detail: { event, ...details } }))
+  const layer = (window as Window & { dataLayer?: unknown[] }).dataLayer
+  if (Array.isArray(layer)) layer.push({ event: `chazon_${event}`, ...details })
 }
 
 /** Where the visitor came from (campaign or referring site), kept for this browser session and sent with enquiries. */
-export const sourceDetail = (() => {
+export function sourceDetail() {
   try {
     const stored = sessionStorage.getItem('chazon:source')
     if (stored !== null) return stored
@@ -73,4 +85,4 @@ export const sourceDetail = (() => {
     sessionStorage.setItem('chazon:source', source)
     return source
   } catch { return '' }
-})()
+}

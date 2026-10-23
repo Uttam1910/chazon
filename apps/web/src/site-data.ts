@@ -1,17 +1,19 @@
 import { createContext, useContext } from 'react'
 import { PILLARS, type PublicCaseStudySummary, type PublicInsightSummary, type PublicSeo, type PublicSettings, type PublicSite } from '@chazon/shared'
 import { buildChannels, config, type Channels } from './config'
-import { industries as staticIndustries, pillars as staticPillars, testimonials as staticTestimonials, type Pillar } from './content'
+import { industries as staticIndustries, pillars as staticPillars, testimonials as staticTestimonials, type Pillar, type PillarService } from './content'
 
 // Website content: rendered immediately from the built-in copy in content.ts, then replaced by what the
 // Chazon Admin has published once the API responds. If the API is unavailable the built-in copy simply stays.
 
 export type Testimonial = { quote: string; name: string; role: string; company: string; photoUrl?: string | null }
+/** A pillar with the services currently offered under it (from the Admin once loaded), each with a one-line description. */
+export type LivePillar = Pillar & { services: PillarService[] }
 export type SiteData = Channels & {
   live: boolean
   settings: PublicSettings
   seo: Record<string, PublicSeo>
-  pillars: Pillar[]
+  pillars: LivePillar[]
   industries: [string, string][]
   testimonials: Testimonial[]
   caseStudies: PublicCaseStudySummary[]
@@ -33,7 +35,14 @@ export function compose(site?: PublicSite): SiteData {
     live: !!site,
     settings,
     seo: site?.seo ?? {},
-    pillars: site ? staticPillars.map((p, i) => ({ ...p, items: site.services.filter(s => s.pillar === PILLARS[i]).map(s => s.title) })) : staticPillars,
+    pillars: staticPillars.map((p, i) => {
+      // Admin descriptions win; a service without one keeps the built-in line for the same title, if there is one.
+      // A pillar with nothing published keeps the built-in list rather than rendering an empty service page.
+      const published = (site?.services ?? []).filter(s => s.pillar === PILLARS[i])
+        .map(s => ({ title: s.title, text: s.shortDescription || p.page.services.find(x => x.title === s.title)?.text || '' }))
+      const services = published.length ? published : p.page.services
+      return { ...p, items: services.map(s => s.title), services }
+    }),
     industries: site ? site.industries.map(i => [i.name, i.description ?? ''] as [string, string]) : staticIndustries,
     testimonials: site ? site.testimonials.map(t => ({ quote: t.quote, name: t.name, role: t.designation ?? '', company: t.company ?? '', photoUrl: t.photoUrl })) : staticTestimonials,
     caseStudies: site?.caseStudies ?? [],
@@ -52,41 +61,3 @@ export async function fetchPublic<T>(path: string, signal?: AbortSignal): Promis
 }
 
 export const useSite = () => useContext(SiteContext)
-
-/** Applies title, description, canonical, Open Graph and robots tags for the current page. */
-export function applySeo(seo: Partial<PublicSeo> & { title?: string | null }, fallback: { canonical?: string } = {}) {
-  const head = document.head
-  const meta = (attr: 'name' | 'property', key: string, content: string | null | undefined) => {
-    let tag = head.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`)
-    if (!content) { if (attr === 'property' && key === 'og:image') tag?.remove(); return }
-    if (!tag) { tag = document.createElement('meta'); tag.setAttribute(attr, key); head.append(tag) }
-    tag.content = content
-  }
-  if (seo.title) document.title = seo.title
-  meta('name', 'description', seo.description)
-  meta('property', 'og:title', seo.ogTitle || seo.title)
-  meta('property', 'og:description', seo.ogDescription || seo.description)
-  meta('name', 'twitter:title', seo.ogTitle || seo.title)
-  meta('name', 'twitter:description', seo.ogDescription || seo.description)
-  meta('property', 'og:image', seo.ogImage)
-  if (seo.ogImage) meta('name', 'twitter:card', 'summary_large_image')
-  meta('name', 'robots', `${seo.noindex ? 'noindex' : 'index'}, ${seo.nofollow ? 'nofollow' : 'follow'}`)
-  const canonical = seo.canonicalUrl || fallback.canonical
-  if (canonical) {
-    let link = head.querySelector<HTMLLinkElement>('link[rel="canonical"]')
-    if (!link) { link = document.createElement('link'); link.rel = 'canonical'; head.append(link) }
-    link.href = canonical
-    meta('property', 'og:url', canonical)
-  }
-}
-
-/** Page SEO merged over the global defaults: the page's own values win, empty ones inherit. */
-export function mergeSeo(seo: Record<string, PublicSeo>, page: string, own?: Partial<PublicSeo>): Partial<PublicSeo> {
-  const layers = [seo.global, seo[page], own].filter(Boolean) as Partial<PublicSeo>[]
-  const merged: Partial<PublicSeo> = {}
-  for (const layer of layers) for (const [k, v] of Object.entries(layer)) if (v !== null && v !== undefined && v !== '' && typeof v !== 'boolean') (merged as Record<string, unknown>)[k] = v
-  // Robots flags add up: a global noindex can't be undone by a page's default "false".
-  merged.noindex = layers.some(l => l.noindex)
-  merged.nofollow = layers.some(l => l.nofollow)
-  return merged
-}

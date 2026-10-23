@@ -1,3 +1,6 @@
+// Browser checks for the public website: layout at every supported width, keyboard navigation, CTAs, the enquiry form
+// and the mobile action bar. Needs Playwright in .tools/ (`npm i --prefix .tools playwright`) and Google Chrome.
+// Set CHECK_URL to test a preview or production build (default: the dev server).
 import { chromium } from '../.tools/node_modules/playwright/index.mjs'
 import { mkdir } from 'node:fs/promises'
 const base = process.env.CHECK_URL || 'http://localhost:5173'
@@ -6,150 +9,133 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true })
 const errors = []
 const watch = page => {
   page.on('pageerror', error => errors.push(error.message))
-  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
-  page.on('response', response => { if (response.status() >= 400) errors.push(`HTTP ${response.status()}: ${response.url()}`) })
+  page.on('console', message => { if (message.type() === 'error' && !/status of 404/.test(message.text())) errors.push(message.text()) })
+  page.on('response', response => { if (response.status() >= 400 && !response.url().includes('/missing-page')) errors.push(`HTTP ${response.status()}: ${response.url()}`) })
 }
 const assert = (ok, message) => { if (!ok) throw new Error(message) }
 
-// Layout checks at every supported width.
-for (const width of [1440, 1280, 1100, 1024, 900, 768, 430, 390, 375, 360, 320]) {
-  const page = await browser.newPage({ viewport: { width, height: 900 } })
-  watch(page)
-  await page.goto(base, { waitUntil: 'networkidle' })
-  // Content first: straight after load, with no scrolling and no waiting, every piece of text must be fully visible.
-  const hiddenText = await page.evaluate(() => [...document.querySelectorAll('main *')].filter(el => {
-    if (!el.getClientRects().length || el.closest('[hidden], .honeypot, .visually-hidden')) return false
-    if (![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) return false
-    for (let a = el; a; a = a.parentElement) { const s = getComputedStyle(a); if (parseFloat(s.opacity) < 1 || s.visibility === 'hidden') return true }
-    return false
-  }).map(el => el.textContent.trim().slice(0, 30)))
-  assert(!hiddenText.length, `${width}px: text not visible at load: ${JSON.stringify(hiddenText.slice(0, 5))}`)
-  const navItems = await page.locator('#main-nav a:not(.nav-cta)').allTextContents()
-  assert(navItems.join() === 'Home,About,Services,Work,Contact', `${width}px: unexpected navigation ${navItems}`)
-  const height = await page.evaluate(() => document.body.scrollHeight)
-  for (let y = 0; y < height; y += 500) { await page.evaluate(y => window.scrollTo(0, y), y); await page.waitForTimeout(30) }
-  const issues = await page.evaluate(() => {
-    const vw = document.documentElement.clientWidth
-    const visible = el => { const s = getComputedStyle(el); return s.display !== 'none' && s.visibility !== 'hidden' && el.getClientRects().length }
-    return {
-      overflow: document.documentElement.scrollWidth > window.innerWidth,
-      offscreen: [...document.querySelectorAll('main *, footer *')].filter(el => visible(el) && !el.closest('.honeypot')).filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && (r.left < -1 || r.right > vw + 1) }).slice(0, 5).map(el => `${el.tagName}.${el.className}`),
-      brokenAnchors: [...document.querySelectorAll('a[href^="#"]')].filter(a => a.getAttribute('href') !== '#' && !document.getElementById(a.getAttribute('href').slice(1))).map(a => a.textContent),
-      h1: document.querySelectorAll('h1').length,
-      missingImages: [...document.images].filter(img => !img.complete || !img.naturalWidth).length,
-      unnamedButtons: [...document.querySelectorAll('button, a')].filter(el => visible(el) && !(el.getAttribute('aria-label') || el.textContent.trim())).length,
-      smallText: [...document.querySelectorAll('main p, main li, main span, main a, main button, main label')].filter(el => visible(el) && el.textContent.trim() && !el.closest('.work-art') && parseFloat(getComputedStyle(el).fontSize) < 11).slice(0, 5).map(el => el.textContent.trim().slice(0, 30)),
-    }
-  })
-  assert(!issues.overflow && !issues.offscreen.length && !issues.brokenAnchors.length && issues.h1 === 1 && !issues.missingImages && !issues.unnamedButtons && !issues.smallText.length, JSON.stringify({ width, ...issues }))
-  await page.screenshot({ path: `test-results/hero-${width}.png` })
-  console.log(`PASS ${width}px: 5-item nav, all text visible at load, no overflow or off-screen content, valid anchors, one H1, no missing images, named controls, no text under 11px`)
+const pages = ['/', '/services', '/services/website-development', '/services/digital-growth', '/services/conversion-optimisation', '/services/business-automation', '/growth-audit', '/approach', '/about', '/contact', '/privacy', '/terms']
+const homeWidths = [1440, 1280, 1100, 1024, 900, 768, 430, 390, 375, 360, 320]
+const pageWidths = [1440, 1024, 768, 375, 320]
+
+// Layout: content visible at load, no horizontal overflow, nothing off-screen, valid anchors, one H1, named controls.
+for (const path of pages) {
+  for (const width of path === '/' ? homeWidths : pageWidths) {
+    const page = await browser.newPage({ viewport: { width, height: 900 } })
+    watch(page)
+    await page.goto(base + path, { waitUntil: 'networkidle' })
+    const hiddenText = await page.evaluate(() => [...document.querySelectorAll('main *')].filter(el => {
+      if (!el.getClientRects().length || el.closest('[hidden], .honeypot, .visually-hidden, details:not([open])')) return false
+      if (![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) return false
+      for (let a = el; a; a = a.parentElement) { const s = getComputedStyle(a); if (parseFloat(s.opacity) < 1 || s.visibility === 'hidden') return true }
+      return false
+    }).map(el => el.textContent.trim().slice(0, 30)))
+    assert(!hiddenText.length, `${path} ${width}px: text not visible at load: ${JSON.stringify(hiddenText.slice(0, 5))}`)
+    const height = await page.evaluate(() => document.body.scrollHeight)
+    for (let y = 0; y < height; y += 700) { await page.evaluate(y => window.scrollTo(0, y), y); await page.waitForTimeout(20) }
+    const issues = await page.evaluate(() => {
+      const vw = document.documentElement.clientWidth
+      const visible = el => { const s = getComputedStyle(el); return s.display !== 'none' && s.visibility !== 'hidden' && el.getClientRects().length }
+      return {
+        overflow: document.documentElement.scrollWidth > window.innerWidth,
+        offscreen: [...document.querySelectorAll('main *, footer *, header *')].filter(el => visible(el) && !el.closest('.honeypot, .visually-hidden, svg')).filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && (r.left < -1 || r.right > vw + 1) }).slice(0, 5).map(el => `${el.tagName}.${el.className}`),
+        brokenAnchors: [...document.querySelectorAll('a[href^="#"]')].filter(a => a.getAttribute('href') !== '#' && !document.getElementById(a.getAttribute('href').slice(1))).map(a => a.textContent),
+        h1: document.querySelectorAll('h1').length,
+        missingImages: [...document.images].filter(img => !img.complete || !img.naturalWidth).length,
+        unnamedControls: [...document.querySelectorAll('button, a, input, select, textarea')].filter(el => visible(el) && !el.closest('.honeypot') && !(el.getAttribute('aria-label') || el.textContent.trim() || el.labels?.length)).length,
+        smallText: [...document.querySelectorAll('main p, main li, main span, main a, main button, main label')].filter(el => visible(el) && el.textContent.trim() && parseFloat(getComputedStyle(el).fontSize) < 11).slice(0, 5).map(el => el.textContent.trim().slice(0, 30)),
+        smallTargets: [...document.querySelectorAll('main a, main button, main summary, header a, header button')].filter(el => visible(el) && !el.closest('p, .breadcrumbs, .prose')).filter(el => { const r = el.getBoundingClientRect(); return r.width < 24 || r.height < 24 }).slice(0, 5).map(el => el.textContent.trim().slice(0, 30)),
+      }
+    })
+    assert(!issues.overflow && !issues.offscreen.length && !issues.brokenAnchors.length && issues.h1 === 1 && !issues.missingImages && !issues.unnamedControls && !issues.smallText.length && !issues.smallTargets.length, JSON.stringify({ path, width, ...issues }))
+    if (path === '/' || width === 375 || width === 1440) await page.screenshot({ path: `test-results/${path === '/' ? 'home' : path.slice(1).replace(/\//g, '_')}-${width}.png` })
+    await page.close()
+  }
+  console.log(`PASS ${path}: visible at load, no overflow or off-screen content, valid anchors, one H1, no missing images, named controls, text ≥11px, targets ≥24px`)
+}
+
+// Unknown URLs render the 404 page.
+{
+  const page = await browser.newPage()
+  await page.goto(`${base}/missing-page`)
+  assert(await page.getByRole('heading', { level: 1 }).textContent() === 'This page isn’t part of the system.', '404 page missing')
+  assert(await page.locator('meta[name="robots"]').getAttribute('content') === 'noindex, follow', '404 must be noindex')
   await page.close()
 }
 
-// Interaction checks on mobile.
+// Mobile navigation: keyboard-operable, isolates the page while open, Escape returns focus, links navigate and close it.
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
 watch(page)
 await page.goto(base, { waitUntil: 'networkidle' })
-await page.getByRole('button', { name: 'Open navigation' }).click()
-assert((await page.locator('#main-nav a').allTextContents()).map(t => t.trim()).join() === 'Home,About,Services,Work,Contact,Let’s Talk', 'Mobile menu should list five destinations plus Let’s Talk')
-await page.locator('#main-nav .nav-cta').click()
-assert(await page.locator('#enquiry').isVisible(), 'Mobile menu Let’s Talk did not open the enquiry form')
-await page.getByRole('button', { name: 'Open navigation' }).click()
-await page.getByRole('navigation').getByRole('link', { name: 'Services', exact: true }).click()
-assert(!(await page.getByRole('button', { name: 'Close navigation' }).count()), 'Mobile navigation did not close')
-// Mobile Services: a compact stepper — one pillar at a time, changed only by the visitor.
-const pillarNames = ['Digital Foundation', 'Digital Growth', 'Revenue & Commerce', 'Automation & Retention']
-const serviceCounts = [6, 8, 7, 7]
-const visiblePillar = () => page.evaluate(() => [...document.querySelectorAll('.svc-panel')].findIndex(p => !p.hidden))
-assert(await page.locator('.svc-panel:visible').count() === 1 && await visiblePillar() === 0, 'Mobile stepper should show exactly one pillar, starting with 01')
-await page.waitForTimeout(3000)
-assert(await visiblePillar() === 0, 'Stepper must not advance on its own')
-for (let i = 0; i < 4; i++) {
-  const panel = page.locator(`#pillar-${i}`)
-  assert(await panel.locator('h3').textContent() === pillarNames[i], `Pillar ${i} heading`)
-  assert((await panel.locator('.svc-count').textContent()).replace(/\s/g, '') === `0${i + 1}/04`, `Pillar ${i} counter`)
-  assert(await panel.locator('.svc-chips li').count() === serviceCounts[i], `Pillar ${i} should list ${serviceCounts[i]} services`)
-  assert(await panel.locator(['.fv', '.gv', '.rv', '.av'][i]).isVisible(), `Pillar ${i} visual missing`)
-  const height = await page.locator('#services').evaluate(e => e.getBoundingClientRect().height)
-  assert(height <= 1100, `Services section too tall on mobile: ${Math.round(height)}px`)
-  await panel.getByRole('button', { name: /^Next pillar/ }).click()
-  assert(await visiblePillar() === (i + 1) % 4, `Next from pillar ${i} did not advance`)
-}
-await page.locator('#pillar-0').getByRole('button', { name: /^Previous pillar/ }).click()
-assert(await visiblePillar() === 3, 'Previous should wrap from 01 to 04')
-await page.locator('#pillar-tab-1').click()
-assert(await visiblePillar() === 1, 'Step tab did not select its pillar')
-await page.locator('#pillar-tab-1').press('ArrowRight')
-assert(await visiblePillar() === 2 && await page.evaluate(() => document.activeElement.id) === 'pillar-tab-2', 'Arrow key should move to the next step')
-const swipe = async dx => { const box = await page.locator('.svc-panel:visible .svc-visual').boundingBox(); const y = box.y + 40; await page.locator('.svc-panel:visible').dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 200, clientY: y }); await page.locator('.svc-panel:visible').dispatchEvent('pointerup', { pointerType: 'touch', clientX: 200 + dx, clientY: y + 5 }) }
-await swipe(-120)
-assert(await visiblePillar() === 3, 'Swipe left should show the next pillar')
-await swipe(120)
-assert(await visiblePillar() === 2, 'Swipe right should show the previous pillar')
-await page.getByRole('button', { name: /Website.*Few enquiries/ }).click()
-await page.getByText('Conversion-led pages and a clear path to enquire').waitFor()
-await page.getByRole('button', { name: /Technology/ }).click()
-await page.getByText('Websites, commerce and digital platforms built to convert.').waitFor()
-await page.getByRole('button', { name: 'Hospitality', exact: true }).click()
-await page.getByText('Help guests discover your business, explore the experience and make an enquiry or booking.').waitFor()
-// A pillar CTA opens the enquiry form with the related service preselected.
-await page.getByRole('link', { name: 'Let’s Talk about Revenue & Commerce' }).click()
-assert(await page.locator('select[name="service"]').inputValue() === 'Revenue & Commerce', 'Pillar CTA did not preselect its pillar')
-// Audit CTA switches the form to audit mode.
-await page.getByRole('link', { name: 'Get a Digital Growth Audit' }).click()
-await page.getByText('What the audit looks at').waitFor()
-assert(await page.locator('select[name="service"]').inputValue() === 'Digital Growth Audit', 'Audit CTA did not preselect the audit')
-await page.locator('button[type="submit"]').click()
-assert(!(await page.locator('input[name="name"]').evaluate(el => el.validity.valid)), 'Required validation did not work')
-await page.locator('input[name="name"]').fill('Test Enquiry')
-await page.locator('input[name="business"]').fill('Test Business')
-await page.locator('input[name="email"]').fill('invalid-email')
-await page.locator('input[name="phone"]').fill('1234567890')
-await page.locator('select[name="category"]').selectOption('B2B')
-await page.locator('button[type="submit"]').click()
-assert(await page.locator('input[name="email"]').evaluate(el => el.validity.typeMismatch), 'Email validation did not reject invalid input')
-await page.locator('input[name="email"]').fill('test@example.com')
-await page.locator('input[name="phone"]').fill('abc')
-await page.locator('button[type="submit"]').click()
-assert(await page.locator('input[name="phone"]').evaluate(el => el.validity.patternMismatch), 'Phone validation did not reject invalid input')
-await page.locator('input[name="phone"]').fill('1234567890')
-// Without an endpoint the form must say plainly that nothing was sent (a configured endpoint is tested against a real/mock server).
-if (await page.locator('.setup-notice').count()) {
-  await page.locator('button[type="submit"]').click()
-  await page.getByRole('status').filter({ hasText: 'Your details have not been sent' }).waitFor()
-}
-// Contact panel: with nothing configured, channels are absent (never placeholder links) and a clear note says what will appear.
-assert(await page.locator('.connect').isVisible(), 'Connect panel missing')
-const deadLinks = await page.evaluate(() => [...document.querySelectorAll('a')].filter(a => { const h = a.getAttribute('href') || ''; return !h || h === '#' || /example\.com|placeholder|wa\.me\/$|mailto:$|tel:$/.test(h) }).map(a => a.textContent))
-assert(!deadLinks.length, `Empty or placeholder links: ${deadLinks}`)
-const configured = await page.locator('.direct-link, .social-link').count()
-if (!configured) assert(await page.locator('.connect-pending').count() === 2, 'Unconfigured channels should show pending notes')
-for (const target of ['#services', '#contact', 'footer']) {
-  await page.locator(target).evaluate(e => e.scrollIntoView({ behavior: 'instant' })); await page.waitForTimeout(400)
-  assert(await page.locator('.mobile-actions').evaluate(e => e.classList.contains('is-hidden')), `Mobile action bar should be hidden over ${target}`)
-}
-// Footer service link opens the matching pillar.
-await page.locator('footer').getByRole('link', { name: 'Business Automation' }).click()
-assert(await page.locator('#pillar-3').isVisible(), 'Footer service link did not open its pillar')
+const toggle = page.locator('.menu-toggle')
+await toggle.focus()
+await page.keyboard.press('Enter')
+assert(await toggle.getAttribute('aria-expanded') === 'true' && await page.locator('#mobile-menu').isVisible(), 'Menu did not open from the keyboard')
+assert(await page.locator('#main').evaluate(el => el.inert), 'Page content should be inert behind the open menu')
+const menuLinks = (await page.locator('#mobile-menu a').allTextContents()).map(t => t.trim())
+for (const name of ['Home', 'Approach', 'About', 'Contact', 'Get a Digital Growth Audit']) assert(menuLinks.includes(name), `Mobile menu missing ${name}`)
+await page.keyboard.press('Escape')
+assert(await toggle.getAttribute('aria-expanded') === 'false' && await page.evaluate(() => document.activeElement.classList.contains('menu-toggle')), 'Escape should close the menu and return focus')
+assert(!(await page.locator('#main').evaluate(el => el.inert)), 'Page should not stay inert after closing the menu')
+await toggle.click()
+await page.locator('#mobile-menu').getByRole('link', { name: /Convert/ }).click()
+await page.waitForURL('**/services/conversion-optimisation')
+assert(await toggle.getAttribute('aria-expanded') === 'false', 'Menu should close after navigating')
+assert(await page.getByRole('heading', { level: 1 }).textContent() === 'Turn more of the traffic you already have into customers.', 'Service page did not render after client navigation')
+assert(await page.evaluate(() => window.scrollY) === 0, 'New page should start at the top')
+assert((await page.title()).includes('Conversion Optimisation'), 'Title should update on client navigation')
 
-// Desktop Services: an ARIA tab explorer; click and arrow keys switch the stage; every CTA preselects its pillar.
+// Mobile action bar: hidden on the opening screen, shown while reading, hidden over the closing CTA and footer.
+await page.goto(base, { waitUntil: 'networkidle' })
+const bar = page.locator('.mobile-bar')
+assert(await bar.evaluate(e => e.classList.contains('is-hidden')), 'Mobile bar should be hidden on the opening screen')
+await page.locator('#system').evaluate(e => e.scrollIntoView({ behavior: 'instant' })); await page.waitForTimeout(400)
+assert(!(await bar.evaluate(e => e.classList.contains('is-hidden'))), 'Mobile bar should appear once the visitor scrolls')
+for (const target of ['#contact', 'footer']) {
+  await page.locator(target).evaluate(e => e.scrollIntoView({ behavior: 'instant' })); await page.waitForTimeout(400)
+  assert(await bar.evaluate(e => e.classList.contains('is-hidden')), `Mobile bar should be hidden over ${target}`)
+}
+await page.goto(`${base}/contact`, { waitUntil: 'networkidle' })
+assert(!(await bar.count()), 'No mobile bar on pages that already show the form')
+
+// Desktop: the Services menu is a keyboard-operable disclosure; CTAs reach working destinations.
 await page.setViewportSize({ width: 1280, height: 900 })
 await page.goto(base, { waitUntil: 'networkidle' })
-assert(await page.locator('[role=tab]').count() === 4, 'Desktop should show four pillar tabs')
-for (let i = 0; i < 4; i++) {
-  await page.locator(`#pillar-tab-${i}`).click()
-  assert(await page.locator(`#pillar-tab-${i}`).getAttribute('aria-selected') === 'true', `Tab ${i} not selected`)
-  assert(await page.locator('.svc-panel:visible').count() === 1 && await page.locator(`#pillar-${i}`).isVisible(), `Tab ${i} did not show its panel`)
-  assert(await page.locator(`#pillar-${i} .svc-chips li`).count() === serviceCounts[i], `Desktop pillar ${i} services`)
-  await page.locator(`#pillar-${i} .svc-cta`).click()
-  assert(await page.locator('select[name="service"]').inputValue() === pillarNames[i], `Desktop CTA ${i} did not preselect ${pillarNames[i]}`)
+const services = page.locator('.nav-services > button')
+await services.focus()
+await page.keyboard.press('Enter')
+assert(await services.getAttribute('aria-expanded') === 'true' && await page.locator('.services-panel').isVisible(), 'Services menu did not open')
+assert(await page.locator('.services-panel-item').count() === 4, 'Services menu should list four pillars')
+await page.keyboard.press('Escape')
+assert(await services.getAttribute('aria-expanded') === 'false' && await page.evaluate(() => document.activeElement.textContent.startsWith('Services')), 'Escape should close the Services menu and return focus')
+const ctas = [['.header-cta', '/contact'], ['.hero .button-primary', '/contact'], ['.hero .button-secondary', '/services'], ['.audit-band .button', '/growth-audit'], ['.final-paths .path-card >> nth=0', '/contact'], ['.final-paths .path-card >> nth=1', '/growth-audit']]
+for (const [selector, destination] of ctas) {
+  await page.goto(base, { waitUntil: 'networkidle' })
+  await page.locator(selector).click()
+  await page.waitForURL(`**${destination}`)
+  assert(await page.getByRole('heading', { level: 1 }).isVisible(), `${selector} → ${destination} did not render`)
 }
-await page.locator('#pillar-tab-3').focus()
-await page.keyboard.press('ArrowRight')
-assert(await page.evaluate(() => document.activeElement.id) === 'pillar-tab-0' && await page.locator('#pillar-0').isVisible(), 'ArrowRight should wrap to the first pillar')
-await page.keyboard.press('End')
-assert(await page.locator('#pillar-3').isVisible(), 'End key should select the last pillar')
+// A service page's CTA preselects its pillar in the form.
+await page.goto(`${base}/services/business-automation`, { waitUntil: 'networkidle' })
+await page.locator('.page-hero .button-primary').click()
+await page.waitForURL('**/contact?service=business-automation')
+assert(await page.locator('select[name="service"]').inputValue() === 'Automation & Retention', 'Service CTA did not preselect its pillar')
+// Client-side validation: accessible messages, focus on the summary.
+await page.getByRole('button', { name: 'Send enquiry' }).click()
+if (await page.getByRole('button', { name: 'Send enquiry' }).isEnabled()) {
+  assert(await page.locator('.form-summary').isVisible(), 'Validation summary missing')
+  assert(await page.getByLabel('Your name').getAttribute('aria-invalid') === 'true', 'Invalid fields should be marked')
+} else {
+  assert(await page.locator('.form-notice').isVisible(), 'An unconnected form must say that nothing can be sent')
+}
+
+// Reduced motion: the engine is fully lit with no intro sequence.
+const calm = await browser.newPage({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' })
+await calm.goto(base, { waitUntil: 'networkidle' })
+await calm.waitForTimeout(1200)
+assert(await calm.locator('.engine-arc.is-on').count() === 4, 'With reduced motion every pillar should be shown at once')
+await calm.close()
+
 assert(!errors.length, errors.join('\n'))
-console.log('PASS mobile menu (5 items + Let’s Talk), mobile stepper (one pillar at a time, no auto-advance, next/previous wrap, step tabs, arrow keys, swipe, 4 visuals, all 28 services, section ≤1,100px), desktop tabs (click + arrow keys), each pillar CTA → pillar preselected, problem map, ecosystem, industries, CTA → form prefill, audit mode, required/email/phone validation, honest unconfigured form state, contact panel with no placeholder links, mobile bar clear of services/contact/footer, footer → pillar; no JavaScript exceptions, console errors or HTTP errors')
+console.log('PASS 404 page, mobile menu (keyboard, inert page, Escape, navigation, focus/scroll/title on route change), mobile action bar, Services menu (keyboard + Escape), CTA destinations, service → form prefill, form validation or honest unconnected state, reduced motion; no JavaScript exceptions, console errors or HTTP errors')
 await browser.close()

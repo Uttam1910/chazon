@@ -27,6 +27,27 @@ export const PILLAR_INFO: Record<Pillar, { verb: string; title: string }> = {
   AUTOMATE: { verb: 'Automate', title: 'Automation & Retention' },
 }
 
+/** Each pillar's page on the public website (/services/<slug>). */
+export const PILLAR_SLUGS: Record<Pillar, string> = {
+  BUILD: 'website-development',
+  GROW: 'digital-growth',
+  CONVERT: 'conversion-optimisation',
+  AUTOMATE: 'business-automation',
+}
+
+/** The website's fixed, indexable pages, in sitemap order. Insights and case studies are added from the database. */
+export const PUBLIC_PAGES = [
+  '/',
+  '/services',
+  ...PILLARS.map(p => `/services/${PILLAR_SLUGS[p]}`),
+  '/growth-audit',
+  '/approach',
+  '/about',
+  '/contact',
+  '/privacy',
+  '/terms',
+] as const
+
 export const INSIGHT_CATEGORIES = [
   'Digital Revenue',
   'Performance Marketing',

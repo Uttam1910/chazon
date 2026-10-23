@@ -9,4 +9,7 @@ export default tseslint.config(
   { files: ['apps/api/**/*.ts', '**/vite.config.ts'], languageOptions: { globals: globals.node } },
   // Library code, not an app entry: React Fast Refresh boundaries don't apply.
   { files: ['packages/**/*.{ts,tsx}'], rules: { 'react-refresh/only-export-components': 'off' } },
+  // Build-time prerender entry: never loaded by the dev server.
+  { files: ['apps/web/src/entry-server.tsx'], rules: { 'react-refresh/only-export-components': 'off' } },
+  { files: ['apps/web/scripts/**/*.mjs', 'scripts/**/*.mjs'], languageOptions: { globals: globals.node } },
 )

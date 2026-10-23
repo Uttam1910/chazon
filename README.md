@@ -4,7 +4,7 @@ An npm-workspaces monorepo with three apps that run together:
 
 | App | Path | Dev URL | What it is |
 | --- | --- | --- | --- |
-| Website | `apps/web` | http://localhost:5173 | The public Chazon website (React + Vite). Renders its built-in copy, then shows what the Admin has published. |
+| Website | `apps/web` | http://localhost:5173 | The public Chazon website (React + Vite, prerendered to static HTML per page). Renders its built-in copy, then shows what the Admin has published. |
 | Admin | `apps/admin` | http://localhost:5174 | Chazon Admin: leads, growth audits, content, media, settings, SEO, users (React + Vite + React Router). |
 | API | `apps/api` | http://localhost:5000 | REST API (Express 5, Prisma 7, PostgreSQL). Auth, CMS, enquiry intake, Resend email. |
 | Shared | `packages/shared` | — | Domain constants, API types and a safe Markdown renderer used by all three. |
@@ -51,6 +51,7 @@ Run one app at a time with `npm run dev:web`, `npm run dev:admin` or `npm run de
 | `npm run build` | Builds API (`apps/api/dist`), website (`apps/web/dist`) and Admin (`apps/admin/dist`). Also `build:web`, `build:admin`, `build:api`. |
 | `npm run start:api` | Runs the built API (`node apps/api/dist/index.js`). |
 | `npm run typecheck` / `npm run lint` | TypeScript in every workspace / ESLint across the repo. |
+| `npm test` | Website unit and render tests (Vitest): form validation and submission outcomes, contact channels, every page's metadata, links and structured data. |
 | `npm run db:migrate` | `prisma migrate dev` (development: creates and applies migrations). |
 | `npm run db:deploy` | `prisma migrate deploy` (production: applies committed migrations only, never resets data). |
 | `npm run db:seed` | Idempotent baseline content. Existing rows, including Admin edits, are never overwritten. |
@@ -65,7 +66,7 @@ Everything comes from environment variables. See `.env.example` for the full lis
 - **Required for the API:** `AUTH_SECRET` (32+ chars), plus `ADMIN_EMAIL` + `ADMIN_PASSWORD` (12+ chars) for the Admin login.
 - **Database:** `DATABASE_URL` is optional while no database exists. The API still starts and the `.env` Admin can sign in; the Admin shows a "Database not connected" banner, and the website uses its built-in content. Set it and run `npm run db:migrate` to enable leads and content. In production also `PUBLIC_SITE_URL`, `ADMIN_URL` and `API_URL`. The API refuses to start without them.
 - **Optional:** `DIRECT_URL` (non-pooled URL for migrations), `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `CHAZON_NOTIFICATION_EMAIL`, `UPLOAD_DIR`, `TRUST_PROXY`, `SESSION_TTL_HOURS`, `PORT`.
-- **Website/Admin builds:** `VITE_API_URL` (defaults to `http://localhost:5000` in dev; **must be set for production builds**, otherwise the website runs without the API, as it did before) and `VITE_SITE_URL`. `VITE_CONTACT_EMAIL`, `VITE_PHONE`, `VITE_WHATSAPP_NUMBER` and `VITE_*_URL` are fallbacks used until set in Admin → Website Settings. `VITE_ENQUIRY_ENDPOINT` overrides where enquiries go.
+- **Website/Admin builds:** `VITE_API_URL` (defaults to `http://localhost:5000` in dev; **must be set for production builds**, otherwise the website runs without the API, as it did before) and `VITE_SITE_URL`. `VITE_CONTACT_EMAIL`, `VITE_PHONE`, `VITE_WHATSAPP_NUMBER` and `VITE_*_URL` are fallbacks used until set in Admin → Website Settings. `VITE_ENQUIRY_ENDPOINT` overrides where enquiries go. `VITE_BOOKING_URL` (optional) adds a booking link. Without an enquiry endpoint the form says plainly that it can't send, and never shows a success message.
 
 ## How the pieces connect
 
@@ -74,8 +75,8 @@ Everything comes from environment variables. See `.env.example` for the full lis
 - **Content.** `GET /api/public/site` returns published services (grouped under the four fixed pillars), industries, testimonials, case-study summaries, recent insights, settings and SEO. The homepage renders the built-in copy immediately and swaps in this data when it arrives.
   - Testimonials stay hidden until one is published.
   - The Work and Insights sections keep their "in preparation" frameworks until real content is published.
-- **New public pages:** `/insights`, `/insights/:slug` and `/work/:slug`. **Static hosts must rewrite these paths to `index.html`** (SPA fallback). For example, Netlify: `/* /index.html 200`; Vercel: a rewrite to `/index.html`.
-- **SEO.** The homepage's built-in `<head>` tags remain the defaults for crawlers that don't run JavaScript. Admin → SEO overrides them per page (global, home, insights, work). Articles and case studies set their own title, description, canonical and OG tags. `GET /api/public/sitemap.xml` lists the homepage, the Insights listing and every published article and case study. The build-time `sitemap.xml` still lists only the homepage, so point Search Console at the API sitemap (or proxy it to `/sitemap.xml`).
+- **Public pages:** `/`, `/services`, one page per pillar (`/services/website-development`, `/services/digital-growth`, `/services/conversion-optimisation`, `/services/business-automation`), `/growth-audit`, `/approach`, `/about`, `/contact`, `/privacy`, `/terms`, plus `/insights` and `/work` (listings). These are prerendered to `dist/<path>/index.html`. Articles and case studies (`/insights/:slug`, `/work/:slug`) are served from `dist/app-shell.html`, an empty shell, so **static hosts must rewrite those two patterns to `/app-shell.html`** (the Vercel configs do). Unknown paths get `dist/404.html` with a 404 status. Old homepage links such as `/?enquiry=audit#contact` still reach the right form.
+- **SEO.** Every fixed page is prerendered at build time with its own title, description, canonical, Open Graph tags and JSON-LD (Organization, WebSite, BreadcrumbList, Service, FAQPage, only describing what the page shows), so crawlers get full content without running JavaScript. Admin → SEO overrides the homepage, Insights and Work metadata (global robots flags and OG image apply everywhere). Articles and case studies set their own title, description, canonical and OG tags in the browser. The build writes `sitemap.xml` with the fixed pages (`PUBLIC_PAGES` in `packages/shared`); `GET /api/public/sitemap.xml` lists the same pages plus every published article and case study, and both are named in `robots.txt`. Canonicals, structured data and the sitemap need `VITE_SITE_URL`.
 - **Media.** Uploads are decoded with sharp (which rejects non-images and SVG), auto-rotated, stripped of metadata, resized to ≤2400px and stored as WebP in `UPLOAD_DIR` (default `apps/api/uploads`, git-ignored). They are served from `/uploads/…`. Use persistent storage in production.
 
 ## Admin
@@ -102,17 +103,20 @@ The key is used only by the API and never reaches a browser bundle. Without thes
 
 ## Website content notes
 
-Copy that isn't managed in the Admin (hero, story, approach, founder, footer service links) lives in `apps/web/src/content.ts`. Sections are in `apps/web/src/sections/`. Shared layout is in `apps/web/src/components/Layout.tsx`, and design tokens are in `apps/web/src/styles.css`.
+Copy that isn't managed in the Admin (service-page detail, problems, approach, audit scope, FAQs, founder) lives in `apps/web/src/content.ts`. Pages are in `apps/web/src/pages/`, shared sections and layout in `apps/web/src/components/`, routes in `apps/web/src/routes.tsx`, metadata and structured data in `apps/web/src/seo.ts`, and design tokens in `apps/web/src/styles.css` (Instrument Serif, Geist and Geist Mono, self-hosted via Fontsource). Service titles and short descriptions published in the Admin replace the built-in lists on the service pages.
 
 Before launch:
 
-- Replace the labelled Binny Rogin portrait placeholder (`founder.photo` in `content.ts`).
+- Add an approved Binny Rogin portrait (`founder.photo` in `content.ts`); until then a typographic monogram is shown.
+- Have the privacy notice and website terms (`apps/web/src/pages/Legal.tsx`) reviewed. They describe how this site actually handles data, but they are not legal advice.
 - Publish only verified case studies, approved testimonials and real articles. The Admin's editors remind authors not to publish unverified results.
 - The privacy and terms texts in the footer are launch placeholders, not final legal policies.
 
-**Analytics.** `track` in `apps/web/src/config.ts` emits `chazon:analytics` events: `form_submission`, `enquiry_open`, `whatsapp_click` and `contact_click`. Connect a consent-aware GA4/GTM/Meta adapter to them. No tracking scripts or personal form values are included by default.
+**Analytics.** `track` in `apps/web/src/config.ts` emits `chazon:analytics` DOM events: `cta_click` (location, destination), `form_start`, `form_submission`, `form_error` (reason), `service_page_view`, `whatsapp_click`, `contact_click` and `booking_click`. If a tag manager is added to the page (`window.dataLayer` exists), each event is also pushed there as `chazon_<event>`, where its consent settings apply. No tracking script is loaded by default and no form values or personal data are ever included. To use GA4: add GTM with Consent Mode, create triggers on the `chazon_*` events, and update the privacy notice first.
 
-**Browser checks.** `scripts/check-browser.mjs` runs the website's layout and interaction checks at 11 widths. It needs Playwright in `.tools/`; set `CHECK_URL` to test a preview build.
+**Browser checks.** `scripts/check-browser.mjs` checks every page at up to 11 widths (overflow, off-screen content, one H1, named controls, text size, tap targets) plus keyboard navigation of both menus, CTA destinations, the form, the mobile action bar and reduced motion. It needs Playwright in `.tools/` (`npm i --prefix .tools playwright`) and Google Chrome; set `CHECK_URL` to test a preview or production build.
+
+**Booking.** Set `VITE_BOOKING_URL` (an https:// Calendly, Cal.com or similar page) to offer "Book a discovery call" next to the enquiry form. Without it, discovery calls are requested through the form.
 
 ## Deploying on Vercel
 
@@ -121,7 +125,7 @@ Before launch:
 - `https://<your-site>/` → website
 - `https://<your-site>/admin` → Admin
 
-The root `vercel.json` runs `npm run build:vercel` (`scripts/build-vercel.mjs`). It builds the website, builds the Admin with base path `/admin/`, and copies it into `apps/web/dist/admin`. Rewrites make deep links and refreshes work (`/insights/…`, `/work/…`, `/admin/leads/…`). Admin pages are sent with `X-Robots-Tag: noindex`.
+The root `vercel.json` runs `npm run build:vercel` (`scripts/build-vercel.mjs`). It builds the website, builds the Admin with base path `/admin/`, and copies it into `apps/web/dist/admin`. Prerendered pages are served as static files (trailing slashes redirect to the canonical form), rewrites send articles and case studies to the app shell and Admin deep links to the Admin, hashed assets are cached for a year, and Admin pages are sent with `X-Robots-Tag: noindex`.
 
 - **Environment variables** are set in Vercel (Settings → Environment Variables); `.env` is not uploaded.
 - **Demo:** `VITE_DEMO_MODE=true` in Vercel puts the **Admin only** in demo mode (login `demo@chazon.local` / `chazon-demo-2026`). The public website is always built without demo data.

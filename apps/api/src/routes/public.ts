@@ -2,7 +2,7 @@ import { Router, json } from 'express'
 import cors from 'cors'
 import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
-import { ENQUIRY_TYPES, INSIGHT_CATEGORIES, PILLARS, type PublicSite } from '@chazon/shared'
+import { ENQUIRY_TYPES, INSIGHT_CATEGORIES, PILLARS, PUBLIC_PAGES, type PublicSite } from '@chazon/shared'
 import { prisma } from '../db'
 import { env } from '../env'
 import { notifySubmission } from '../lib/email'
@@ -141,7 +141,7 @@ publicRouter.get('/case-studies/:slug', cacheable(60), async (req, res) => {
   })
 })
 
-// Sitemap including published articles and case studies (the build-time sitemap lists only the homepage).
+// Sitemap including published articles and case studies (the build-time sitemap lists only the fixed pages).
 publicRouter.get('/sitemap.xml', cacheable(3600), async (_req, res) => {
   if (!env.PUBLIC_SITE_URL) throw new ApiError(404, 'NOT_CONFIGURED', 'PUBLIC_SITE_URL is not set.')
   const [insights, cases, seo] = await Promise.all([
@@ -151,7 +151,7 @@ publicRouter.get('/sitemap.xml', cacheable(3600), async (_req, res) => {
   ])
   const base = env.PUBLIC_SITE_URL
   const urls: { loc: string; lastmod?: string }[] = [
-    { loc: `${base}/` },
+    ...PUBLIC_PAGES.map(path => ({ loc: `${base}${path}` })),
     ...(insights.length && !seo.insights?.noindex ? [{ loc: `${base}/insights` }] : []),
     ...insights.map(i => ({ loc: `${base}/insights/${i.slug}`, lastmod: i.updatedAt.toISOString() })),
     ...cases.map(c => ({ loc: `${base}/work/${c.slug}`, lastmod: c.updatedAt.toISOString() })),

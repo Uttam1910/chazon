@@ -1,40 +1,22 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App'
-import { config } from './config'
-import { SiteProvider } from './site'
-import { CaseStudyPage, InsightPage, InsightsIndex } from './pages/Content'
+import { StrictMode } from 'react'
+import { createRoot, hydrateRoot } from 'react-dom/client'
+import '@fontsource-variable/geist'
+import '@fontsource-variable/geist-mono'
+import '@fontsource/instrument-serif/400.css'
+import '@fontsource/instrument-serif/400-italic.css'
+import { App } from './App'
+import { sourceDetail } from './config'
 import './styles.css'
 
-// The homepage is the single-page site; published Insights and case studies get their own URLs.
-// (Static hosts must serve index.html for /insights and /work/* — see README.)
-const path = window.location.pathname.replace(/\/+$/, '') || '/'
-const insight = /^\/insights\/([a-z0-9-]+)$/.exec(path)
-const work = /^\/work\/([a-z0-9-]+)$/.exec(path)
-const page = insight ? <InsightPage slug={insight[1]}/> : work ? <CaseStudyPage slug={work[1]}/> : path === '/insights' ? <InsightsIndex/> : <App/>
+// Remember how the visitor arrived (campaign or referring site) before any in-site navigation changes the URL.
+sourceDetail()
 
-if (config.siteUrl) {
-  if (path === '/') {
-    const canonical = document.createElement('link')
-    canonical.rel = 'canonical'
-    canonical.href = config.siteUrl + '/'
-    document.head.append(canonical)
-    const meta = document.createElement('meta')
-    meta.setAttribute('property', 'og:url')
-    meta.content = canonical.href
-    document.head.append(meta)
-  }
-  const schema = document.createElement('script')
-  schema.type = 'application/ld+json'
-  schema.textContent = JSON.stringify({
-    '@context': 'https://schema.org', '@type': 'Organization', name: 'Chazon Digital Ventures', url: config.siteUrl,
-    slogan: 'Revenue-Led Digital Transformation',
-    description: 'Chazon Digital Ventures helps businesses build, optimise and grow their digital revenue channels through strategy, technology, marketing and automation.',
-    founder: { '@type': 'Person', name: 'Binny Rogin' },
-    knowsAbout: ['Digital revenue strategy', 'Website development', 'E-commerce', 'Performance marketing', 'Social media marketing', 'SEO', 'Digital commerce', 'Business automation', 'WhatsApp Business solutions'],
-    ...(config.email ? { email: config.email } : {}), ...(config.phone ? { telephone: config.phone } : {}),
-    address: { '@type': 'PostalAddress', addressLocality: 'Mumbai', addressRegion: 'Maharashtra', addressCountry: 'IN' },
-  })
-  document.head.append(schema)
+// Fixed pages are prerendered at build time (scripts/prerender.mjs) and hydrated here. Articles, case studies and
+// the dev server serve an empty shell, which is rendered from scratch.
+const root = document.getElementById('root')!
+if (root.hasChildNodes()) {
+  // Hydrate with the URL the page was rendered for (no query or hash); the router applies the real one after mount.
+  hydrateRoot(root, <StrictMode><App url={window.location.pathname}/></StrictMode>)
+} else {
+  createRoot(root).render(<StrictMode><App url={window.location.href}/></StrictMode>)
 }
-ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><SiteProvider>{page}</SiteProvider></React.StrictMode>)
