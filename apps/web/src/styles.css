@@ -760,3 +760,59 @@ details[open] .faq-icon::after{transform:rotate(0)}
 .pillar-lead-link{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:.9375rem;color:var(--accent-text);transition:gap .2s var(--ease),color .2s}
 .pillar-lead-link:hover{color:var(--ink);gap:12px}
 .audit-action-row{margin-top:36px;display:flex;flex-wrap:wrap;align-items:center;gap:16px}
+
+/* Interactive Bottleneck Diagnostic */
+.diagnostic{margin-top:clamp(40px,5vw,72px);padding:clamp(28px,4vw,48px);border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:0 4px 20px -8px rgba(20,17,15,.08)}
+.diagnostic-head{display:grid;gap:8px;margin-bottom:28px}
+.diagnostic-head h3{font-size:clamp(1.5rem,1.2rem + 1vw,2rem);font-family:var(--display);font-weight:400}
+.diagnostic-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.diagnostic-btn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:18px 20px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--fg);cursor:pointer;transition:all .2s var(--ease)}
+.diagnostic-btn:hover{border-color:var(--signal);transform:translateY(-2px)}
+.diagnostic-btn.is-selected{border-color:var(--signal);background:#fff;box-shadow:0 0 0 2px var(--signal)}
+.diagnostic-btn-label{font-size:.9375rem;font-weight:600;margin-bottom:6px;color:var(--ink)}
+.diagnostic-btn-sub{font-size:.8125rem;color:var(--fg-3);line-height:1.4}
+.diagnostic-result{margin-top:24px;padding:24px;border-left:3px solid var(--signal);background:var(--paper-2);border-radius:0 8px 8px 0;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px}
+.diagnostic-result-copy{max-width:54ch}
+.diagnostic-result-copy strong{display:block;font-size:1.0625rem;color:var(--ink);margin-bottom:4px}
+.diagnostic-result-copy p{font-size:.9375rem;color:var(--fg-2);margin:0}
+
+/* Approach Stage 01 CTA Box */
+.stage-cta-box{margin-top:clamp(40px,5vw,64px);padding:clamp(28px,4vw,40px);border:1px solid var(--line);border-radius:12px;background:var(--card);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:24px}
+.stage-cta-content{max-width:52ch}
+.stage-cta-content h3{font-family:var(--display);font-size:clamp(1.5rem,1.2rem + 1vw,2rem);font-weight:400;margin-bottom:8px}
+.stage-cta-content p{font-size:.9375rem;color:var(--fg-2)}
+
+/* Founder Direct CTA Card */
+.founder-cta-box{margin-top:clamp(40px,5vw,64px);padding:clamp(28px,4vw,40px);border:1px solid var(--line-strong);border-radius:12px;background:var(--ink);color:var(--paper);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:24px}
+.founder-cta-box h3{color:#fff;font-family:var(--display);font-size:clamp(1.5rem,1.2rem + 1vw,2rem);font-weight:400;margin-bottom:8px}
+.founder-cta-box p{color:var(--on-ink-2);font-size:.9375rem;max-width:54ch}
+
+/* Reassurance Trust Strip */
+.trust-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:32px;padding:20px 24px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.trust-item{display:flex;align-items:center;gap:12px;font-size:.875rem;font-weight:550;color:var(--ink)}
+.trust-item svg{color:var(--signal);flex-shrink:0}
+
+/* Quick WhatsApp Link above form */
+.quick-chat-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;margin-bottom:20px;border:1px solid #cce5d6;background:#eef8f2;border-radius:6px;font-size:.875rem;color:#1e7b4c}
+.quick-chat-banner a{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#166534;text-decoration:underline;text-underline-offset:2px}
+
+/* FAQ Footer CTA */
+.faq-foot-cta{margin-top:clamp(40px,5vw,64px);padding:clamp(24px,4vw,36px);border:1px solid var(--line);border-radius:12px;background:var(--paper-2);text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px}
+.faq-foot-cta h3{font-family:var(--display);font-size:clamp(1.5rem,1.2rem + 1vw,1.875rem);font-weight:400}
+.faq-foot-cta p{max-width:50ch;font-size:.9375rem;color:var(--fg-2)}
+
+/* Floating Conversion Dock */
+.floating-dock{position:fixed;bottom:24px;right:24px;z-index:90;display:flex;align-items:center;gap:10px;padding:8px 12px 8px 16px;border:1px solid var(--line-strong);border-radius:999px;background:rgba(20,17,15,.92);backdrop-filter:blur(10px);color:#fff;box-shadow:0 12px 32px rgba(0,0,0,.25);transition:opacity .3s var(--ease),transform .3s var(--ease)}
+.floating-dock.is-hidden{opacity:0;pointer-events:none;transform:translateY(16px)}
+.dock-status{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.75rem;letter-spacing:.05em;color:var(--on-ink-2)}
+.dock-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px #22c55e}
+.dock-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;font-size:.8125rem;font-weight:600;line-height:1;transition:all .2s var(--ease)}
+.dock-btn-audit{background:var(--signal);color:var(--ink)}
+.dock-btn-audit:hover{background:var(--signal-hover)}
+.dock-btn-wa{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2)}
+.dock-btn-wa:hover{background:rgba(255,255,255,.24)}
+
+@media (max-width:768px){
+  .floating-dock{display:none}
+  .diagnostic-result{flex-direction:column;align-items:flex-start}
+}
