@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { ArrowRight, ArrowUpRight, ChevronDown, Mail, Phone, Instagram, Linkedin, Facebook, Menu, X } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ArrowRight, Mail, Phone, Instagram, Linkedin, Facebook, Menu, X } from 'lucide-react'
 import { track, type Channel } from '../config'
 import { pillarPath } from '../content'
 import { useRouter } from '../location'
@@ -34,62 +34,29 @@ export function ChannelLink({ channel, location, className, children }: { channe
   </a>
 }
 
-/** Primary navigation. Work and Insights appear only once real case studies or articles are published. */
+/** Primary navigation anchors for single-page smooth scrolling. */
 function useNavItems() {
-  const { caseStudies, insights } = useSite()
+  const { path } = useRouter()
+  const isHome = path === '/'
+  const target = (hash: string) => (isHome ? hash : `/${hash}`)
   return [
-    ['Approach', '/approach'],
-    ['About', '/about'],
-    ...(caseStudies.length ? [['Work', '/work'] as const] : []),
-    ...(insights.length ? [['Insights', '/insights'] as const] : []),
-    ['Contact', '/contact'],
+    ['Services', target('#system')],
+    ['Approach', target('#approach')],
+    ['Growth Audit', target('#audit')],
+    ['About', target('#about')],
+    ['Contact', target('#contact')],
   ] as const
 }
 
-const isCurrent = (path: string, to: string) => (to === '/' ? path === '/' : path === to || path.startsWith(`${to}/`))
-
-function ServicesMenu() {
-  const { pillars, settings } = useSite()
-  const { path } = useRouter()
-  const [open, setOpen] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
-  const button = useRef<HTMLButtonElement>(null)
-  const id = useId()
-  useEffect(() => { setOpen(false) }, [path])
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); button.current?.focus() } }
-    const onPointer = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false) }
-    const onFocus = (e: FocusEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false) }
-    document.addEventListener('keydown', onKey)
-    document.addEventListener('pointerdown', onPointer)
-    document.addEventListener('focusin', onFocus)
-    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onPointer); document.removeEventListener('focusin', onFocus) }
-  }, [open])
-  return <div className="nav-services" ref={root}>
-    <button ref={button} type="button" className="nav-link" aria-expanded={open} aria-controls={id} aria-current={isCurrent(path, '/services') ? 'page' : undefined} onClick={() => setOpen(o => !o)}>
-      Services<ChevronDown size={16} aria-hidden="true"/>
-    </button>
-    <div id={id} className="services-panel" hidden={!open}>
-      <ul className="services-panel-grid">
-        {pillars.map((p, i) => <li key={p.key}><Link to={pillarPath(p)} className="services-panel-item">
-          <span className="mono">0{i + 1} · {p.verb}</span><strong>{p.title}</strong><small>{p.scope}</small>
-        </Link></li>)}
-      </ul>
-      <div className="services-panel-foot">
-        <Link to="/services">All services: how the system fits together <ArrowUpRight size={16} aria-hidden="true"/></Link>
-        <Link to="/growth-audit">{settings.ctaAuditLabel} <ArrowUpRight size={16} aria-hidden="true"/></Link>
-      </div>
-    </div>
-  </div>
-}
-
 export function Header() {
-  const { settings, pillars } = useSite()
+  const { settings } = useSite()
   const { path } = useRouter()
   const items = useNavItems()
   const [open, setOpen] = useState(false)
   const toggle = useRef<HTMLButtonElement>(null)
+  const isHome = path === '/'
+  const contactTarget = isHome ? '#contact' : '/#contact'
+
   useEffect(() => { setOpen(false) }, [path])
   useEffect(() => {
     // While the mobile menu is open the rest of the page is inert and doesn't scroll; Escape closes it.
@@ -104,15 +71,15 @@ export function Header() {
     wide.addEventListener('change', onWide)
     return () => { document.removeEventListener('keydown', onKey); wide.removeEventListener('change', onWide); outside.forEach(el => el?.removeAttribute('inert')) }
   }, [open])
+
   return <header className="header" id="top">
     <div className="container header-inner">
       <Brand/>
       <nav className="nav-desktop" aria-label="Main">
-        <ServicesMenu/>
-        {items.map(([label, to]) => <Link key={to} to={to} className="nav-link" aria-current={isCurrent(path, to) ? 'page' : undefined}>{label}</Link>)}
+        {items.map(([label, to]) => <Link key={label} to={to} className="nav-link">{label}</Link>)}
       </nav>
       <div className="header-actions">
-        <Cta to="/contact" location="header" className="header-cta" size="sm">{settings.ctaTalkLabel}</Cta>
+        <Cta to={contactTarget} location="header" className="header-cta" size="sm">{settings.ctaTalkLabel}</Cta>
         <button ref={toggle} type="button" className="menu-toggle" aria-expanded={open} aria-controls="mobile-menu" onClick={() => setOpen(o => !o)}>
           {open ? <X size={22} aria-hidden="true"/> : <Menu size={22} aria-hidden="true"/>}<span className="visually-hidden">{open ? 'Close menu' : 'Open menu'}</span>
         </button>
@@ -120,17 +87,11 @@ export function Header() {
     </div>
     <nav id="mobile-menu" className="mobile-menu" aria-label="Main" hidden={!open}>
       <div className="container">
-        <p className="mono mobile-menu-label">Services</p>
-        <ul className="mobile-menu-services">
-          {pillars.map((p, i) => <li key={p.key}><Link to={pillarPath(p)} aria-current={path === pillarPath(p) ? 'page' : undefined}><span className="mono">0{i + 1}</span>{p.verb}<small>{p.title}</small></Link></li>)}
-          <li><Link to="/services" aria-current={path === '/services' ? 'page' : undefined}><span className="mono">→</span>All services</Link></li>
-        </ul>
+        <p className="mono mobile-menu-label">Navigation</p>
         <ul className="mobile-menu-links">
-          <li><Link to="/" aria-current={path === '/' ? 'page' : undefined}>Home</Link></li>
-          {items.map(([label, to]) => <li key={to}><Link to={to} aria-current={isCurrent(path, to) ? 'page' : undefined}>{label}</Link></li>)}
-          <li><Link to="/growth-audit" aria-current={path === '/growth-audit' ? 'page' : undefined}>{settings.ctaAuditLabel}</Link></li>
+          {items.map(([label, to]) => <li key={label}><Link to={to} onClick={() => setOpen(false)}>{label}</Link></li>)}
         </ul>
-        <Cta to="/contact" location="mobile_menu" className="mobile-menu-cta">{settings.ctaTalkLabel}</Cta>
+        <Cta to={contactTarget} onClick={() => setOpen(false)} location="mobile_menu" className="mobile-menu-cta">{settings.ctaTalkLabel}</Cta>
       </div>
     </nav>
   </header>
@@ -144,6 +105,7 @@ export function MobileBar() {
   const [scrolled, setScrolled] = useState(false)
   const [blocked, setBlocked] = useState(false)
   const formPage = path === '/contact' || path === '/growth-audit'
+
   useEffect(() => {
     if (formPage) return
     const onScroll = () => setScrolled(window.scrollY > window.innerHeight * 0.6)
@@ -157,11 +119,14 @@ export function MobileBar() {
     document.querySelectorAll('[data-no-mobile-bar], footer').forEach(el => observer.observe(el))
     return () => { window.removeEventListener('scroll', onScroll); observer.disconnect() }
   }, [path, formPage])
+
   if (formPage) return null
   const hidden = !scrolled || blocked
+  const contactTarget = path === '/' ? '#contact' : '/#contact'
+
   return <div className={`mobile-bar ${hidden ? 'is-hidden' : ''}`} aria-hidden={hidden || undefined} inert={hidden || undefined}>
     {whatsappReady && <a className="mobile-bar-whatsapp" href={whatsappHref} target="_blank" rel="noopener noreferrer" onClick={() => track('whatsapp_click', { location: 'mobile_bar' })}><WhatsAppIcon size={18}/>WhatsApp<span className="visually-hidden"> (opens in a new tab)</span></a>}
-    <Cta to="/contact" location="mobile_bar" className="mobile-bar-cta" size="sm">{settings.ctaTalkLabel}</Cta>
+    <Cta to={contactTarget} location="mobile_bar" className="mobile-bar-cta" size="sm">{settings.ctaTalkLabel}</Cta>
   </div>
 }
 

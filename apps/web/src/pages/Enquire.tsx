@@ -11,7 +11,7 @@ import { ChannelIcon, ChannelLink, PageShell } from '../components/Layout'
 import { Cta, Eyebrow, Faq, PageHero, SectionHead } from '../components/ui'
 
 /** Configured ways to reach Chazon directly, plus the booking page when one is configured. Nothing is invented. */
-function DirectContact({ location }: { location: string }) {
+export function DirectContact({ location }: { location: string }) {
   const { directChannels, socialChannels, settings } = useSite()
   return <div className="direct">
     {config.bookingUrl && <a className="direct-booking" href={config.bookingUrl} target="_blank" rel="noopener noreferrer" onClick={() => track('booking_click', { location })}>

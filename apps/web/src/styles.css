@@ -749,3 +749,14 @@ details[open] .faq-icon::after{transform:rotate(0)}
   .audit-band{border-radius:24px}
   .final-cta-grid{border-radius:24px}
 }
+
+/* Single Page Navigation & Lead Hub styles */
+#hero,#disconnect,#system,#approach,#audit,#about,#contact,#faq,.pillar-card{scroll-margin-top:calc(var(--header) + 24px)}
+.lead-switch{display:flex;background:var(--paper-2);padding:4px;border-radius:8px;margin-bottom:28px;border:1px solid var(--line);gap:4px}
+.lead-switch-btn{flex:1;min-height:46px;padding:10px 16px;font-family:var(--sans);font-size:.9375rem;font-weight:600;border:none;border-radius:6px;background:transparent;color:var(--fg-2);transition:all .2s var(--ease);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.lead-switch-btn:hover{color:var(--ink)}
+.lead-switch-btn.is-active{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(20,17,15,.1);border:1px solid var(--line)}
+.pillar-lead-cta{margin-top:auto;padding-top:18px;border-top:1px dashed var(--line);display:flex;align-items:center;justify-content:space-between}
+.pillar-lead-link{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:.9375rem;color:var(--accent-text);transition:gap .2s var(--ease),color .2s}
+.pillar-lead-link:hover{color:var(--ink);gap:12px}
+.audit-action-row{margin-top:36px;display:flex;flex-wrap:wrap;align-items:center;gap:16px}

@@ -9,12 +9,16 @@ import { parse, RouterContext, useRouter } from './location'
 function settle(hash: string) {
   const target = hash && document.getElementById(decodeURIComponent(hash.slice(1)))
   if (target) {
-    target.scrollIntoView()
+    const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const behavior: ScrollBehavior = reduceMotion ? 'auto' : 'smooth'
+    target.scrollIntoView({ behavior })
     // Move focus with the view so keyboard and screen-reader users continue from the new section.
     if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1')
     target.focus({ preventScroll: true })
   } else {
-    window.scrollTo(0, 0)
+    const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const behavior: ScrollBehavior = reduceMotion ? 'auto' : 'smooth'
+    window.scrollTo({ top: 0, behavior })
     // A new page: start keyboard and screen-reader users at its main content, as a full page load would.
     document.getElementById('main')?.focus({ preventScroll: true })
   }

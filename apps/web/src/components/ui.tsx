@@ -12,16 +12,20 @@ type CtaProps = {
   variant?: 'primary' | 'secondary' | 'quiet'
   size?: 'sm' | 'md'
   className?: string
+  onClick?: () => void
 }
 
 /** A call to action. Internal destinations route client-side; external ones open in a new tab. */
-export function Cta({ to, children, location, variant = 'primary', size = 'md', className = '' }: CtaProps) {
+export function Cta({ to, children, location, variant = 'primary', size = 'md', className = '', onClick }: CtaProps) {
   const external = /^https?:\/\//.test(to)
   const classes = `button button-${variant} ${size === 'sm' ? 'button-sm' : ''} ${className}`.trim()
-  const onClick = () => track('cta_click', { location, destination: external ? new URL(to).hostname : to.split('?')[0] })
+  const handleClick = () => {
+    track('cta_click', { location, destination: external ? new URL(to).hostname : to.split('?')[0] })
+    onClick?.()
+  }
   const icon = external ? <ArrowUpRight size={18} aria-hidden="true"/> : <ArrowRight size={18} aria-hidden="true"/>
-  if (external) return <a className={classes} href={to} target="_blank" rel="noopener noreferrer" onClick={onClick}>{children}{icon}<span className="visually-hidden"> (opens in a new tab)</span></a>
-  return <Link className={classes} to={to} onClick={onClick}>{children}{icon}</Link>
+  if (external) return <a className={classes} href={to} target="_blank" rel="noopener noreferrer" onClick={handleClick}>{children}{icon}<span className="visually-hidden"> (opens in a new tab)</span></a>
+  return <Link className={classes} to={to} onClick={handleClick}>{children}{icon}</Link>
 }
 
 /** A text link with an arrow, for secondary actions inside content. */
