@@ -825,18 +825,6 @@ details[open] .faq-icon::after{transform:rotate(0)}
 .faq-foot-cta h3{font-family:var(--display);font-size:clamp(1.5rem,1.2rem + 1vw,1.875rem);font-weight:400}
 .faq-foot-cta p{max-width:50ch;font-size:.9375rem;color:var(--fg-2)}
 
-/* Floating Conversion Dock */
-.floating-dock{position:fixed;bottom:24px;right:24px;z-index:90;display:flex;align-items:center;gap:10px;padding:8px 12px 8px 16px;border:1px solid var(--line-strong);border-radius:999px;background:rgba(20,17,15,.92);backdrop-filter:blur(10px);color:#fff;box-shadow:0 12px 32px rgba(0,0,0,.25);transition:opacity .3s var(--ease),transform .3s var(--ease)}
-.floating-dock.is-hidden{opacity:0;pointer-events:none;transform:translateY(16px)}
-.dock-status{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.75rem;letter-spacing:.05em;color:var(--on-ink-2)}
-.dock-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px #22c55e}
-.dock-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;font-size:.8125rem;font-weight:600;line-height:1;transition:all .2s var(--ease)}
-.dock-btn-audit{background:var(--signal);color:var(--ink)}
-.dock-btn-audit:hover{background:var(--signal-hover)}
-.dock-btn-wa{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2)}
-.dock-btn-wa:hover{background:rgba(255,255,255,.24)}
-
 @media (max-width:768px){
-  .floating-dock{display:none}
   .diagnostic-result{flex-direction:column;align-items:flex-start}
 }

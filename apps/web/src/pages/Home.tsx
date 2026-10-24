@@ -17,7 +17,7 @@ import { DirectContact } from './Enquire'
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export function Home() {
-  const { settings, seo, live, socialChannels, caseStudies, testimonials, insights, pillars, whatsappReady, whatsappHref } = useSite()
+  const { settings, seo, live, socialChannels, caseStudies, testimonials, insights, pillars } = useSite()
   const { hash, search } = useRouter()
   const [formType, setFormType] = useState<EnquiryType>('talk')
   const [selectedService, setSelectedService] = useState<string>('')
@@ -67,7 +67,6 @@ export function Home() {
     {insights.length > 0 && <Insights/>}
     <ConversionHub formType={formType} setFormType={setFormType} selectedService={selectedService}/>
     <FaqSection onSelectAudit={handleSelectAudit}/>
-    <FloatingDock onSelectAudit={handleSelectAudit} whatsappReady={whatsappReady} whatsappHref={whatsappHref}/>
   </PageShell>
 }
 
@@ -490,42 +489,4 @@ function FaqSection({ onSelectAudit }: { onSelectAudit: () => void }) {
       </div>
     </div>
   </section>
-}
-
-function FloatingDock({ onSelectAudit, whatsappReady, whatsappHref }: { onSelectAudit: () => void; whatsappReady: boolean; whatsappHref: string }) {
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    const onScroll = () => {
-      const scrolledPastHero = window.scrollY > window.innerHeight * 0.7
-      setVisible(scrolledPastHero)
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    onScroll()
-
-    // Hide floating dock when enquiry form or footer is in view
-    const observer = new IntersectionObserver(entries => {
-      const blocked = entries.some(e => e.isIntersecting)
-      if (blocked) setVisible(false)
-    })
-    document.querySelectorAll('[data-no-mobile-bar], footer').forEach(el => observer.observe(el))
-
-    return () => {
-      window.removeEventListener('scroll', onScroll)
-      observer.disconnect()
-    }
-  }, [])
-
-  return <aside className={`floating-dock ${visible ? '' : 'is-hidden'}`} aria-label="Quick Actions">
-    <div className="dock-status">
-      <span className="dock-dot" aria-hidden="true"/>
-      <span>Advisory Open</span>
-    </div>
-    <a href="#contact" className="dock-btn dock-btn-audit" onClick={onSelectAudit}>
-      <Zap size={14} aria-hidden="true"/>Request Audit
-    </a>
-    {whatsappReady && <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="dock-btn dock-btn-wa">
-      <WhatsAppIcon size={14}/>WhatsApp
-    </a>}
-  </aside>
 }
