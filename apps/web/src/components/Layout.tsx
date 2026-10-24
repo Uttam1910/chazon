@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowRight, Mail, Phone, Instagram, Linkedin, Facebook, Menu, X } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, LayoutTemplate, Mail, Phone, Instagram, Linkedin, Facebook, Menu, MessageCircle, ShieldCheck, Workflow, X, Zap } from 'lucide-react'
 import { track, type Channel } from '../config'
 import { pillarPath } from '../content'
 import { useRouter } from '../location'
@@ -49,7 +49,7 @@ function useNavItems() {
 }
 
 export function Header() {
-  const { settings } = useSite()
+  const { settings, whatsappReady, whatsappHref } = useSite()
   const { path } = useRouter()
   const items = useNavItems()
   const [open, setOpen] = useState(false)
@@ -57,10 +57,18 @@ export function Header() {
   const isHome = path === '/'
   const contactTarget = isHome ? '#contact' : '/#contact'
 
+  const drawerItems = [
+    { label: 'Services', to: isHome ? '#system' : '/#system', subtitle: 'Four Pillars Growth Engine', icon: LayoutTemplate, tag: '01' },
+    { label: 'Our Approach', to: isHome ? '#approach' : '/#approach', subtitle: 'Business-First Methodology', icon: Workflow, tag: '02' },
+    { label: 'Digital Growth Audit', to: isHome ? '#audit' : '/#audit', subtitle: 'Free 9-Point Teardown', icon: Zap, tag: '03', badge: 'Free' },
+    { label: 'About Chazon', to: isHome ? '#about' : '/#about', subtitle: 'Founder Binny Rogin & Industries', icon: ShieldCheck, tag: '04' },
+    { label: 'Contact & Enquiries', to: isHome ? '#contact' : '/#contact', subtitle: 'Start a Project Conversation', icon: MessageCircle, tag: '05' },
+  ]
+
   useEffect(() => { setOpen(false) }, [path])
   useEffect(() => {
     // While the mobile menu is open the rest of the page is inert and doesn't scroll; Escape closes it.
-    const outside = [document.getElementById('main'), document.querySelector('footer'), document.querySelector('.mobile-bar')]
+    const outside = [document.getElementById('main'), document.querySelector('footer'), document.querySelector('.mobile-bar'), document.querySelector('.floating-whatsapp-fab')]
     outside.forEach(el => el?.toggleAttribute('inert', open))
     document.documentElement.classList.toggle('menu-open', open)
     if (!open) return
@@ -72,35 +80,100 @@ export function Header() {
     return () => { document.removeEventListener('keydown', onKey); wide.removeEventListener('change', onWide); outside.forEach(el => el?.removeAttribute('inert')) }
   }, [open])
 
-  return <header className="header" id="top">
-    <div className="container header-inner">
-      <Brand/>
-      <nav className="nav-desktop" aria-label="Main">
-        {items.map(([label, to]) => <Link key={label} to={to} className="nav-link">{label}</Link>)}
-      </nav>
-      <div className="header-actions">
-        <Cta to={contactTarget} location="header" className="header-cta" size="sm">{settings.ctaTalkLabel}</Cta>
-        <button ref={toggle} type="button" className="menu-toggle" aria-expanded={open} aria-controls="mobile-menu" onClick={() => setOpen(o => !o)}>
-          {open ? <X size={22} aria-hidden="true"/> : <Menu size={22} aria-hidden="true"/>}<span className="visually-hidden">{open ? 'Close menu' : 'Open menu'}</span>
-        </button>
+  return <>
+    <header className="header" id="top">
+      <div className="container header-inner">
+        <Brand/>
+        <nav className="nav-desktop" aria-label="Main">
+          {items.map(([label, to]) => <Link key={label} to={to} className="nav-link">{label}</Link>)}
+        </nav>
+        <div className="header-actions">
+          <Cta to={contactTarget} location="header" className="header-cta" size="sm">{settings.ctaTalkLabel}</Cta>
+          <button
+            ref={toggle}
+            type="button"
+            className="menu-toggle"
+            aria-expanded={open}
+            aria-controls="mobile-menu"
+            onClick={() => setOpen(o => !o)}
+            aria-label={open ? 'Close navigation menu' : 'Open navigation menu'}>
+            {open ? <X size={22} aria-hidden="true"/> : <Menu size={22} aria-hidden="true"/>}
+            <span className="visually-hidden">{open ? 'Close menu' : 'Open menu'}</span>
+          </button>
+        </div>
       </div>
-    </div>
-    <nav id="mobile-menu" className="mobile-menu" aria-label="Main" hidden={!open}>
-      <div className="container">
-        <p className="mono mobile-menu-label">Navigation</p>
-        <ul className="mobile-menu-links">
-          {items.map(([label, to]) => <li key={label}><Link to={to} onClick={() => setOpen(false)}>{label}</Link></li>)}
+    </header>
+
+    {/* Luxury Full-Screen Mobile Drawer Menu */}
+    <nav id="mobile-menu" className={`mobile-menu ${open ? 'is-open' : ''}`} aria-label="Mobile Navigation Menu" hidden={!open}>
+      <div className="container mobile-menu-inner">
+        <div className="drawer-header">
+          <div className="drawer-status">
+            <span className="dock-dot" aria-hidden="true"/>
+            <span>Founder-Led Advisory · Mumbai · Open</span>
+          </div>
+          <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--fg-3)' }}>Menu</span>
+        </div>
+
+        <ul className="drawer-nav-list">
+          {drawerItems.map(item => {
+            const Icon = item.icon
+            return <li key={item.to}>
+              <Link to={item.to} className={`drawer-nav-card ${item.badge ? 'is-highlight' : ''}`} onClick={() => setOpen(false)}>
+                <div className="drawer-card-icon">
+                  <Icon size={20} aria-hidden="true"/>
+                </div>
+                <div className="drawer-card-body">
+                  <div className="drawer-card-top">
+                    <strong>{item.label}</strong>
+                    {item.badge && <span className="drawer-card-badge">{item.badge}</span>}
+                  </div>
+                  <small>{item.subtitle}</small>
+                </div>
+                <ArrowRight size={18} className="drawer-card-arrow" aria-hidden="true"/>
+              </Link>
+            </li>
+          })}
         </ul>
-        <Cta to={contactTarget} onClick={() => setOpen(false)} location="mobile_menu" className="mobile-menu-cta">{settings.ctaTalkLabel}</Cta>
+
+        {whatsappReady && (
+          <a
+            href={whatsappHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="drawer-whatsapp-card"
+            onClick={() => { setOpen(false); track('whatsapp_click', { location: 'drawer' }) }}>
+            <div className="drawer-whatsapp-icon">
+              <WhatsAppIcon size={22}/>
+            </div>
+            <div className="drawer-whatsapp-text">
+              <strong>Chat Directly on WhatsApp</strong>
+              <small>Fast response · Speak with Founder Binny Rogin</small>
+            </div>
+            <ArrowUpRight size={18} aria-hidden="true"/>
+          </a>
+        )}
+
+        <div className="drawer-actions">
+          <Cta to={contactTarget} onClick={() => setOpen(false)} location="drawer_cta" className="drawer-main-cta">
+            {settings.ctaTalkLabel} About Your Project
+          </Cta>
+        </div>
+
+        <div className="drawer-footer-info">
+          {settings.phone && <a href={`tel:${settings.phone.replace(/[^\d+]/g, '')}`}><Phone size={14} aria-hidden="true"/> {settings.phone}</a>}
+          {settings.email && <a href={`mailto:${settings.email}`}><Mail size={14} aria-hidden="true"/> {settings.email}</a>}
+          {settings.location && <span>{settings.location}</span>}
+        </div>
       </div>
     </nav>
-  </header>
+  </>
 }
 
 /** Mobile-only action bar. Appears once the visitor has scrolled past the opening screen and hides wherever an
  *  enquiry form, closing call to action or the footer is on screen, so it never covers fields or links. */
 export function MobileBar() {
-  const { whatsappReady, whatsappHref, settings } = useSite()
+  const { settings } = useSite()
   const { path } = useRouter()
   const [scrolled, setScrolled] = useState(false)
   const [blocked, setBlocked] = useState(false)
@@ -125,7 +198,6 @@ export function MobileBar() {
   const contactTarget = path === '/' ? '#contact' : '/#contact'
 
   return <div className={`mobile-bar ${hidden ? 'is-hidden' : ''}`} aria-hidden={hidden || undefined} inert={hidden || undefined}>
-    {whatsappReady && <a className="mobile-bar-whatsapp" href={whatsappHref} target="_blank" rel="noopener noreferrer" onClick={() => track('whatsapp_click', { location: 'mobile_bar' })}><WhatsAppIcon size={18}/>WhatsApp<span className="visually-hidden"> (opens in a new tab)</span></a>}
     <Cta to={contactTarget} location="mobile_bar" className="mobile-bar-cta" size="sm">{settings.ctaTalkLabel}</Cta>
   </div>
 }
@@ -183,6 +255,23 @@ export function Footer() {
   </footer>
 }
 
+/** The single persistent floating WhatsApp action button on the bottom right */
+export function FloatingWhatsApp() {
+  const { whatsappReady, whatsappHref } = useSite()
+  if (!whatsappReady) return null
+  return <a
+    href={whatsappHref}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="floating-whatsapp-fab"
+    aria-label="Direct WhatsApp chat with Founder"
+    title="Chat directly on WhatsApp"
+    onClick={() => track('whatsapp_click', { location: 'floating_fab' })}>
+    <WhatsAppIcon size={26}/>
+    <span className="visually-hidden">Chat directly on WhatsApp (opens in a new tab)</span>
+  </a>
+}
+
 export function PageShell({ children }: { children: ReactNode }) {
   return <>
     <a className="skip-link" href="#main">Skip to content</a>
@@ -190,5 +279,6 @@ export function PageShell({ children }: { children: ReactNode }) {
     <main id="main" tabIndex={-1}>{children}</main>
     <Footer/>
     <MobileBar/>
+    <FloatingWhatsApp/>
   </>
 }

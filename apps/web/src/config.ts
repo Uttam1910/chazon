@@ -10,7 +10,7 @@ export const config = {
   apiUrl,
   email: import.meta.env.VITE_CONTACT_EMAIL || '',
   phone: import.meta.env.VITE_PHONE || '',
-  whatsapp: import.meta.env.VITE_WHATSAPP_NUMBER || '',
+  whatsapp: import.meta.env.VITE_WHATSAPP_NUMBER || '919820000000',
   // An explicit endpoint wins; otherwise enquiries go to the Chazon API when one is configured.
   enquiryEndpoint: import.meta.env.VITE_ENQUIRY_ENDPOINT || (apiUrl ? `${apiUrl}/api/public/enquiries` : ''),
   instagram: import.meta.env.VITE_INSTAGRAM_URL || '',
