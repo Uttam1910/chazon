@@ -5,12 +5,13 @@ import { prisma } from './db'
 import { env } from './env'
 import { requireAdminOrigin, requireAuth, requireRole } from './lib/auth'
 import { errorHandler, ok } from './lib/http'
+import { auditAnalyzerRouter } from './routes/audit-analyzer'
 import { auditsRouter } from './routes/audits'
 import { authRouter } from './routes/auth'
 import { industriesRouter, servicesRouter, testimonialsRouter } from './routes/catalog'
 import { dashboardRouter } from './routes/dashboard'
 import { caseStudiesRouter, insightsRouter } from './routes/editorial'
-import { leadsRouter } from './routes/leads'
+import { adminEnquiriesRouter, publicEnquiriesRouter } from './routes/enquiries'
 import { mediaRouter } from './routes/media'
 import { publicRouter } from './routes/public'
 import { seoRouter, settingsRouter } from './routes/settings'
@@ -35,10 +36,18 @@ export function createApp() {
     setHeaders: res => { res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'); res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'") },
   }))
 
-  // Public website endpoints (their own CORS rules).
+  // Public enquiry intake (Section 7: POST /api/enquiries)
+  app.use('/api/enquiries', publicEnquiriesRouter)
+  app.use('/api/public/enquiries', publicEnquiriesRouter)
+
+  // Public live website audit analyzer (Section 6)
+  app.use('/api/audit', auditAnalyzerRouter)
+  app.use('/api/public/audit', auditAnalyzerRouter)
+
+  // Public website catalog, content & SEO reads
   app.use('/api/public', publicRouter)
 
-  // Everything below is the Admin API: credentialed CORS from the Admin origin only, JSON bodies, origin check.
+  // Protected Admin API: credentialed CORS from the Admin origin only, JSON bodies, origin check.
   const admin = Router()
   admin.use(cors({ origin: env.ADMIN_URL || false, credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], maxAge: 600 }))
   admin.use(json({ limit: '1mb' }))
@@ -46,7 +55,8 @@ export function createApp() {
   admin.use('/auth', authRouter)
   admin.use(requireAuth)
   admin.use('/dashboard', dashboardRouter)
-  admin.use('/leads', leadsRouter)
+  admin.use('/enquiries', adminEnquiriesRouter)
+  admin.use('/leads', adminEnquiriesRouter)
   admin.use('/audits', auditsRouter)
   admin.use('/services', servicesRouter)
   admin.use('/case-studies', caseStudiesRouter)
@@ -57,6 +67,9 @@ export function createApp() {
   admin.use('/seo', seoRouter)
   admin.use('/settings', settingsRouter)
   admin.use('/users', requireRole('ADMIN'), usersRouter)
+
+  // Mount admin at /api/admin (standard) and /api (for existing admin client calls)
+  app.use('/api/admin', admin)
   app.use('/api', admin)
 
   app.use((_req, res) => res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Not found' } }))

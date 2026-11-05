@@ -1,10 +1,17 @@
 // Domain vocabulary shared by the public website, the Admin and the API.
 // Values match the database enums; labels are what people see.
 
-export const LEAD_STATUSES = ['NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL_SENT', 'WON', 'LOST'] as const
+export const LEAD_STATUSES = ['NEW', 'REVIEWED', 'CONTACTED', 'QUALIFIED', 'PROPOSAL_SENT', 'WON', 'LOST', 'ARCHIVED'] as const
 export type LeadStatus = (typeof LEAD_STATUSES)[number]
 export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
-  NEW: 'New', CONTACTED: 'Contacted', QUALIFIED: 'Qualified', PROPOSAL_SENT: 'Proposal sent', WON: 'Won', LOST: 'Lost',
+  NEW: 'New',
+  REVIEWED: 'Reviewed',
+  CONTACTED: 'Contacted',
+  QUALIFIED: 'Qualified',
+  PROPOSAL_SENT: 'Proposal sent',
+  WON: 'Won',
+  LOST: 'Lost',
+  ARCHIVED: 'Archived',
 }
 
 export const AUDIT_STATUSES = ['NEW', 'REVIEWING', 'AUDIT_READY', 'SENT', 'CLOSED'] as const
@@ -35,11 +42,23 @@ export const PILLAR_SLUGS: Record<Pillar, string> = {
   AUTOMATE: 'business-automation',
 }
 
+export const SERVICE_PAGES = [
+  '/services/website-development',
+  '/services/landing-page-development',
+  '/services/ecommerce-development',
+  '/services/seo-services',
+  '/services/local-seo',
+  '/services/conversion-optimisation',
+  '/services/business-automation',
+  '/services/ai-integration',
+] as const
+
 /** The website's fixed, indexable pages, in sitemap order. Insights and case studies are added from the database. */
 export const PUBLIC_PAGES = [
   '/',
   '/services',
-  ...PILLARS.map(p => `/services/${PILLAR_SLUGS[p]}`),
+  ...SERVICE_PAGES,
+  '/website-audit',
   '/growth-audit',
   '/approach',
   '/about',

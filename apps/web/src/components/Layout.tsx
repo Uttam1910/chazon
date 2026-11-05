@@ -88,7 +88,10 @@ export function Header() {
           {items.map(([label, to]) => <Link key={label} to={to} className="nav-link">{label}</Link>)}
         </nav>
         <div className="header-actions">
-          <Cta to={contactTarget} location="header" className="header-cta" size="sm">{settings.ctaTalkLabel}</Cta>
+          <Cta to={contactTarget} location="header" className="header-cta" size="sm">
+            <span className="desktop-only">{settings.ctaTalkLabel}</span>
+            <span className="mobile-only">Discuss</span>
+          </Cta>
           <button
             ref={toggle}
             type="button"

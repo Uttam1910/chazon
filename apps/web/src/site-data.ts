@@ -24,7 +24,7 @@ const defaultSettings: PublicSettings = {
   companyName: 'Chazon Digital Ventures', tagline: 'Revenue-Led Digital Transformation', description: '',
   email: config.email, phone: config.phone, whatsapp: config.whatsapp, location: 'Mumbai, Maharashtra',
   linkedinUrl: config.linkedin, instagramUrl: config.instagram, facebookUrl: config.facebook,
-  ctaTalkLabel: 'Let’s Talk', ctaAuditLabel: 'Get a Digital Growth Audit',
+  ctaTalkLabel: 'Discuss Your Project', ctaAuditLabel: 'Get a Free Website Audit',
 }
 
 export function compose(site?: PublicSite): SiteData {

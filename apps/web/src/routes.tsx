@@ -2,8 +2,17 @@ import type { ReactNode } from 'react'
 import { PILLAR_SLUGS, PILLARS } from '@chazon/shared'
 import { Home } from './pages/Home'
 import { ServicePage, ServicesIndex } from './pages/Services'
+import {
+  DedicatedServicePage,
+  ECOMMERCE_DEV,
+  AI_INTEGRATION,
+  LANDING_PAGE_DEV,
+  LOCAL_SEO,
+  SEO_SERVICES,
+  WebsiteAuditPage,
+} from './pages/SearchLandingPages'
 import { About, Approach } from './pages/Company'
-import { Contact, GrowthAudit } from './pages/Enquire'
+import { Contact } from './pages/Enquire'
 import { NotFound, Privacy, Terms } from './pages/Legal'
 import { CaseStudyPage, InsightPage, InsightsIndex, WorkIndex } from './pages/Content'
 
@@ -13,7 +22,13 @@ const pages: Record<string, () => ReactNode> = {
   '/': () => <Home/>,
   '/services': () => <ServicesIndex/>,
   ...Object.fromEntries(PILLARS.map((p, i) => [`/services/${PILLAR_SLUGS[p]}`, () => <ServicePage index={i}/>])),
-  '/growth-audit': () => <GrowthAudit/>,
+  '/services/landing-page-development': () => <DedicatedServicePage config={LANDING_PAGE_DEV}/>,
+  '/services/ecommerce-development': () => <DedicatedServicePage config={ECOMMERCE_DEV}/>,
+  '/services/seo-services': () => <DedicatedServicePage config={SEO_SERVICES}/>,
+  '/services/local-seo': () => <DedicatedServicePage config={LOCAL_SEO}/>,
+  '/services/ai-integration': () => <DedicatedServicePage config={AI_INTEGRATION}/>,
+  '/website-audit': () => <WebsiteAuditPage mode="audit"/>,
+  '/growth-audit': () => <WebsiteAuditPage mode="growth"/>,
   '/approach': () => <Approach/>,
   '/about': () => <About/>,
   '/contact': () => <Contact/>,

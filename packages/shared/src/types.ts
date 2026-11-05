@@ -77,3 +77,180 @@ export type PublicSite = {
   caseStudies: PublicCaseStudySummary[]
   insights: PublicInsightSummary[]
 }
+
+// ---------- Dynamic Enquiry & Growth Analyzer Types ----------
+
+export type EnquiryGoal =
+  | 'build-new'
+  | 'improve-existing'
+  | 'seo-visibility'
+  | 'generate-leads'
+  | 'improve-conversions'
+  | 'automate-ops'
+  | 'build-ecommerce'
+  | 'integrate-ai'
+  | 'multiple-services'
+  | 'need-guidance'
+
+export type PreferredContactMethod = 'WhatsApp' | 'Phone' | 'Email'
+export type BusinessStage = 'New business' | 'Existing business' | 'Growing business' | 'Established business'
+
+export type DynamicBuildAnswers = {
+  isNewOrRedesign?: 'New website' | 'Existing website redesign'
+  websiteType?: 'Business website' | 'Landing page' | 'E-commerce' | 'Portfolio' | 'Web application' | 'Custom platform'
+  hasDomain?: 'Yes' | 'No' | 'Need help choosing'
+  contentStatus?: 'Ready' | 'In progress' | 'Need Chazon to create'
+  pageCount?: '1–5 pages' | '6–15 pages' | '15–30 pages' | '30+ pages'
+  needsPayment?: boolean
+  features?: string[]
+  referenceUrl?: string
+}
+
+export type DynamicGrowAnswers = {
+  hasWebsite?: boolean
+  websiteUrl?: string
+  primaryGoal?: 'More Google visibility' | 'More organic visitors' | 'Local customers' | 'More enquiries' | 'Better content strategy'
+  currentInvestment?: 'Currently investing' | 'Tried in past' | 'Never invested'
+  usesSearchConsole?: 'Yes' | 'No' | 'Not sure'
+  targetLocations?: string
+  targetKeywords?: string
+}
+
+export type DynamicConvertAnswers = {
+  targetAction?: 'Call' | 'Submit an enquiry' | 'Book an appointment' | 'Purchase' | 'Contact through WhatsApp'
+  conversionProblem?: 'High traffic low enquiries' | 'High bounce rate' | 'Drop-off at checkout/form' | 'Poor mobile conversions' | 'Not sure'
+  hasWebsite?: boolean
+  websiteUrl?: string
+  trackingStatus?: 'GA4 / Meta Pixel' | 'Basic tracking' | 'Not tracking' | 'Not sure'
+  journeyToImprove?: string
+}
+
+export type DynamicAutomateAnswers = {
+  processesToAutomate?: string[]
+  currentTools?: string
+  usesCrm?: 'Yes' | 'No' | 'Looking for one'
+  whatsAppVolume?: 'High volume' | 'Moderate' | 'Want to start' | 'None'
+  needsAutoFollowUp?: boolean
+  needsAi?: 'Yes AI responses' | 'Not sure' | 'No'
+  externalIntegrations?: string
+  manualWorkflowDescription?: string
+}
+
+export type DynamicEcommerceAnswers = {
+  hasStore?: boolean
+  platform?: 'Shopify' | 'WooCommerce' | 'Custom platform' | 'None yet'
+  productCount?: '1–10 products' | '11–100 products' | '100–1,000 products' | '1,000+ products'
+  needsPayment?: boolean
+  needsShipping?: boolean
+  needsInventory?: boolean
+  needsAccounts?: boolean
+  needsOrderManagement?: boolean
+}
+
+export type DynamicAiAnswers = {
+  aiCapabilities?: string[]
+  hasSoftware?: boolean
+  description?: string
+}
+
+export type DynamicFormAnswers = {
+  build?: DynamicBuildAnswers
+  grow?: DynamicGrowAnswers
+  convert?: DynamicConvertAnswers
+  automate?: DynamicAutomateAnswers
+  ecommerce?: DynamicEcommerceAnswers
+  ai?: DynamicAiAnswers
+  additionalNotes?: string
+}
+
+export type EnquiryBusinessInfo = {
+  businessName: string
+  industry: string
+  website?: string
+  location?: string
+  businessStage: BusinessStage
+  targetAudience: string
+  description?: string
+}
+
+export type EnquiryContactInfo = {
+  name: string
+  email: string
+  phone: string
+  preferredContact: PreferredContactMethod
+  message?: string
+  consentToContact: boolean
+  marketingConsent?: boolean
+}
+
+export type AuditIssue = {
+  id: string
+  category: 'performance' | 'seo' | 'mobile' | 'conversion'
+  severity: 'critical' | 'warning' | 'good'
+  title: string
+  description: string
+  recommendation: string
+  type?: 'measured' | 'detected' | 'manual_review'
+}
+
+export type AuditAnalysisResult = {
+  id: string
+  url: string
+  normalizedUrl: string
+  overallScore: number
+  scores: {
+    performance: number
+    seo: number
+    mobile: number
+    conversion: number
+  }
+  metrics: {
+    responseTimeMs: number
+    pageSizeKb: number
+    hasSsl: boolean
+    hasViewport: boolean
+    title: string | null
+    titleLength: number
+    metaDescription: string | null
+    metaDescLength: number
+    hasCanonical: boolean
+    hasOpenGraph: boolean
+    h1Count: number
+    h2Count: number
+    imgTotal: number
+    imgWithoutAlt: number
+    hasTelLink: boolean
+    hasMailto: boolean
+    hasWhatsApp: boolean
+    hasForm: boolean
+    hasTracking: boolean
+  }
+  issues: AuditIssue[]
+  analyzedAt: string
+}
+
+export type SmartEnquiryPayload = {
+  goals: EnquiryGoal[]
+  dynamicAnswers: DynamicFormAnswers
+  business: EnquiryBusinessInfo
+  budget?: string
+  timeline: string
+  contact: EnquiryContactInfo
+  auditRef?: string
+  auditSummary?: {
+    overallScore: number
+    scores: { performance: number; seo: number; mobile: number; conversion: number }
+    topBottlenecks: string[]
+  }
+  company_url?: string // honeypot
+  form_started?: number
+  source_detail?: string
+}
+
+export type SmartEnquiryResponse = {
+  received: boolean
+  reference: string
+  message: string
+  nextSteps: string[]
+  whatsAppHref?: string
+}

@@ -4,7 +4,7 @@ import type { PageMeta } from '@chazon/shared'
 import { usePageTitle } from '../layout/title'
 
 const tones: Record<string, string> = {
-  NEW: 'orange', CONTACTED: 'blue', QUALIFIED: 'violet', PROPOSAL_SENT: 'amber', WON: 'green', LOST: 'grey',
+  NEW: 'orange', REVIEWED: 'blue', CONTACTED: 'blue', QUALIFIED: 'violet', PROPOSAL_SENT: 'amber', WON: 'green', LOST: 'grey',
   REVIEWING: 'blue', AUDIT_READY: 'violet', SENT: 'green', CLOSED: 'grey',
   DRAFT: 'amber', PUBLISHED: 'green', ARCHIVED: 'grey', ADMIN: 'orange', EDITOR: 'blue',
 }

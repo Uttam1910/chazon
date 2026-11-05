@@ -29,34 +29,60 @@ const layout = (body: string) => `<!doctype html><html><body style="margin:0;bac
 <p style="margin-top:32px;font-size:12px;color:#8c8e88">Chazon Digital Ventures · Revenue-Led Digital Transformation</p></div></body></html>`
 
 export type Submission = {
-  id: string; kind: 'lead' | 'audit'; name: string; businessName: string; email: string; phone: string
-  website?: string | null; category?: string | null; service?: string | null; budget?: string | null; message?: string | null
+  id: string
+  reference?: string | null
+  kind: 'lead' | 'audit'
+  name: string
+  businessName: string
+  email: string
+  phone: string
+  preferredContact?: string | null
+  website?: string | null
+  category?: string | null
+  service?: string | null
+  services?: string[] | null
+  budget?: string | null
+  timeline?: string | null
+  message?: string | null
+  auditRef?: string | null
 }
 
 function notification(s: Submission): Email {
   const label = s.kind === 'audit' ? 'Digital Growth Audit request' : 'New enquiry'
   const rows: [string, string | null | undefined][] = [
-    ['Name', s.name], ['Business', s.businessName], ['Email', s.email], ['Phone', s.phone], ['Website / Instagram', s.website],
-    ['Category', s.category], ['Requirement', s.service], ['Monthly budget', s.budget], [s.kind === 'audit' ? 'Audit focus' : 'Message', s.message],
+    ['Reference', s.reference],
+    ['Name', s.name],
+    ['Business', s.businessName],
+    ['Email', s.email],
+    ['Phone / WhatsApp', s.phone],
+    ['Preferred Contact', s.preferredContact],
+    ['Website / Instagram', s.website],
+    ['Industry', s.category],
+    ['Requirement / Goals', s.service],
+    ['Project Timeline', s.timeline],
+    ['Budget', s.budget],
+    ['Audit Reference', s.auditRef],
+    [s.kind === 'audit' ? 'Audit focus' : 'Message', s.message],
   ]
   const link = env.ADMIN_URL ? `${env.ADMIN_URL}/${s.kind === 'audit' ? 'audits' : 'leads'}/${s.id}` : ''
   return {
     to: env.CHAZON_NOTIFICATION_EMAIL!,
     replyTo: s.email,
-    subject: `${label}: ${s.businessName} (${s.name})`,
-    text: `${label}\n\n${rows.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n')}${link ? `\n\nOpen in Admin: ${link}` : ''}`,
-    html: layout(`<h1 style="font-size:20px;margin:0 0 16px">${label}</h1><table style="border-collapse:collapse;width:100%;font-size:14px">${rows.filter(([, v]) => v)
+    subject: `[${s.reference || 'CHZ'}] ${label}: ${s.businessName} (${s.name})`,
+    text: `${label} [${s.reference || 'CHZ'}]\n\n${rows.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n')}${link ? `\n\nOpen in Admin: ${link}` : ''}`,
+    html: layout(`<h1 style="font-size:20px;margin:0 0 16px">${label} <span style="font-size:14px;color:#d44720;font-weight:normal">(${s.reference || ''})</span></h1><table style="border-collapse:collapse;width:100%;font-size:14px">${rows.filter(([, v]) => v)
       .map(([k, v]) => `<tr><td style="padding:8px 12px 8px 0;color:#686a65;vertical-align:top;white-space:nowrap">${k}</td><td style="padding:8px 0;white-space:pre-wrap">${escape(v!)}</td></tr>`).join('')}</table>
-      ${link ? `<p style="margin-top:24px"><a href="${escape(link)}" style="background:#c9421d;color:#fff;padding:12px 18px;text-decoration:none;border-radius:2px">Open in Chazon Admin</a></p>` : ''}`),
+      ${link ? `<p style="margin-top:24px"><a href="${escape(link)}" style="background:#d44720;color:#fff;padding:12px 18px;text-decoration:none;border-radius:2px">Open in Chazon Admin</a></p>` : ''}`),
   }
 }
 
 function confirmation(s: Submission): Email {
   const audit = s.kind === 'audit'
   const first = s.name.split(/\s+/)[0]
+  const refText = s.reference ? ` (Enquiry Ref: ${s.reference})` : ''
   const text = audit
-    ? `Hi ${first},\n\nThank you for requesting a Digital Growth Audit for ${s.businessName}. We have received your details and will be in touch to confirm the scope before any work begins.\n\n— Team Chazon`
-    : `Hi ${first},\n\nThank you for reaching out to Chazon Digital Ventures. We have received your enquiry about ${s.businessName} and look forward to learning more about your business. We will be in touch shortly.\n\n— Team Chazon`
+    ? `Hi ${first},\n\nThank you for requesting a Digital Growth Audit for ${s.businessName}${refText}. We have received your details and our team is reviewing your digital presence.\n\nWe will be in touch shortly to share our preliminary findings and recommended next steps.\n\n— Team Chazon`
+    : `Hi ${first},\n\nThank you for reaching out to Chazon Digital Ventures${refText}. We have received your enquiry about ${s.businessName} and look forward to learning more about your business objectives.\n\nOur founder and strategy team review every submission directly. We will be in touch via your preferred method (${s.preferredContact || 'WhatsApp'}) within 4 to 24 business hours.\n\n— Team Chazon`
   return {
     to: s.email,
     ...(env.CHAZON_NOTIFICATION_EMAIL ? { replyTo: env.CHAZON_NOTIFICATION_EMAIL } : {}),

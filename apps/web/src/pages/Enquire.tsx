@@ -6,7 +6,7 @@ import { useRouter } from '../location'
 import { Link } from '../router'
 import { breadcrumbSchema, faqSchema, usePageMeta } from '../seo'
 import { useSite } from '../site-data'
-import { EnquiryForm } from '../components/EnquiryForm'
+import { SmartEnquiryForm } from '../components/SmartEnquiryForm'
 import { ChannelIcon, ChannelLink, PageShell } from '../components/Layout'
 import { Cta, Eyebrow, Faq, PageHero, SectionHead } from '../components/ui'
 
@@ -56,9 +56,7 @@ export function Contact() {
           <DirectContact location="contact_page"/>
         </aside>
         <div className="form-card">
-          <h2 id="enquiry-title">Send an enquiry</h2>
-          <p className="form-card-intro">Fields are required unless marked optional.</p>
-          <EnquiryForm key={initialService} type="talk" initialService={initialService} location="contact_page"/>
+          <SmartEnquiryForm initialService={initialService} location="contact_page"/>
         </div>
       </div>
     </section>
@@ -110,9 +108,7 @@ export function GrowthAudit() {
           <DirectContact location="audit_page"/>
         </aside>
         <div className="form-card">
-          <h2 id="request-title">{settings.ctaAuditLabel}</h2>
-          <p className="form-card-intro">Fields are required unless marked optional.</p>
-          <EnquiryForm type="audit" location="audit_page"/>
+          <SmartEnquiryForm initialGoal="improve_existing" location="audit_page"/>
         </div>
       </div>
     </section>

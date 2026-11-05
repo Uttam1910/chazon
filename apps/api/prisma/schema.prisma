@@ -31,6 +31,7 @@ model AdminUser {
   notes        LeadNote[]
   activities   Activity[]
   media        Media[]
+  assignedLeads Lead[]    @relation("AssignedLeads")
 }
 
 /// Server-side session. `id` is an HMAC of the random cookie token, so a database leak exposes no usable session.
@@ -47,42 +48,79 @@ model Session {
   @@index([expiresAt])
 }
 
-// ---------- Leads ----------
+// ---------- Leads / Enquiries ----------
 
 enum LeadStatus {
   NEW
+  REVIEWED
   CONTACTED
   QUALIFIED
   PROPOSAL_SENT
   WON
   LOST
+  ARCHIVED
 }
 
 model Lead {
-  id           String     @id @default(cuid())
-  name         String
-  businessName String
-  email        String
-  phone        String
-  website      String?
-  category     String?
-  service      String?
-  budget       String?
-  message      String?
+  id                  String     @id @default(cuid())
+  reference           String     @unique @default(cuid())
+  name                String
+  businessName        String
+  email               String
+  phone               String
+  preferredContact    String?    @default("Email")
+  website             String?
+  category            String?
+  service             String?
+  services            String[]   @default([])
+  businessStage       String?
+  targetAudience      String?
+  businessDescription String?
+  timeline            String?
+  dynamicAnswers      Json?
+  budget              String?
+  message             String?
+  consentToContact    Boolean    @default(true)
+  marketingConsent    Boolean    @default(false)
+  auditRef            String?
+  auditData           Json?
   /// Channel the lead came from: "Website", "Manual" or "Demo".
-  source       String     @default("Website")
+  source              String     @default("Website")
   /// Campaign / referrer detail captured by the website form (utm_source or referring domain), when available.
-  sourceDetail String?
-  status       LeadStatus @default(NEW)
-  archivedAt   DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  notes        LeadNote[]
-  activities   Activity[]
+  sourceDetail        String?
+  status              LeadStatus @default(NEW)
+  assignedToId        String?
+  assignedTo          AdminUser? @relation("AssignedLeads", fields: [assignedToId], references: [id], onDelete: SetNull)
+  archivedAt          DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  notes               LeadNote[]
+  activities          Activity[]
 
   @@index([status])
+  @@index([reference])
   @@index([createdAt])
   @@index([archivedAt])
+}
+
+model AuditScan {
+  id               String    @id @default(cuid())
+  reference        String    @unique
+  url              String
+  normalizedUrl    String
+  overallScore     Int
+  performanceScore Int
+  seoScore         Int
+  mobileScore      Int
+  conversionScore  Int
+  metrics          Json
+  issues           Json
+  leadId           String?
+  createdAt        DateTime  @default(now())
+
+  @@index([reference])
+  @@index([url])
+  @@index([createdAt])
 }
 
 model LeadNote {
