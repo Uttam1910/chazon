@@ -27,7 +27,14 @@ export function Login() {
   }
   return <div className="login">
     <div className="login-panel">
-      <div className="login-brand"><span className="brand-mark" aria-hidden="true">c<span>↗</span></span><span>CHAZON<small>DIGITAL VENTURES</small></span></div>
+      <div className="login-brand">
+        <img
+          src="/images/brand/chazon-logo-desktop.png"
+          alt="Chazon Digital – Revenue-Led Digital Transformation"
+          className="login-brand-img"
+          height={48}
+        />
+      </div>
       <h1>Sign in to Chazon Admin</h1>
       <p className="muted">Leads, audits and website content in one place.</p>
       <form onSubmit={submit} noValidate={false}>

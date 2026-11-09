@@ -1,23 +1,25 @@
+const metaEnv = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {} as Record<string, string | undefined>
+
 // Chazon API origin. In development it defaults to the local API started by `npm run dev`; in production set
 // VITE_API_URL to enable CMS content and online enquiries. With no API, the site renders its built-in content.
-const apiUrl = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '')).replace(/\/$/, '')
+const apiUrl = (metaEnv.VITE_API_URL || (metaEnv.DEV ? 'http://localhost:5000' : '')).replace(/\/$/, '')
 
 /** Demo mode (VITE_DEMO_MODE=true): published content comes from built-in sample data; enquiries are not sent. */
-export const demoMode = import.meta.env.VITE_DEMO_MODE === 'true'
+export const demoMode = metaEnv.VITE_DEMO_MODE === 'true'
 
 export const config = {
-  siteUrl: import.meta.env.VITE_SITE_URL?.replace(/\/$/, '') || '',
+  siteUrl: metaEnv.VITE_SITE_URL?.replace(/\/$/, '') || '',
   apiUrl,
-  email: import.meta.env.VITE_CONTACT_EMAIL || '',
-  phone: import.meta.env.VITE_PHONE || '',
-  whatsapp: import.meta.env.VITE_WHATSAPP_NUMBER || '919820000000',
+  email: metaEnv.VITE_CONTACT_EMAIL || '',
+  phone: metaEnv.VITE_PHONE || '',
+  whatsapp: metaEnv.VITE_WHATSAPP_NUMBER || '919820000000',
   // An explicit endpoint wins; otherwise enquiries go to the Chazon API when one is configured.
-  enquiryEndpoint: import.meta.env.VITE_ENQUIRY_ENDPOINT || (apiUrl ? `${apiUrl}/api/public/enquiries` : ''),
-  instagram: import.meta.env.VITE_INSTAGRAM_URL || '',
-  linkedin: import.meta.env.VITE_LINKEDIN_URL || '',
-  facebook: import.meta.env.VITE_FACEBOOK_URL || '',
+  enquiryEndpoint: metaEnv.VITE_ENQUIRY_ENDPOINT || (apiUrl ? `${apiUrl}/api/public/enquiries` : ''),
+  instagram: metaEnv.VITE_INSTAGRAM_URL || '',
+  linkedin: metaEnv.VITE_LINKEDIN_URL || '',
+  facebook: metaEnv.VITE_FACEBOOK_URL || '',
   // Optional scheduling page (e.g. Calendly or Cal.com). Without it, discovery calls are requested through the form.
-  bookingUrl: safeHttps(import.meta.env.VITE_BOOKING_URL || ''),
+  bookingUrl: safeHttps(metaEnv.VITE_BOOKING_URL || ''),
 }
 
 function safeHttps(value: string) {

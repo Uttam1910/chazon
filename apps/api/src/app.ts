@@ -6,6 +6,7 @@ import { env } from './env'
 import { requireAdminOrigin, requireAuth, requireRole } from './lib/auth'
 import { errorHandler, ok } from './lib/http'
 import { auditAnalyzerRouter } from './routes/audit-analyzer'
+import { auditJobsRouter } from './routes/audit-jobs'
 import { auditsRouter } from './routes/audits'
 import { authRouter } from './routes/auth'
 import { industriesRouter, servicesRouter, testimonialsRouter } from './routes/catalog'
@@ -40,7 +41,11 @@ export function createApp() {
   app.use('/api/enquiries', publicEnquiriesRouter)
   app.use('/api/public/enquiries', publicEnquiriesRouter)
 
-  // Public live website audit analyzer (Section 6)
+  // Public live website audit engine (Jobs, Polling, Reports, Config)
+  app.use('/api/audit', auditJobsRouter)
+  app.use('/api/public/audit', auditJobsRouter)
+
+  // Public legacy website audit analyzer (Section 6 backward compatibility)
   app.use('/api/audit', auditAnalyzerRouter)
   app.use('/api/public/audit', auditAnalyzerRouter)
 

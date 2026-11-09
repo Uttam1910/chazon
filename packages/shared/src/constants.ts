@@ -44,16 +44,24 @@ export const PILLAR_SLUGS: Record<Pillar, string> = {
 
 export const SERVICE_PAGES = [
   '/services/website-development',
+  '/services/digital-marketing',
+  '/services/seo-services',
+  '/services/content-marketing',
+  '/services/social-media-marketing',
+  '/services/ppc-advertising',
+  '/services/google-ads',
+  '/services/email-marketing',
+  '/services/affiliate-influencer-marketing',
+  '/services/ui-ux-design',
   '/services/landing-page-development',
   '/services/ecommerce-development',
-  '/services/seo-services',
   '/services/local-seo',
   '/services/conversion-optimisation',
   '/services/business-automation',
   '/services/ai-integration',
 ] as const
 
-/** The website's fixed, indexable pages, in sitemap order. Insights and case studies are added from the database. */
+/** The website's fixed, indexable pages, in sitemap order. */
 export const PUBLIC_PAGES = [
   '/',
   '/services',
@@ -62,16 +70,169 @@ export const PUBLIC_PAGES = [
   '/growth-audit',
   '/approach',
   '/about',
+  '/work',
+  '/insights',
   '/contact',
   '/privacy',
   '/terms',
 ] as const
 
+/** Chazon Growth Framework — Five Stages (The Complete Digital Growth Journey) */
+export const GROWTH_FRAMEWORK_STAGES = [
+  {
+    step: '01',
+    id: 'discover',
+    title: 'Discover',
+    tagline: 'Visibility & Searchability',
+    description: 'Make your brand visible & searchable.',
+    detail: 'Make your brand visible and searchable to high-intent buyers looking for your exact capabilities.',
+    icon: 'search',
+  },
+  {
+    step: '02',
+    id: 'attract',
+    title: 'Attract',
+    tagline: 'Audience Acquisition',
+    description: 'Bring the right audience to your brand.',
+    detail: 'Attract qualified decision-makers through structured search, performance campaigns, and organic reach.',
+    icon: 'target',
+  },
+  {
+    step: '03',
+    id: 'convert',
+    title: 'Convert',
+    tagline: 'High-Impact Conversion',
+    description: 'Turn interest into enquiries and sales.',
+    detail: 'Design high-converting page structures and frictionless inquiry pathways that convert visitors into revenue.',
+    icon: 'zap',
+  },
+  {
+    step: '04',
+    id: 'retain',
+    title: 'Retain',
+    tagline: 'Automated Lifecycle',
+    description: 'Build relationships and encourage repeat business.',
+    detail: 'Automate WhatsApp triage, instant CRM lead response, and post-purchase customer retention journeys.',
+    icon: 'heart',
+  },
+  {
+    step: '05',
+    id: 'grow',
+    title: 'Grow',
+    tagline: 'Revenue & Performance Scale',
+    description: 'Improve revenue and business performance.',
+    detail: 'Continuously measure performance KPIs and eliminate leaks to expand commercial business growth.',
+    icon: 'trending-up',
+  },
+] as const
+
+export type GrowthFrameworkStage = (typeof GROWTH_FRAMEWORK_STAGES)[number]
+
+/** Complete 10-Service Suite matching the design reference */
+export const CORE_10_SERVICES = [
+  {
+    id: 'website-development',
+    title: 'Website Development',
+    category: 'Digital Foundation',
+    pillar: 'BUILD',
+    description: 'High-performance, responsive websites that convert visitors into customers.',
+    path: '/services/website-development',
+    icon: 'laptop',
+  },
+  {
+    id: 'digital-marketing',
+    title: 'Digital Marketing',
+    category: 'Digital Growth',
+    pillar: 'GROW',
+    description: 'Integrated marketing to build visibility, engagement and business growth.',
+    path: '/services/digital-marketing',
+    icon: 'megaphone',
+  },
+  {
+    id: 'seo-services',
+    title: 'Search Engine Optimisation (SEO)',
+    category: 'Digital Growth',
+    pillar: 'GROW',
+    description: 'Improve your search visibility and attract high-intent customers organically.',
+    path: '/services/seo-services',
+    icon: 'search-check',
+  },
+  {
+    id: 'content-marketing',
+    title: 'Content Marketing',
+    category: 'Digital Growth',
+    pillar: 'GROW',
+    description: 'Strategic content that builds trust, engagement and conversions.',
+    path: '/services/content-marketing',
+    icon: 'file-text',
+  },
+  {
+    id: 'social-media-marketing',
+    title: 'Social Media Marketing',
+    category: 'Digital Growth',
+    pillar: 'GROW',
+    description: 'Grow your brand and community across key social platforms.',
+    path: '/services/social-media-marketing',
+    icon: 'share-2',
+  },
+  {
+    id: 'ppc-advertising',
+    title: 'PPC Advertising',
+    category: 'Digital Growth',
+    pillar: 'GROW',
+    description: 'Performance-driven ad campaigns that generate qualified leads and sales.',
+    path: '/services/ppc-advertising',
+    icon: 'target',
+  },
+  {
+    id: 'google-ads',
+    title: 'Google Ads',
+    category: 'Digital Growth',
+    pillar: 'GROW',
+    description: 'Reach the right audience at the right time with high-ROI campaigns.',
+    path: '/services/google-ads',
+    icon: 'bar-chart-2',
+  },
+  {
+    id: 'email-marketing',
+    title: 'Email Marketing',
+    category: 'Automation & Retention',
+    pillar: 'AUTOMATE',
+    description: 'Build stronger customer relationships through targeted email campaigns.',
+    path: '/services/email-marketing',
+    icon: 'mail',
+  },
+  {
+    id: 'affiliate-influencer-marketing',
+    title: 'Affiliate & Influencer Marketing',
+    category: 'Revenue & Commerce',
+    pillar: 'CONVERT',
+    description: 'Expand your reach and sales through credible creators and partner networks.',
+    path: '/services/affiliate-influencer-marketing',
+    icon: 'users',
+  },
+  {
+    id: 'ui-ux-design',
+    title: 'UI/UX Design',
+    category: 'Digital Foundation',
+    pillar: 'BUILD',
+    description: 'User-focused designs that are intuitive, engaging and conversion-ready.',
+    path: '/services/ui-ux-design',
+    icon: 'layout',
+  },
+] as const
+
+export type CoreService = (typeof CORE_10_SERVICES)[number]
+
 export const INSIGHT_CATEGORIES = [
+  'All',
+  'Strategy',
+  'SEO',
+  'Marketing',
+  'Automation',
   'Digital Revenue',
   'Performance Marketing',
   'Digital Commerce',
-  'Automation',
   'Entrepreneur’s Digital Playbook',
 ] as const
 export type InsightCategory = (typeof INSIGHT_CATEGORIES)[number]

@@ -62,7 +62,9 @@ export function Shell() {
     <a href="#main" className="skip-link">Skip to content</a>
     <aside className="sidebar" aria-label="Admin navigation">
       <div className="sidebar-brand">
-        <Link to="/" className="brand"><span className="brand-mark" aria-hidden="true">c<span>↗</span></span><span>CHAZON<small>ADMIN</small></span></Link>
+        <Link to="/" className="brand" aria-label="Chazon Admin">
+          <img src="/images/brand/chazon-logo-mobile.png" alt="Chazon Digital" className="admin-brand-img" height={32} />
+        </Link>
         <button className="icon-btn drawer-close" aria-label="Close navigation" onClick={() => setDrawer(false)}><X size={20}/></button>
       </div>
       <nav>

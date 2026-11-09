@@ -8,6 +8,9 @@ import { z } from 'zod'
 const rootEnv = fileURLToPath(new URL('../../../.env', import.meta.url))
 if (existsSync(rootEnv)) process.loadEnvFile(rootEnv)
 
+const auditEnv = fileURLToPath(new URL('../../../audit/website-audit-tool/.env', import.meta.url))
+if (existsSync(auditEnv)) process.loadEnvFile(auditEnv)
+
 const isProduction = process.env.NODE_ENV === 'production'
 const optional = z.string().trim().optional().transform(v => v || undefined)
 const origin = (fallback: string) => z.string().trim().optional().transform(v => (v || (isProduction ? '' : fallback)).replace(/\/$/, ''))
@@ -31,6 +34,14 @@ const schema = z.object({
   ADMIN_PASSWORD: z.string().optional().transform(v => v || undefined).pipe(z.string().min(12, 'ADMIN_PASSWORD must be at least 12 characters').max(200).optional()),
   ADMIN_NAME: z.string().trim().max(100).optional().transform(v => v || 'Chazon Admin'),
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+  // Website Audit Engine settings
+  PAGESPEED_API_KEY: optional,
+  MAX_CONCURRENT_AUDITS: z.coerce.number().int().positive().default(2),
+  DEFAULT_CRAWL_PAGES: z.coerce.number().int().min(1).default(10),
+  MAX_CRAWL_PAGES: z.coerce.number().int().min(1).default(25),
+  RATE_LIMIT_AUDITS_PER_WINDOW: z.coerce.number().int().min(1).default(5),
+  RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().int().min(1).default(15),
+  AUDIT_USER_AGENT_TOKEN: z.string().trim().optional().transform(v => v || 'WebsiteAuditAnalyzer'),
 })
 
 const parsed = schema.safeParse(process.env)
