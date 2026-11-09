@@ -10,8 +10,8 @@ export function DashboardMockup() {
           src="/assets/hero-laptop-desk.png"
           alt="Chazon Business Growth dashboard on laptop showing revenue growth, traffic, leads and conversions"
           className="hero-dashboard-scene-img"
-          width={1128}
-          height={592}
+          width={1384}
+          height={832}
           loading="eager"
         />
       </picture>
