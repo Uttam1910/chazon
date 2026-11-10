@@ -7076,6 +7076,75 @@ button.nav-link.has-dropdown.is-active::after {
   width: 100%;
 }
 
+.about-hero-frame {
+  position: relative;
+  width: 100%;
+  max-width: 580px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px -16px rgba(36, 24, 19, 0.16), 0 0 0 1px rgba(36, 24, 19, 0.08);
+  background: #FFFFFF;
+}
+
+.about-hero-img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.5s ease;
+}
+
+.about-hero-frame:hover .about-hero-img {
+  transform: scale(1.02);
+}
+
+.about-hero-floating-badge {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 12px;
+  padding: 10px 16px;
+  box-shadow: 0 12px 28px rgba(36, 24, 19, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.about-hero-badge-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.about-hero-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #D44720;
+  display: inline-block;
+  box-shadow: 0 0 0 3px rgba(212, 71, 32, 0.2);
+}
+
+.about-hero-floating-badge strong {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #241813;
+  line-height: 1.2;
+}
+
+.about-hero-floating-badge small {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: #786C65;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 /* 2. Our Story */
 .about-story-section {
   padding-block: clamp(48px, 6vw, 84px);

@@ -1540,14 +1540,17 @@ export function ServicesIndex() {
               {/* Card 1 */}
               <article className="spotlight-card">
                 <div className="spotlight-img-frame">
-                  <img
-                    src="/assets/about-team-story.webp"
-                    alt="Strategic Digital Marketing at Chazon"
-                    className="spotlight-img"
-                    width={380}
-                    height={220}
-                    loading="lazy"
-                  />
+                  <picture>
+                    <source srcSet="/assets/about-team-story.webp" type="image/webp" />
+                    <img
+                      src="/assets/about-team-story.png"
+                      alt="Strategic Digital Marketing at Chazon"
+                      className="spotlight-img"
+                      width={380}
+                      height={220}
+                      loading="lazy"
+                    />
+                  </picture>
                   <span className="spotlight-badge">Digital Growth</span>
                 </div>
                 <div className="spotlight-body">
@@ -1568,14 +1571,17 @@ export function ServicesIndex() {
               {/* Card 2 */}
               <article className="spotlight-card">
                 <div className="spotlight-img-frame">
-                  <img
-                    src="/assets/insights/insight-2.png"
-                    alt="Search Engine Optimisation at Chazon"
-                    className="spotlight-img"
-                    width={380}
-                    height={220}
-                    loading="lazy"
-                  />
+                  <picture>
+                    <source srcSet="/assets/service-seo-spotlight.webp" type="image/webp" />
+                    <img
+                      src="/assets/service-seo-spotlight.jpg"
+                      alt="Search Engine Optimisation analytics and growth performance at Chazon"
+                      className="spotlight-img"
+                      width={380}
+                      height={220}
+                      loading="lazy"
+                    />
+                  </picture>
                   <span className="spotlight-badge">Organic Authority</span>
                 </div>
                 <div className="spotlight-body">
@@ -1596,14 +1602,17 @@ export function ServicesIndex() {
               {/* Card 3 */}
               <article className="spotlight-card">
                 <div className="spotlight-img-frame">
-                  <img
-                    src="/assets/insights/insight-1.png"
-                    alt="UI/UX Design at Chazon"
-                    className="spotlight-img"
-                    width={380}
-                    height={220}
-                    loading="lazy"
-                  />
+                  <picture>
+                    <source srcSet="/assets/about-hero-studio.webp" type="image/webp" />
+                    <img
+                      src="/assets/about-hero-studio.jpg"
+                      alt="UI/UX design wireframing, architecture, and prototype craft at Chazon"
+                      className="spotlight-img"
+                      width={380}
+                      height={220}
+                      loading="lazy"
+                    />
+                  </picture>
                   <span className="spotlight-badge">User Experience</span>
                 </div>
                 <div className="spotlight-body">

@@ -685,13 +685,6 @@ export function Header({
             </Link>
 
             <Link
-              to="/insights"
-              className={`nav-link ${path.startsWith('/insights') ? 'is-active' : ''}`}
-            >
-              Insights
-            </Link>
-
-            <Link
               to="/contact"
               className={`nav-link ${path === '/contact' ? 'is-active' : ''}`}
             >
@@ -839,18 +832,8 @@ export function Header({
               )}
             </li>
             <li>
-              <Link to="/approach" onClick={() => setMobileOpen(false)}>
-                Our Approach (6-Stage Process)
-              </Link>
-            </li>
-            <li>
               <Link to="/work" onClick={() => setMobileOpen(false)}>
                 Our Work & Case Studies
-              </Link>
-            </li>
-            <li>
-              <Link to="/insights" onClick={() => setMobileOpen(false)}>
-                Insights & Playbooks
               </Link>
             </li>
             <li>
@@ -965,9 +948,6 @@ export function Footer({ hideCta = false }: { hideCta?: boolean }) {
             <ul className="footer-links-list">
               <li>
                 <Link to="/#framework">Growth Framework</Link>
-              </li>
-              <li>
-                <Link to="/insights">Insights</Link>
               </li>
               <li>
                 <Link to="/contact">Contact</Link>

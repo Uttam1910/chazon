@@ -22,7 +22,6 @@ import {
 import { Link } from '../router'
 import { breadcrumbSchema, usePageMeta } from '../seo'
 import { PageShell } from '../components/Layout'
-import { DashboardMockup } from '../components/DashboardMockup'
 
 export function About() {
   usePageMeta({
@@ -63,7 +62,26 @@ export function About() {
             </div>
 
             <div className="about-hero-visual">
-              <DashboardMockup />
+              <div className="about-hero-frame">
+                <picture>
+                  <source srcSet="/assets/about-hero-studio.webp" type="image/webp" />
+                  <img
+                    src="/assets/about-hero-studio.jpg"
+                    alt="Chazon Digital Ventures modern digital strategy and architectural design studio"
+                    className="about-hero-img"
+                    width={1920}
+                    height={1080}
+                    loading="eager"
+                  />
+                </picture>
+                <div className="about-hero-floating-badge" aria-hidden="true">
+                  <div className="about-hero-badge-header">
+                    <span className="about-hero-badge-dot" />
+                    <strong>Strategy & Digital Craft</strong>
+                  </div>
+                  <small>Mumbai · Global Delivery</small>
+                </div>
+              </div>
             </div>
           </div>
         </div>
