@@ -13,3 +13,4 @@ export function render(path: string) {
 }
 
 export { PUBLIC_PAGES } from '@chazon/shared'
+export { Header, SERVICE_CATEGORIES } from './components/Layout'

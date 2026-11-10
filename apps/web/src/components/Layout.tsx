@@ -3,19 +3,328 @@ import {
   ArrowRight,
   ChevronDown,
   Facebook,
+  Filter,
   Instagram,
+  Laptop,
+  Layers,
   Linkedin,
   Mail,
+  Megaphone,
   Menu,
   Phone,
-  Sparkles,
+  TrendingUp,
   X,
 } from 'lucide-react'
-import { CORE_10_SERVICES, PILLAR_INFO, PILLAR_SLUGS, PILLARS } from '@chazon/shared'
 import { track, type Channel } from '../config'
 import { useRouter } from '../location'
 import { Link } from '../router'
 import { useSite } from '../site-data'
+
+/** 5 Service Categories for Horizontal Mega-Menu */
+export const SERVICE_CATEGORIES = [
+  {
+    id: 'build' as const,
+    label: 'Build',
+    subtitle: 'Websites & Digital Platforms',
+    icon: Laptop,
+    eyebrow: 'BUILD',
+    title: 'Websites & Digital Platforms',
+    description:
+      'Design and develop responsive, scalable and business-focused digital platforms that generate leads, sales and growth.',
+    primaryCta: {
+      label: 'Explore Website Development',
+      to: '/services/website-development',
+    },
+    exploreHeading: 'EXPLORE BUILD SERVICES',
+    services: [
+      { label: 'Business & Corporate Websites', to: '/services/website-development' },
+      { label: 'E-commerce Websites', to: '/services/ecommerce-development' },
+      { label: 'Portfolio Websites', to: '/services/website-development' },
+      { label: 'Booking & Appointment Websites', to: '/services/website-development' },
+      { label: 'Blogs & Content Platforms', to: '/services/website-development' },
+      { label: 'Educational & eLearning Websites', to: '/services/website-development' },
+      { label: 'Community & Membership Platforms', to: '/services/website-development' },
+      { label: 'Nonprofit & NGO Websites', to: '/services/website-development' },
+    ],
+    related: [
+      { label: 'UI/UX Design', to: '/services/ui-ux-design' },
+      { label: 'SEO', to: '/services/seo-services' },
+      { label: 'Content Marketing', to: '/services/content-marketing' },
+    ],
+  },
+  {
+    id: 'market' as const,
+    label: 'Market',
+    subtitle: 'Reach, Promote & Grow',
+    icon: Megaphone,
+    eyebrow: 'MARKET',
+    title: 'Reach, Promote & Grow',
+    description:
+      'Build brand visibility, attract relevant audiences and generate business opportunities through integrated digital marketing.',
+    primaryCta: {
+      label: 'Explore Digital Marketing',
+      to: '/services/digital-marketing',
+    },
+    exploreHeading: 'EXPLORE MARKET SERVICES',
+    services: [
+      { label: 'Digital Marketing', to: '/services/digital-marketing' },
+      { label: 'Search Engine Optimisation (SEO)', to: '/services/seo-services' },
+      { label: 'Content Marketing', to: '/services/content-marketing' },
+      { label: 'Social Media Marketing', to: '/services/social-media-marketing' },
+      { label: 'Pay-Per-Click Advertising', to: '/services/ppc-advertising' },
+      { label: 'Google Ads', to: '/services/google-ads' },
+      { label: 'Affiliate & Influencer Marketing', to: '/services/affiliate-influencer-marketing' },
+      { label: 'Local SEO & Search Authority', to: '/services/local-seo' },
+    ],
+    related: [
+      { label: 'Website Development', to: '/services/website-development' },
+      { label: 'UI/UX Design', to: '/services/ui-ux-design' },
+      { label: 'Email Marketing', to: '/services/email-marketing' },
+    ],
+  },
+  {
+    id: 'convert' as const,
+    label: 'Convert',
+    subtitle: 'Turn Interest into Sales',
+    icon: Filter,
+    eyebrow: 'CONVERT',
+    title: 'Turn Interest into Sales',
+    description:
+      'Create effective digital experiences that turn visitors and interested audiences into enquiries and customers.',
+    primaryCta: {
+      label: 'Explore Conversion Solutions',
+      to: '/services/landing-page-development',
+    },
+    exploreHeading: 'EXPLORE CONVERSION CAPABILITIES',
+    services: [
+      { label: 'UI/UX Design & Prototyping', to: '/services/ui-ux-design' },
+      { label: 'High-Converting Landing Pages', to: '/services/landing-page-development' },
+      { label: 'E-commerce Sales Optimisation', to: '/services/ecommerce-development' },
+      { label: 'Conversion Rate Optimisation (CRO)', to: '/services/conversion-optimisation' },
+      { label: 'Lead Capture & Enquiry Systems', to: '/contact?type=CONVERT' },
+      { label: 'User Journey Wireframing', to: '/services/ui-ux-design' },
+      { label: 'Value Proposition Architecture', to: '/services/content-marketing' },
+      { label: 'Friction-Free Checkout Flows', to: '/services/ecommerce-development' },
+    ],
+    related: [
+      { label: 'Website Development', to: '/services/website-development' },
+      { label: 'Google Ads', to: '/services/google-ads' },
+      { label: 'Email Marketing', to: '/services/email-marketing' },
+    ],
+  },
+  {
+    id: 'automate' as const,
+    label: 'Automate',
+    subtitle: 'Engage, Nurture & Retain',
+    icon: Layers,
+    eyebrow: 'AUTOMATE',
+    title: 'Engage, Nurture & Retain',
+    description:
+      'Build stronger customer relationships through connected communication, follow-ups and automation.',
+    primaryCta: {
+      label: 'Explore Automation Solutions',
+      to: '/services/business-automation',
+    },
+    exploreHeading: 'EXPLORE AUTOMATION CAPABILITIES',
+    services: [
+      { label: 'WhatsApp Business API Integration', to: '/contact?type=AUTOMATE&service=WhatsApp%20Business%20API' },
+      { label: 'CRM Integration & Lead Routing', to: '/services/business-automation' },
+      { label: 'Email Marketing & Newsletters', to: '/services/email-marketing' },
+      { label: 'Automated Welcome Journeys', to: '/services/email-marketing' },
+      { label: 'Abandoned Cart Re-engagement', to: '/services/email-marketing' },
+      { label: 'Multi-Channel Follow-Up Automation', to: '/services/business-automation' },
+      { label: 'Customer Data & Lifecycle Triggers', to: '/services/business-automation' },
+      { label: 'AI & Workflow Automation', to: '/services/ai-integration' },
+    ],
+    related: [
+      { label: 'Email Marketing', to: '/services/email-marketing' },
+      { label: 'Website Development', to: '/services/website-development' },
+      { label: 'Digital Marketing', to: '/services/digital-marketing' },
+    ],
+  },
+  {
+    id: 'optimise' as const,
+    label: 'Optimise',
+    subtitle: 'Improve Performance & ROI',
+    icon: TrendingUp,
+    eyebrow: 'OPTIMISE',
+    title: 'Improve Performance & ROI',
+    description:
+      'Understand performance, improve digital experiences and continuously strengthen business results.',
+    primaryCta: {
+      label: 'Run Free Website Audit',
+      to: '/website-audit',
+    },
+    exploreHeading: 'EXPLORE OPTIMISATION CAPABILITIES',
+    services: [
+      { label: 'Instant Website Performance Audit', to: '/website-audit' },
+      { label: 'SEO Performance Monitoring', to: '/services/seo-services' },
+      { label: 'Speed & Core Web Vitals Audit', to: '/website-audit' },
+      { label: 'Analytics & Closed-Loop Attribution', to: '/services/digital-marketing' },
+      { label: 'Conversion Funnel Auditing', to: '/services/conversion-optimisation' },
+      { label: 'Campaign ROI & Ad Performance', to: '/services/ppc-advertising' },
+      { label: 'Local Search Visibility Audit', to: '/services/local-seo' },
+      { label: 'Growth Diagnostic Review', to: '/growth-audit' },
+    ],
+    related: [
+      { label: 'Search Engine Optimisation', to: '/services/seo-services' },
+      { label: 'Conversion Optimisation', to: '/services/conversion-optimisation' },
+      { label: 'Digital Marketing', to: '/services/digital-marketing' },
+    ],
+  },
+]
+
+type ServiceCategoryId = (typeof SERVICE_CATEGORIES)[number]['id']
+
+/** Visual graphic for the center column of the mega-menu */
+function MegaMenuVisual({ category }: { category: ServiceCategoryId }) {
+  if (category === 'build') {
+    return (
+      <div className="mm-visual-card mm-visual-build">
+        <div className="mm-browser-mockup">
+          <div className="mm-browser-header">
+            <div className="mm-browser-dots">
+              <span className="dot red" />
+              <span className="dot yellow" />
+              <span className="dot green" />
+            </div>
+            <span className="mm-browser-url">chazon.digital/platform</span>
+          </div>
+          <div className="mm-browser-screen">
+            <div className="mm-screen-mountain-bg" />
+            <div className="mm-screen-content">
+              <span className="mm-screen-tag">Chazon Architecture</span>
+              <strong className="mm-screen-heading">Build Your Digital Presence</strong>
+              <p className="mm-screen-sub">Fast, responsive & commercial</p>
+            </div>
+          </div>
+        </div>
+        <div className="mm-floating-phone">
+          <div className="mm-phone-notch" />
+          <div className="mm-phone-card">
+            <span className="mm-phone-img-box">🛋️</span>
+            <span className="mm-phone-title">Modern Living</span>
+            <span className="mm-phone-price">₹14,500</span>
+            <span className="mm-phone-btn">Add to Cart</span>
+          </div>
+        </div>
+        <div className="mm-floating-badge">
+          <span className="mm-fb-icon">↗</span>
+          <div>
+            <strong>+74%</strong>
+            <small>Traffic Growth</small>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (category === 'market') {
+    return (
+      <div className="mm-visual-card mm-visual-market">
+        <div className="mm-market-mockup">
+          <div className="mm-search-bar-sim">
+            <span className="mm-search-sim-icon">🔍</span>
+            <span>google.com/search?q=revenue+growth</span>
+          </div>
+          <div className="mm-search-result-pill">
+            <span className="mm-rank-badge">#1 Google Ranking</span>
+            <strong>Chazon Digital Ventures</strong>
+            <small>Integrated organic visibility & commercial intent</small>
+          </div>
+          <div className="mm-bars-preview">
+            <div className="mm-bar" style={{ height: '35%' }} />
+            <div className="mm-bar" style={{ height: '55%' }} />
+            <div className="mm-bar" style={{ height: '75%' }} />
+            <div className="mm-bar accent" style={{ height: '100%' }} />
+          </div>
+        </div>
+        <div className="mm-floating-badge">
+          <span className="mm-fb-icon">↗</span>
+          <div>
+            <strong>+68%</strong>
+            <small>Organic Reach</small>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (category === 'convert') {
+    return (
+      <div className="mm-visual-card mm-visual-convert">
+        <div className="mm-convert-mockup">
+          <div className="mm-wireframe-head">
+            <span className="mm-wf-line title" />
+            <span className="mm-wf-line sub" />
+          </div>
+          <div className="mm-wf-cta-pill">Request Strategic Proposal →</div>
+          <div className="mm-wf-trust-row">
+            <span className="mm-wf-pill">✓ Sub-600ms Speed</span>
+            <span className="mm-wf-pill">✓ Friction-Free UX</span>
+          </div>
+        </div>
+        <div className="mm-floating-badge">
+          <span className="mm-fb-icon">🎯</span>
+          <div>
+            <strong>+42%</strong>
+            <small>Conversion Rate</small>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (category === 'automate') {
+    return (
+      <div className="mm-visual-card mm-visual-automate">
+        <div className="mm-automate-mockup">
+          <div className="mm-wa-bubble">
+            <span className="mm-wa-head">WhatsApp Business API</span>
+            <p>“New website enquiry received. Welcome sequence launched.”</p>
+          </div>
+          <div className="mm-crm-bubble">
+            <span className="mm-crm-head">HubSpot CRM Sync</span>
+            <p>Lead tagged, assigned & notification dispatched.</p>
+          </div>
+        </div>
+        <div className="mm-floating-badge">
+          <span className="mm-fb-icon">⚡</span>
+          <div>
+            <strong>24/7</strong>
+            <small>Automated Pipeline</small>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // optimise
+  return (
+    <div className="mm-visual-card mm-visual-optimise">
+      <div className="mm-optimise-mockup">
+        <div className="mm-score-dial-wrap">
+          <div className="mm-score-circle">
+            <span className="mm-score-number">92</span>
+            <span className="mm-score-max">/100</span>
+          </div>
+          <span className="mm-score-status">Optimal Performance</span>
+        </div>
+        <div className="mm-score-metrics-list">
+          <span className="mm-metric-item">✓ SEO: 96/100</span>
+          <span className="mm-metric-item">✓ Core Vitals: 0.4s</span>
+        </div>
+      </div>
+      <div className="mm-floating-badge">
+        <span className="mm-fb-icon">📈</span>
+        <div>
+          <strong>Sub-600ms</strong>
+          <small>Continuous ROI Loop</small>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 /** Official Chazon Brand Logo Component */
 export function Brand({ className = '' }: { className?: string }) {
@@ -106,16 +415,38 @@ export function ChannelLink({
   )
 }
 
-export function Header() {
+export function Header({
+  defaultServicesOpen = false,
+  defaultCategory = 'build' as ServiceCategoryId,
+  defaultMobileOpen = false,
+  defaultMobileServicesOpen = false,
+}: {
+  defaultServicesOpen?: boolean
+  defaultCategory?: ServiceCategoryId
+  defaultMobileOpen?: boolean
+  defaultMobileServicesOpen?: boolean
+} = {}) {
   const { path } = useRouter()
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [servicesOpen, setServicesOpen] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(defaultMobileOpen)
+  const [servicesOpen, setServicesOpen] = useState(defaultServicesOpen)
+  const [activeCategory, setActiveCategory] = useState<ServiceCategoryId>(defaultCategory)
+  const [mobileServicesOpen, setMobileServicesOpen] = useState(defaultMobileServicesOpen)
+  const [mobileExpandedCat, setMobileExpandedCat] = useState<ServiceCategoryId | null>('build')
   const servicesDropdownRef = useRef<HTMLDivElement>(null)
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Clear hover debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+    }
+  }, [])
 
   // Close menus on route change
   useEffect(() => {
     setMobileOpen(false)
     setServicesOpen(false)
+    setMobileServicesOpen(false)
   }, [path])
 
   // Click outside to close services dropdown
@@ -132,11 +463,43 @@ export function Header() {
     return () => document.removeEventListener('mousedown', handleOutside)
   }, [])
 
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setServicesOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   // Lock body scroll on mobile menu
   useEffect(() => {
     document.documentElement.classList.toggle('menu-open', mobileOpen)
     return () => document.documentElement.classList.remove('menu-open')
   }, [mobileOpen])
+
+  // Mouse hover debounce handlers to prevent cursor flicker
+  const handleMouseEnter = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
+    }
+    setServicesOpen(true)
+  }
+
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+    }
+    hoverTimeoutRef.current = setTimeout(() => {
+      setServicesOpen(false)
+    }, 180)
+  }
+
+  const currentCategoryData =
+    SERVICE_CATEGORIES.find((c) => c.id === activeCategory) || SERVICE_CATEGORIES[0]
 
   return (
     <>
@@ -160,70 +523,154 @@ export function Header() {
               About
             </Link>
 
-            {/* Services with dropdown */}
+            {/* Services with Horizontal Mega-Menu */}
             <div
               className="nav-dropdown-wrapper"
               ref={servicesDropdownRef}
-              onMouseEnter={() => setServicesOpen(true)}
-              onMouseLeave={() => setServicesOpen(false)}
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
             >
-              <Link
-                to="/services"
-                className={`nav-link has-dropdown ${path.startsWith('/services') ? 'is-active' : ''}`}
+              <button
+                type="button"
+                className={`nav-link has-dropdown ${path.startsWith('/services') || servicesOpen ? 'is-active' : ''}`}
                 aria-expanded={servicesOpen}
+                aria-haspopup="dialog"
+                onClick={() => setServicesOpen((v) => !v)}
               >
-                Services <ChevronDown size={14} className="dropdown-caret" />
-              </Link>
+                <span>Services</span>
+                <ChevronDown
+                  size={14}
+                  className={`dropdown-caret ${servicesOpen ? 'is-open' : ''}`}
+                />
+              </button>
 
               {servicesOpen && (
-                <div className="services-dropdown-panel" role="menu">
-                  <div className="dropdown-panel-grid">
-                    <div className="dropdown-services-col">
-                      <span className="dropdown-col-title">Core Services</span>
-                      <ul className="dropdown-services-list">
-                        {CORE_10_SERVICES.map((s) => (
-                          <li key={s.id}>
-                            <Link to={s.path} className="dropdown-service-item">
-                              <strong>{s.title}</strong>
-                              <small>{s.category}</small>
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
+                <div
+                  className="services-dropdown-panel"
+                  role="dialog"
+                  aria-label="Services Navigation Mega-Menu"
+                  onMouseEnter={handleMouseEnter}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  {/* Top Row: 5 Horizontal Category Tabs */}
+                  <div className="mm-tabs-row" role="tablist" aria-label="Service Categories">
+                    {SERVICE_CATEGORIES.map((cat) => {
+                      const Icon = cat.icon
+                      const isActive = activeCategory === cat.id
+                      return (
+                        <Link
+                          key={cat.id}
+                          to={`/services?category=${cat.id}#services-grid`}
+                          role="tab"
+                          aria-selected={isActive}
+                          className={`mm-tab-btn ${isActive ? 'is-active' : ''}`}
+                          onMouseEnter={() => setActiveCategory(cat.id)}
+                          onFocus={() => setActiveCategory(cat.id)}
+                          onClick={() => {
+                            setActiveCategory(cat.id)
+                            setServicesOpen(false)
+                          }}
+                        >
+                          <span className="mm-tab-icon">
+                            <Icon size={18} />
+                          </span>
+                          <div className="mm-tab-text">
+                            <strong className="mm-tab-label">{cat.label}</strong>
+                            <span className="mm-tab-subtitle">{cat.subtitle}</span>
+                          </div>
+                        </Link>
+                      )
+                    })}
+                  </div>
+
+                  {/* Middle Area: Interactive Category Content Grid */}
+                  <div className="mm-content-grid" key={currentCategoryData.id}>
+                    {/* Left Column: Heading, Description, Primary CTA */}
+                    <div className="mm-left-col">
+                      <span className="mm-eyebrow">{currentCategoryData.eyebrow}</span>
+                      <Link
+                        to={`/services?category=${currentCategoryData.id}#services-grid`}
+                        className="mm-title-link"
+                        onClick={() => setServicesOpen(false)}
+                      >
+                        <h3 className="mm-title">{currentCategoryData.title}</h3>
+                      </Link>
+                      <p className="mm-desc">{currentCategoryData.description}</p>
+                      <Link
+                        to={currentCategoryData.primaryCta.to}
+                        className="button button-primary mm-cta-btn"
+                        onClick={() => setServicesOpen(false)}
+                      >
+                        <span>{currentCategoryData.primaryCta.label}</span>
+                        <ArrowRight size={14} />
+                      </Link>
                     </div>
 
-                    <div className="dropdown-pillars-col">
-                      <span className="dropdown-col-title">Strategic Pillars</span>
-                      <ul className="dropdown-pillars-list">
-                        {PILLARS.map((p) => (
-                          <li key={p}>
-                            <Link
-                              to={`/services/${PILLAR_SLUGS[p]}`}
-                              className="dropdown-pillar-item"
-                            >
-                              <strong>{PILLAR_INFO[p].title}</strong>
-                              <small>The {PILLAR_INFO[p].verb} Engine</small>
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
+                    {/* Center Column: Visual Graphic Mockup */}
+                    <div className="mm-center-col" aria-hidden="true">
+                      <MegaMenuVisual category={currentCategoryData.id} />
+                    </div>
 
-                      <div className="dropdown-audit-callout">
-                        <div className="dac-head">
-                          <Sparkles size={16} />
-                          <span>Strategic Advisory</span>
+                    {/* Right Column: Explore Services Grid */}
+                    <div className="mm-right-col">
+                      <span className="mm-list-eyebrow">{currentCategoryData.exploreHeading}</span>
+                      <div className="mm-services-columns">
+                        <div className="mm-service-col">
+                          {currentCategoryData.services.slice(0, 4).map((item, idx) => (
+                            <Link
+                              key={idx}
+                              to={item.to}
+                              className="mm-service-link"
+                              onClick={() => setServicesOpen(false)}
+                            >
+                              <span className="mm-link-label">{item.label}</span>
+                              <ArrowRight size={13} className="mm-link-arrow" />
+                            </Link>
+                          ))}
                         </div>
-                        <p>Discuss your digital growth roadmap directly with our founding team.</p>
-                        <Link to="/contact" className="dac-link">
-                          Book a Consultation <ArrowRight size={14} />
-                        </Link>
+                        <div className="mm-service-col">
+                          {currentCategoryData.services.slice(4, 8).map((item, idx) => (
+                            <Link
+                              key={idx + 4}
+                              to={item.to}
+                              className="mm-service-link"
+                              onClick={() => setServicesOpen(false)}
+                            >
+                              <span className="mm-link-label">{item.label}</span>
+                              <ArrowRight size={13} className="mm-link-arrow" />
+                            </Link>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="dropdown-panel-footer">
-                    <Link to="/services" className="dropdown-all-link">
-                      View Complete Services Overview <ArrowRight size={14} />
+                  {/* Bottom Row: Related Services & View All Link */}
+                  <div className="mm-footer-bar">
+                    <div className="mm-footer-related">
+                      <Layers size={16} className="mm-related-icon" />
+                      <span className="mm-related-label">Related Services:</span>
+                      <div className="mm-related-pills">
+                        {currentCategoryData.related.map((rel, idx) => (
+                          <Link
+                            key={idx}
+                            to={rel.to}
+                            className="mm-related-pill"
+                            onClick={() => setServicesOpen(false)}
+                          >
+                            {rel.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+
+                    <Link
+                      to="/services"
+                      className="mm-view-all-link"
+                      onClick={() => setServicesOpen(false)}
+                    >
+                      <span>View All Services</span>
+                      <ArrowRight size={15} />
                     </Link>
                   </div>
                 </div>
@@ -295,10 +742,101 @@ export function Header() {
                 Home
               </Link>
             </li>
-            <li>
-              <Link to="/services" onClick={() => setMobileOpen(false)}>
-                Our Services (10 Solutions)
-              </Link>
+            {/* Services Mobile Accordion */}
+            <li className="mobile-nav-accordion-item">
+              <button
+                type="button"
+                className={`mobile-accordion-toggle ${mobileServicesOpen ? 'is-expanded' : ''}`}
+                aria-expanded={mobileServicesOpen}
+                onClick={() => setMobileServicesOpen((v) => !v)}
+              >
+                <span>Services</span>
+                <ChevronDown
+                  size={18}
+                  className={`mobile-accordion-caret ${mobileServicesOpen ? 'is-open' : ''}`}
+                />
+              </button>
+
+              {mobileServicesOpen && (
+                <div className="mobile-accordion-content">
+                  <Link
+                    to="/services"
+                    className="mobile-services-all-link"
+                    onClick={() => {
+                      setMobileOpen(false)
+                      setMobileServicesOpen(false)
+                    }}
+                  >
+                    <strong>View Complete Services Overview</strong>
+                    <ArrowRight size={14} />
+                  </Link>
+
+                  <div className="mobile-categories-list">
+                    {SERVICE_CATEGORIES.map((cat) => {
+                      const Icon = cat.icon
+                      const isCatOpen = mobileExpandedCat === cat.id
+                      return (
+                        <div key={cat.id} className="mobile-category-block">
+                          <button
+                            type="button"
+                            className={`mobile-category-toggle ${isCatOpen ? 'is-open' : ''}`}
+                            onClick={() =>
+                              setMobileExpandedCat(isCatOpen ? null : cat.id)
+                            }
+                          >
+                            <div className="mct-info">
+                              <span className="mct-icon-wrap">
+                                <Icon size={16} />
+                              </span>
+                              <div className="mct-text">
+                                <strong className="mct-title">{cat.label}</strong>
+                                <span className="mct-desc">{cat.subtitle}</span>
+                              </div>
+                            </div>
+                            <ChevronDown
+                              size={14}
+                              className={`mct-caret ${isCatOpen ? 'is-open' : ''}`}
+                            />
+                          </button>
+
+                          {isCatOpen && (
+                            <ul className="mobile-category-sublinks">
+                              {cat.services.map((item, idx) => (
+                                <li key={idx}>
+                                  <Link
+                                    to={item.to}
+                                    className="mobile-sublink-item"
+                                    onClick={() => {
+                                      setMobileOpen(false)
+                                      setMobileServicesOpen(false)
+                                    }}
+                                  >
+                                    <span>{item.label}</span>
+                                    <ArrowRight size={12} className="mobile-sublink-arrow" />
+                                  </Link>
+                                </li>
+                              ))}
+                              <li>
+                                <Link
+                                  to={cat.primaryCta.to}
+                                  className="mobile-category-cta-link"
+                                  onClick={() => {
+                                    setMobileOpen(false)
+                                    setMobileServicesOpen(false)
+                                  }}
+                                >
+                                  <span>{cat.primaryCta.label}</span>
+                                  <ArrowRight size={13} />
+                                </Link>
+                              </li>
+                            </ul>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </li>
             <li>
               <Link to="/approach" onClick={() => setMobileOpen(false)}>

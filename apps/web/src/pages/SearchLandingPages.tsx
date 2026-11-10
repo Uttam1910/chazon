@@ -1,4 +1,13 @@
-import { ArrowRight, CheckCircle2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Layers,
+  MousePointerClick,
+  ShieldCheck,
+  TrendingUp,
+  Zap,
+} from 'lucide-react'
 import { breadcrumbSchema, faqSchema, serviceSchema, usePageMeta } from '../seo'
 import { PageShell } from '../components/Layout'
 import { WebsiteAuditView } from '../components/WebsiteAuditView'
@@ -37,6 +46,217 @@ export {
   LOCAL_SEO,
   AI_INTEGRATION,
   type SearchPageConfig,
+}
+
+function renderHeroTitle(h1: string) {
+  if (h1.includes('.')) {
+    const parts = h1.split('.')
+    return (
+      <>
+        {parts[0]}. <em>{parts.slice(1).join('.').trim()}</em>
+      </>
+    )
+  }
+  const words = h1.split(' ')
+  if (words.length > 4) {
+    const splitIndex = Math.max(3, words.length - 4)
+    return (
+      <>
+        {words.slice(0, splitIndex).join(' ')} <em>{words.slice(splitIndex).join(' ')}</em>
+      </>
+    )
+  }
+  return <>{h1}</>
+}
+
+/** Visual mockups and interactive compositions tailored for each service hero */
+function ServiceHeroVisual({ slug }: { slug: string }) {
+  if (slug === 'ui-ux-design') {
+    return (
+      <div className="shv-card shv-uiux" aria-hidden="true">
+        <div className="shv-browser-bar">
+          <span className="shv-dot red" />
+          <span className="shv-dot yellow" />
+          <span className="shv-dot green" />
+          <span className="shv-bar-title">Figma · Chazon Design System</span>
+          <span className="shv-badge-small">100%</span>
+        </div>
+        <div className="shv-artboard-content">
+          <div className="shv-wireframe-screen">
+            <div className="shv-app-nav">
+              <span className="shv-mini-logo" />
+              <div className="shv-nav-pills">
+                <span />
+                <span />
+              </div>
+            </div>
+            <div className="shv-app-hero">
+              <div className="shv-chip">STAGE 03 · CONVERT</div>
+              <h5>Friction-Free Checkout Flow</h5>
+              <p>Removing cognitive load & increasing tap velocity.</p>
+              <div className="shv-cta-preview">
+                <span>Complete Order</span>
+                <MousePointerClick size={14} className="shv-cursor-icon" />
+              </div>
+            </div>
+            <div className="shv-trust-row">
+              <div className="shv-mini-trust"><CheckCircle2 size={12} /> Sub-600ms Speed</div>
+              <div className="shv-mini-trust"><CheckCircle2 size={12} /> WCAG AAA</div>
+            </div>
+          </div>
+          <div className="shv-floating-metric metric-right">
+            <div className="sfm-icon"><TrendingUp size={16} /></div>
+            <div className="sfm-text">
+              <strong>+42% Conversion</strong>
+              <small>Frictionless UX lift</small>
+            </div>
+          </div>
+          <div className="shv-floating-metric metric-bottom-left">
+            <div className="sfm-icon sfm-shield"><ShieldCheck size={16} /></div>
+            <div className="sfm-text">
+              <strong>98/100 Usability</strong>
+              <small>Cognitive clarity audit</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (slug === 'website-development' || slug === 'ecommerce-development' || slug === 'landing-page-development') {
+    return (
+      <div className="shv-card shv-webdev" aria-hidden="true">
+        <div className="shv-browser-bar">
+          <span className="shv-dot red" />
+          <span className="shv-dot yellow" />
+          <span className="shv-dot green" />
+          <span className="shv-bar-title">https://chazon.digital/{slug}</span>
+        </div>
+        <div className="shv-browser-inner">
+          <div className="shv-laptop-viewport">
+            <div className="slv-top-bar">
+              <span className="slv-brand">CHAZON ARCHITECTURE</span>
+              <span className="slv-status">⚡ Sub-800ms</span>
+            </div>
+            <h4>High-Performing Digital Platform</h4>
+            <p>Engineered for discoverability, trust, and commercial conversion.</p>
+            <div className="slv-btn-mock">Explore Solutions →</div>
+          </div>
+          <div className="shv-mobile-mockup">
+            <div className="smm-notch" />
+            <div className="smm-content">
+              <span className="smm-tag">MOBILE FIRST</span>
+              <strong>Frictionless UX</strong>
+              <div className="smm-btn">Instant WhatsApp</div>
+            </div>
+          </div>
+          <div className="shv-floating-metric metric-right">
+            <div className="sfm-icon"><TrendingUp size={16} /></div>
+            <div className="sfm-text">
+              <strong>+74% Traffic</strong>
+              <small>Speed & SEO optimized</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (slug === 'seo-services' || slug === 'local-seo' || slug === 'search-engine-optimisation') {
+    return (
+      <div className="shv-card shv-seo" aria-hidden="true">
+        <div className="shv-browser-bar">
+          <span className="shv-dot red" />
+          <span className="shv-dot yellow" />
+          <span className="shv-dot green" />
+          <span className="shv-bar-title">google.com/search?q=high+intent+revenue</span>
+        </div>
+        <div className="shv-serp-inner">
+          <div className="shv-serp-card">
+            <span className="serp-badge">#1 GOOGLE RANKING</span>
+            <h4>Chazon Digital Ventures — Revenue-Led Growth</h4>
+            <p>Connecting technology, organic search intent, and commercial conversion into one unified pipeline.</p>
+            <div className="serp-stars">★★★★★ 4.9 (48 Client Reviews)</div>
+          </div>
+          <div className="shv-floating-metric metric-right">
+            <div className="sfm-icon"><TrendingUp size={16} /></div>
+            <div className="sfm-text">
+              <strong>+184% Organic</strong>
+              <small>Topical cluster authority</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (slug === 'digital-marketing' || slug === 'ppc-advertising' || slug === 'google-ads' || slug === 'social-media-marketing' || slug === 'content-marketing' || slug === 'affiliate-influencer-marketing') {
+    return (
+      <div className="shv-card shv-growth" aria-hidden="true">
+        <div className="shv-browser-bar">
+          <span className="shv-dot red" />
+          <span className="shv-dot yellow" />
+          <span className="shv-dot green" />
+          <span className="shv-bar-title">Chazon Growth Cockpit · Live Attribution</span>
+        </div>
+        <div className="shv-cockpit-inner">
+          <div className="shv-channels-grid">
+            <div className="scg-item">
+              <span className="scg-label">Organic Search</span>
+              <strong>48% Volume</strong>
+              <div className="scg-bar"><span style={{ width: '85%' }} /></div>
+            </div>
+            <div className="scg-item">
+              <span className="scg-label">Targeted Paid</span>
+              <strong>4.8x ROAS</strong>
+              <div className="scg-bar"><span style={{ width: '92%' }} /></div>
+            </div>
+            <div className="scg-item">
+              <span className="scg-label">Social & Content</span>
+              <strong>+68% Reach</strong>
+              <div className="scg-bar"><span style={{ width: '74%' }} /></div>
+            </div>
+          </div>
+          <div className="shv-floating-metric metric-right">
+            <div className="sfm-icon"><Zap size={16} /></div>
+            <div className="sfm-text">
+              <strong>+68% Acquisition</strong>
+              <small>Full-funnel attribution</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Automation / Email / AI fallback
+  return (
+    <div className="shv-card shv-automate" aria-hidden="true">
+      <div className="shv-browser-bar">
+        <span className="shv-dot red" />
+        <span className="shv-dot yellow" />
+        <span className="shv-dot green" />
+        <span className="shv-bar-title">Automated Pipeline · Live 24/7</span>
+      </div>
+      <div className="shv-automate-inner">
+        <div className="shv-chat-bubble whatsapp">
+          <span className="bubble-head">WhatsApp Business API · Automated</span>
+          <p>“New high-intent enquiry received. Personalized strategy brief dispatched.”</p>
+        </div>
+        <div className="shv-chat-bubble crm">
+          <span className="bubble-head">HubSpot CRM · Pipeline Sync</span>
+          <p>Lead tagged, assigned to growth strategist & consultation booked.</p>
+        </div>
+        <div className="shv-floating-metric metric-right">
+          <div className="sfm-icon"><Zap size={16} /></div>
+          <div className="sfm-text">
+            <strong>24/7 Pipeline</strong>
+            <small>Zero lead response delay</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function DedicatedServicePage({ config }: { config: SearchPageConfig }) {
@@ -87,8 +307,9 @@ export function DedicatedServicePage({ config }: { config: SearchPageConfig }) {
           [config.breadcrumb, path],
         ]}
         eyebrow={`Specialized Capability · ${config.breadcrumb}`}
-        title={<>{config.h1}</>}
+        title={renderHeroTitle(config.h1)}
         intro={config.intro}
+        aside={<ServiceHeroVisual slug={config.slug} />}
       >
         <div className="button-row">
           <Cta to={contactLink} location={`service_${config.slug}_hero`}>
@@ -112,20 +333,29 @@ export function DedicatedServicePage({ config }: { config: SearchPageConfig }) {
         )}
       </PageHero>
 
-      {/* The Problem & Solution */}
-      <section className="section" aria-labelledby="problem-heading">
+      {/* The Problem & Commercial Friction */}
+      <section className="section service-challenge-section" aria-labelledby="problem-heading">
         <div className="container split-section">
-          <div>
-            <Eyebrow>The Challenge</Eyebrow>
-            <h2 id="problem-heading">{config.problemTitle}</h2>
-          </div>
-          <div>
+          <div className="challenge-left">
+            <Eyebrow>Commercial Reality</Eyebrow>
+            <h2 id="problem-heading" className="challenge-title">{config.problemTitle}</h2>
             <p className="split-intro">{config.problemText}</p>
-            <ul className="signs">
-              {config.signs.map((s) => (
-                <li key={s}>{s}</li>
-              ))}
-            </ul>
+          </div>
+          <div className="challenge-right">
+            <div className="challenge-friction-box">
+              <div className="cfb-head">
+                <AlertTriangle size={18} className="text-accent" />
+                <strong className="cfb-title">Common Friction Points & Revenue Leaks:</strong>
+              </div>
+              <ul className="signs-styled">
+                {config.signs.map((s) => (
+                  <li key={s} className="sign-item">
+                    <span className="sign-bullet" aria-hidden="true" />
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       </section>
@@ -225,7 +455,7 @@ export function DedicatedServicePage({ config }: { config: SearchPageConfig }) {
         </section>
       )}
 
-      {/* What's Included */}
+      {/* What's Included / Core Scope */}
       <section
         className="section"
         id="included"
@@ -251,6 +481,70 @@ export function DedicatedServicePage({ config }: { config: SearchPageConfig }) {
               </li>
             ))}
           </ul>
+        </div>
+      </section>
+
+      {/* Featured Craft & Commercial Proof Showcase */}
+      <section className="section surface-cream service-craft-spotlight" aria-labelledby="craft-heading">
+        <div className="container">
+          <div className="craft-spotlight-split">
+            <div className="craft-img-frame">
+              <img
+                src={
+                  config.slug === 'ui-ux-design'
+                    ? '/assets/hero-laptop-desk.webp'
+                    : config.slug === 'website-development' || config.slug === 'ecommerce-development' || config.slug === 'landing-page-development'
+                    ? '/assets/hero-laptop-desk.webp'
+                    : '/assets/about-team-story.webp'
+                }
+                alt={`${config.title} in practice at Chazon`}
+                className="craft-spotlight-img"
+                width={560}
+                height={340}
+                loading="lazy"
+              />
+              <span className="craft-badge">Chazon Commercial Standard</span>
+            </div>
+            <div className="craft-copy">
+              <Eyebrow>Execution Craft</Eyebrow>
+              <h2 id="craft-heading">
+                Engineered for <em>measurable commercial outcomes.</em>
+              </h2>
+              <p className="craft-lead">
+                Every {config.title.toLowerCase()} project at Chazon bridges the gap between technical execution and business revenue. We don't build generic deliverables—we build growth engines that compound in value over time.
+              </p>
+              <div className="craft-pillars-grid">
+                <div className="cpp-item">
+                  <div className="cpp-icon"><Zap size={16} /></div>
+                  <div>
+                    <strong>Sub-800ms Speed</strong>
+                    <small>High conversion velocity</small>
+                  </div>
+                </div>
+                <div className="cpp-item">
+                  <div className="cpp-icon"><CheckCircle2 size={16} /></div>
+                  <div>
+                    <strong>Conversion Psychology</strong>
+                    <small>Zero friction pathways</small>
+                  </div>
+                </div>
+                <div className="cpp-item">
+                  <div className="cpp-icon"><Layers size={16} /></div>
+                  <div>
+                    <strong>WhatsApp & CRM Sync</strong>
+                    <small>Instant lead routing</small>
+                  </div>
+                </div>
+                <div className="cpp-item">
+                  <div className="cpp-icon"><TrendingUp size={16} /></div>
+                  <div>
+                    <strong>Closed-Loop ROI</strong>
+                    <small>Clear attribution tracking</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -280,19 +574,25 @@ export function DedicatedServicePage({ config }: { config: SearchPageConfig }) {
       {/* FAQs */}
       <Faq items={config.faqs} title={`${config.title}: Frequently Asked Questions`} />
 
-      {/* Bottom CTA */}
-      <section className="section surface-peach text-center">
+      {/* Bottom Call to Action: Premium Dark Revenue Engine Card */}
+      <section className="section service-bottom-cta-section" aria-labelledby="cta-bottom-heading">
         <div className="container">
-          <h2 className="section-title-large">
-            Ready to upgrade your {config.title.toLowerCase()}?
-          </h2>
-          <p className="section-sub-desc" style={{ marginInline: 'auto' }}>
-            Book a conversation with founder Binny Rogin to review your requirements and outline a concrete execution plan.
-          </p>
-          <div className="button-row" style={{ justifyContent: 'center' }}>
-            <Cta to={contactLink} location={`service_${config.slug}_footer`}>
-              {config.ctaLabel} <ArrowRight size={16} />
-            </Cta>
+          <div className="service-bottom-cta-card">
+            <span className="sbc-badge">CHAZON DIGITAL VENTURES · MUMBAI</span>
+            <h2 id="cta-bottom-heading" className="sbc-title">
+              Ready to turn your {config.title.toLowerCase()} into <em>predictable business growth?</em>
+            </h2>
+            <p className="sbc-desc">
+              Book a strategic conversation with founder Binny Rogin to inspect your current setup, uncover conversion leaks, and outline a concrete execution roadmap.
+            </p>
+            <div className="sbc-actions">
+              <Cta to={contactLink} location={`service_${config.slug}_footer`}>
+                {config.ctaLabel} <ArrowRight size={16} />
+              </Cta>
+              <Cta to="/contact" variant="secondary" location={`service_${config.slug}_footer_talk`}>
+                Start a Conversation
+              </Cta>
+            </div>
           </div>
         </div>
       </section>

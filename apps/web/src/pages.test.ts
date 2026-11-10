@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PUBLIC_PAGES } from '@chazon/shared'
 import { render } from './entry-server'
 import { matchRoute } from './routes'
+import { normalizeCategoryFilter } from './pages/Services'
 
 // Renders every fixed page the way the build-time prerender does and checks what crawlers and visitors receive.
 const pages = PUBLIC_PAGES.map(path => ({ path, ...render(path) }))
@@ -74,5 +75,28 @@ describe('structured data with a production URL', () => {
     const crumbs = service[0]['@graph'][1].itemListElement.map((i: { item: string }) => i.item)
     expect(crumbs).toEqual(['https://chazon.test/', 'https://chazon.test/services', 'https://chazon.test/services/website-development'])
     expect(renderWithUrl('/about').head).toContain('<link rel="canonical" href="https://chazon.test/about"')
+  })
+})
+
+describe('services category redirect & filter normalization', () => {
+  it('normalizes category query parameters accurately', () => {
+    expect(normalizeCategoryFilter('build')).toBe('build')
+    expect(normalizeCategoryFilter('convert')).toBe('convert')
+    expect(normalizeCategoryFilter('market')).toBe('market')
+    expect(normalizeCategoryFilter('grow')).toBe('market')
+    expect(normalizeCategoryFilter('automate')).toBe('retain')
+    expect(normalizeCategoryFilter('retain')).toBe('retain')
+    expect(normalizeCategoryFilter('optimise')).toBe('optimise')
+    expect(normalizeCategoryFilter('optimize')).toBe('optimise')
+    expect(normalizeCategoryFilter(null)).toBe('all')
+    expect(normalizeCategoryFilter('')).toBe('all')
+    expect(normalizeCategoryFilter('unknown')).toBe('all')
+  })
+
+  it('renders services page with category param', () => {
+    const res = render('/services?category=build#services-grid')
+    expect(res.status).toBe(200)
+    expect(res.html).toContain('OUR SERVICE ECOSYSTEM')
+    expect(res.html).toContain('Website Development')
   })
 })
