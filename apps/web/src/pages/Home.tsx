@@ -14,7 +14,7 @@ import { BusinessProblemSection } from '../components/BusinessProblemSection'
 import { DashboardMockup } from '../components/DashboardMockup'
 import { GrowthFramework } from '../components/GrowthFramework'
 import { HomeAuditSection } from '../components/HomeAuditSection'
-import { InsightsShowcase } from '../components/InsightsShowcase'
+import { IndustriesShowcase } from '../components/IndustriesShowcase'
 import { PageShell } from '../components/Layout'
 import { ProcessTimeline } from '../components/ProcessTimeline'
 import { ServicesGrid } from '../components/ServicesGrid'
@@ -175,29 +175,8 @@ export function Home() {
         </div>
       </section>
 
-      {/* 10. INSIGHTS AND ARTICLES */}
-      <section className="section insights-home-section surface-cream" id="insights" aria-labelledby="insights-home-title">
-        <div className="container">
-          <div className="insights-home-head-split">
-            <div className="ihh-left">
-              <span className="ihh-eyebrow-orange">INSIGHTS & RESOURCES</span>
-              <h2 id="insights-home-title" className="ihh-title">
-                Ideas, Strategies and Practical Guidance
-              </h2>
-              <p className="ihh-subtitle">
-                Actionable insights on digital growth, marketing, technology and more.
-              </p>
-            </div>
-            <div className="ihh-right">
-              <Link to="/insights" className="ihh-view-all-link">
-                View All Insights <ArrowRight size={16} />
-              </Link>
-            </div>
-          </div>
-
-          <InsightsShowcase isPage={false} />
-        </div>
-      </section>
+      {/* 10. INDUSTRIES & SECTORS WE TRANSFORM (REPLACING INSIGHTS BLOG) */}
+      <IndustriesShowcase />
 
       {/* 11. STRONG FINAL CTA */}
       <section className="home-orange-cta-banner" id="contact" aria-labelledby="home-cta-title">

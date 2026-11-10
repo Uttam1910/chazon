@@ -354,16 +354,20 @@ export function Header() {
   )
 }
 
-export function Footer() {
+export function Footer({ hideCta = false }: { hideCta?: boolean }) {
   const { channels, settings } = useSite()
   const { path } = useRouter()
   const currentYear = new Date().getFullYear()
+
+  // Only show fallback callout band on subpages that do not already have a dedicated CTA banner (such as Home, About, Contact)
+  const showCtaBand =
+    !hideCta && path !== '/' && path !== '/about' && path !== '/contact'
 
   return (
     <footer className="footer-redesigned surface-dark-footer">
       <div className="container">
         {/* Top Callout only on subpages */}
-        {path !== '/' && (
+        {showCtaBand && (
           <div className="footer-cta-band">
             <div className="fcb-copy">
               <h2 className="fcb-title">
@@ -528,7 +532,13 @@ export function FloatingWhatsApp() {
   )
 }
 
-export function PageShell({ children }: { children: ReactNode }) {
+export function PageShell({
+  children,
+  hideFooterCta = false,
+}: {
+  children: ReactNode
+  hideFooterCta?: boolean
+}) {
   return (
     <>
       <a className="skip-link" href="#main">
@@ -538,7 +548,7 @@ export function PageShell({ children }: { children: ReactNode }) {
       <main id="main" tabIndex={-1}>
         {children}
       </main>
-      <Footer />
+      <Footer hideCta={hideFooterCta} />
       <FloatingWhatsApp />
     </>
   )
