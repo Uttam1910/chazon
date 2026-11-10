@@ -28,7 +28,7 @@ export function About() {
   usePageMeta({
     title: 'About Chazon Digital Ventures | Digital Growth Partner',
     description:
-      'Chazon Digital Ventures is a digital growth partner helping businesses build, strengthen and optimise their digital presence through strategy, technology, marketing and automation.',
+      'Chazon Digital Ventures helps businesses build, strengthen and optimise their digital presence through connected strategy, technology, marketing and automation.',
     path: '/about',
     schema: breadcrumbSchema([['About Us', '/about']]),
   })

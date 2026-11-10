@@ -31,23 +31,24 @@ const field = (max: number) => z.string().trim().max(max).optional().transform(v
 
 // Schema for smart multi-step dynamic enquiry
 const smartEnquirySchema = z.object({
+  category: field(100),
   goals: z.array(z.string()).default([]),
   dynamicAnswers: z.record(z.string(), z.unknown()).optional(),
   business: z.object({
-    businessName: z.string().trim().min(1, 'Business name is required').max(150),
+    businessName: z.string().trim().max(150).optional().transform(v => v || 'Not specified'),
     industry: z.string().trim().max(100).optional().default('General'),
     website: field(250),
     location: field(120),
     businessStage: field(60),
     targetAudience: field(150),
     description: field(2000),
-  }),
+  }).default({ businessName: 'Not specified', industry: 'General' }),
   budget: field(80),
   timeline: field(80),
   contact: z.object({
     name: z.string().trim().min(2, 'Full name is required').max(100),
     email: z.string().trim().toLowerCase().max(200).pipe(z.email('Enter a valid email address')),
-    phone: z.string().trim().regex(/^[+0-9() .-]{7,25}$/, 'Enter a valid phone number with country code'),
+    phone: z.string().trim().max(35).optional().transform(v => v || 'Not provided'),
     preferredContact: z.enum(['WhatsApp', 'Phone', 'Email']).default('WhatsApp'),
     message: field(3000),
     consentToContact: z.boolean().default(true),
@@ -113,9 +114,9 @@ publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimite
         phone: body.contact.phone,
         preferredContact: body.contact.preferredContact,
         website: body.business.website,
-        category: body.business.industry,
-        service: body.goals.join(', ') || 'Growth Partnership',
-        services: body.goals,
+        category: body.category || body.business.industry || 'General',
+        service: body.category ? (body.goals.length ? `${body.category} (${body.goals.join(', ')})` : body.category) : (body.goals.join(', ') || 'Growth Partnership'),
+        services: body.goals.length ? body.goals : (body.category ? [body.category] : []),
         businessStage: body.business.businessStage,
         targetAudience: body.business.targetAudience,
         businessDescription: body.business.description,
@@ -133,7 +134,7 @@ publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimite
         activities: {
           create: {
             type: 'CREATED',
-            message: `Smart multi-step enquiry submitted (Ref: ${reference}). Selected goals: ${body.goals.join(', ') || 'None'}.`,
+            message: `Central dynamic enquiry submitted (Ref: ${reference}). Category: ${body.category || 'General'}. Selected goals: ${body.goals.join(', ') || 'None'}.`,
           },
         },
       },
@@ -141,21 +142,26 @@ publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimite
 
     const whatsAppDigits = process.env.VITE_WHATSAPP_NUMBER || '919820000000'
     const waText = encodeURIComponent(
-      `Hi Chazon team, I submitted an enquiry for ${body.business.businessName} (Ref: ${reference}). Looking forward to discussing our project.`
+      `Hi Chazon team, I submitted an enquiry for ${body.business.businessName} (Ref: ${reference}). Category: ${body.category || 'Growth Partnership'}. Looking forward to discussing our project.`
     )
     const whatsAppHref = `https://wa.me/${whatsAppDigits.replace(/\D/g, '')}?text=${waText}`
 
     const submission: Submission = {
       id: createdLead.id,
+      reference,
       kind: 'lead',
       name: body.contact.name,
       businessName: body.business.businessName,
       email: body.contact.email,
       phone: body.contact.phone,
+      preferredContact: body.contact.preferredContact,
       website: body.business.website,
-      category: body.business.industry,
-      service: body.goals.join(', ') || 'Multi-Service Growth System',
+      category: body.category || body.business.industry,
+      service: body.category ? (body.goals.length ? `${body.category} (${body.goals.join(', ')})` : body.category) : (body.goals.join(', ') || 'Multi-Service Growth System'),
+      services: body.goals,
       budget: body.budget,
+      timeline: body.timeline,
+      auditRef: body.auditRef,
       message: body.contact.message || body.business.description,
     }
 
@@ -182,14 +188,14 @@ publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimite
   const legacySchema = z.object({
     enquiry_type: z.enum(['talk', 'audit']).default('talk'),
     name: z.string().trim().min(2, 'Please enter your name').max(100),
-    business: z.string().trim().min(1, 'Please enter your business name').max(150),
+    business: z.string().trim().max(150).optional().transform(v => v || 'Not specified'),
     email: z.string().trim().toLowerCase().max(200).pipe(z.email('Enter a valid email address')),
-    phone: z.string().trim().regex(/^[+0-9() .-]{7,25}$/, 'Enter a valid phone number'),
+    phone: z.string().trim().max(35).optional().transform(v => v || null),
     website: field(200),
     category: field(100),
     service: field(100),
     budget: field(60),
-    message: field(3000),
+    message: z.string().trim().min(1, 'Please enter your message or project requirements').max(3000),
     company_url: z.string().optional(),
     form_started: z.coerce.number().optional(),
     source_detail: field(120),

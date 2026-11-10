@@ -150,8 +150,8 @@ export function ServicesIndex() {
               <Link to="/contact" className="button button-primary">
                 Discuss Your Project <ArrowRight size={18} />
               </Link>
-              <Link to="/website-audit" className="button button-secondary">
-                Free Website Audit
+              <Link to="/#framework" className="button button-secondary">
+                Growth Framework
               </Link>
             </div>
           </div>
@@ -379,14 +379,14 @@ export function ServicesIndex() {
             Not sure which services your business needs first?
           </h2>
           <p className="section-sub-desc" style={{ marginInline: 'auto' }}>
-            Run our free instant Website Audit or request a comprehensive Digital Growth Audit with our advisory team.
+            Request a comprehensive strategic growth consultation with our founding advisory team.
           </p>
           <div className="button-row" style={{ justifyContent: 'center' }}>
-            <Link to="/website-audit" className="button button-primary">
-              Run Free Website Audit <ArrowRight size={16} />
+            <Link to="/contact" className="button button-primary">
+              Book a Strategy Call <ArrowRight size={16} />
             </Link>
-            <Link to="/contact" className="button button-secondary">
-              Book a Strategy Call
+            <Link to="/#framework" className="button button-secondary">
+              Explore Growth Framework
             </Link>
           </div>
         </div>
@@ -425,7 +425,7 @@ export function ServicePage({ index }: { index: number }) {
     track('service_page_view', { pillar: p.key })
   }, [p.key])
 
-  const contact = `/contact?service=${encodeURIComponent(p.slug)}`
+  const contact = `/contact?type=${encodeURIComponent(p.key)}&service=${encodeURIComponent(p.slug)}`
 
   return (
     <PageShell>

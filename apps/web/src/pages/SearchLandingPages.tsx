@@ -60,7 +60,24 @@ export function DedicatedServicePage({ config }: { config: SearchPageConfig }) {
     ],
   })
 
-  const contactLink = `/contact?service=${encodeURIComponent(config.ctaPillar)}`
+  const categoryMap: Record<string, string> = {
+    'Website Development': 'BUILD',
+    'UI/UX Design': 'BUILD',
+    'Landing Page Development': 'CONVERT',
+    'E-Commerce Development': 'E-COMMERCE',
+    'Search Engine Optimisation': 'GROW',
+    'Local SEO': 'GROW',
+    'Digital Marketing': 'GROW',
+    'Content Marketing': 'GROW',
+    'Social Media Marketing': 'GROW',
+    'Affiliate & Influencer Marketing': 'GROW',
+    'PPC Advertising': 'CONVERT',
+    'Google Ads': 'CONVERT',
+    'Email Marketing': 'AUTOMATE',
+    'AI Integration': 'AI',
+  }
+  const categoryType = categoryMap[config.ctaPillar] || 'BUILD'
+  const contactLink = `/contact?type=${categoryType}&service=${encodeURIComponent(config.slug)}`
 
   return (
     <PageShell>
@@ -78,11 +95,11 @@ export function DedicatedServicePage({ config }: { config: SearchPageConfig }) {
             {config.ctaLabel}
           </Cta>
           <Cta
-            to="/website-audit"
+            to="/contact"
             variant="secondary"
-            location={`service_${config.slug}_audit`}
+            location={`service_${config.slug}_consult`}
           >
-            Audit My Current Website
+            Start a Conversation
           </Cta>
         </div>
 
@@ -275,13 +292,6 @@ export function DedicatedServicePage({ config }: { config: SearchPageConfig }) {
           <div className="button-row" style={{ justifyContent: 'center' }}>
             <Cta to={contactLink} location={`service_${config.slug}_footer`}>
               {config.ctaLabel} <ArrowRight size={16} />
-            </Cta>
-            <Cta
-              to="/website-audit"
-              variant="secondary"
-              location={`service_${config.slug}_footer_audit`}
-            >
-              Run Website Diagnostic
             </Cta>
           </div>
         </div>

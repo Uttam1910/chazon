@@ -211,11 +211,11 @@ export function Header() {
                       <div className="dropdown-audit-callout">
                         <div className="dac-head">
                           <Sparkles size={16} />
-                          <span>Digital Growth Audit</span>
+                          <span>Strategic Advisory</span>
                         </div>
-                        <p>Evaluate your website speed, SEO, and conversion leaks.</p>
-                        <Link to="/website-audit" className="dac-link">
-                          Run Free Diagnostic <ArrowRight size={14} />
+                        <p>Discuss your digital growth roadmap directly with our founding team.</p>
+                        <Link to="/contact" className="dac-link">
+                          Book a Consultation <ArrowRight size={14} />
                         </Link>
                       </div>
                     </div>
@@ -235,13 +235,6 @@ export function Header() {
               className="nav-link"
             >
               Growth Framework
-            </Link>
-
-            <Link
-              to="/website-audit"
-              className={`nav-link ${path.startsWith('/website-audit') || path.startsWith('/growth-audit') ? 'is-active' : ''}`}
-            >
-              Website Audit
             </Link>
 
             <Link
@@ -328,11 +321,6 @@ export function Header() {
               </Link>
             </li>
             <li>
-              <Link to="/website-audit" onClick={() => setMobileOpen(false)}>
-                Free Website Audit Diagnostic
-              </Link>
-            </li>
-            <li>
               <Link to="/contact" onClick={() => setMobileOpen(false)}>
                 Contact & Inquiries
               </Link>
@@ -380,9 +368,6 @@ export function Footer({ hideCta = false }: { hideCta?: boolean }) {
             <div className="fcb-actions">
               <Link to="/contact" className="button button-primary">
                 Let’s Talk <ArrowRight size={16} />
-              </Link>
-              <Link to="/website-audit" className="button button-secondary">
-                Free Website Audit
               </Link>
             </div>
           </div>
@@ -442,9 +427,6 @@ export function Footer({ hideCta = false }: { hideCta?: boolean }) {
             <ul className="footer-links-list">
               <li>
                 <Link to="/#framework">Growth Framework</Link>
-              </li>
-              <li>
-                <Link to="/website-audit">Website Audit</Link>
               </li>
               <li>
                 <Link to="/insights">Insights</Link>

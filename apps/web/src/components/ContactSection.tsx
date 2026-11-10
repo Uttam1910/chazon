@@ -4,6 +4,7 @@ import { config, track } from '../config'
 import { useSite } from '../site-data'
 import { WhatsAppIcon } from './Layout'
 import { SmartEnquiryForm } from './SmartEnquiryForm'
+import { CustomDropdown } from './CustomDropdown'
 
 export function ContactSection({ initialService = '' }: { initialService?: string }) {
   const { settings, whatsappReady, whatsappHref } = useSite()
@@ -294,18 +295,12 @@ export function ContactSection({ initialService = '' }: { initialService?: strin
 
                   <div className="form-group">
                     <label htmlFor="contact-service">Service Interested In</label>
-                    <select
+                    <CustomDropdown
                       id="contact-service"
                       value={service}
-                      onChange={(e) => setService(e.target.value)}
-                      className="form-select"
-                    >
-                      {serviceOptions.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setService(val)}
+                      options={serviceOptions}
+                    />
                   </div>
 
                   <div className="form-group span-full">

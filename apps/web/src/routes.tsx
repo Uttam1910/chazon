@@ -17,10 +17,11 @@ import {
   ECOMMERCE_DEV,
   LOCAL_SEO,
   AI_INTEGRATION,
-  WebsiteAuditPage,
 } from './pages/SearchLandingPages'
 import { About, Approach } from './pages/Company'
-import { Contact, GrowthAudit } from './pages/Enquire'
+import { Contact } from './pages/Contact'
+import { WebsiteAudit } from './pages/WebsiteAudit'
+import { GrowthAudit } from './pages/Enquire'
 import { NotFound, Privacy, Terms } from './pages/Legal'
 import { CaseStudyPage, InsightPage, InsightsIndex, WorkIndex } from './pages/Content'
 
@@ -56,7 +57,7 @@ const pages: Record<string, () => ReactNode> = {
   '/approach': () => <Approach />,
   '/growth-framework': () => <Approach />,
   '/about': () => <About />,
-  '/website-audit': () => <WebsiteAuditPage mode="audit" />,
+  '/website-audit': () => <WebsiteAudit />,
   '/growth-audit': () => <GrowthAudit />,
   '/work': () => <WorkIndex />,
   '/insights': () => <InsightsIndex />,

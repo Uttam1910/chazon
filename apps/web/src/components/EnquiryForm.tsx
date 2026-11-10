@@ -7,6 +7,7 @@ import { ENQUIRY_FIELDS, submitEnquiry, validateEnquiry, type EnquiryField, type
 import { Link } from '../router'
 import { useSite } from '../site-data'
 import { ChannelIcon, ChannelLink } from './Layout'
+import { CustomDropdown } from './CustomDropdown'
 
 const labels: Record<EnquiryField, string> = {
   name: 'Your name', email: 'Email', phone: 'Phone or WhatsApp', business: 'Business name', website: 'Website or Instagram',
@@ -25,6 +26,9 @@ export function EnquiryForm({ type, initialService = '', location }: { type: Enq
   const touched = useRef(false)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
+  const [categoryVal, setCategoryVal] = useState('')
+  const [serviceVal, setServiceVal] = useState(initialService || '')
+  const [budgetVal, setBudgetVal] = useState('')
   const uid = useId()
   const formName = type === 'audit' ? 'growth_audit' : 'enquiry'
   const ready = demoMode || !!config.enquiryEndpoint
@@ -124,13 +128,36 @@ export function EnquiryForm({ type, initialService = '', location }: { type: Enq
       {field('phone', p => <input {...p} type="tel" autoComplete="tel" inputMode="tel" maxLength={20}/>, { hint: 'Include the country code if you’re outside India.' })}
       {field('business', p => <input {...p} type="text" autoComplete="organization" maxLength={150}/>)}
       {field('website', p => <input {...p} type="text" autoComplete="url" maxLength={200} placeholder="yourbusiness.com or @handle"/>, { optional: true })}
-      {field('category', p => <select {...p} defaultValue=""><option value="">Select your industry</option>{industries.map(([x]) => <option key={x}>{x}</option>)}<option>Other</option></select>, { optional: true })}
-      {type === 'talk' && field('service', p => <select {...p} defaultValue={initialService}>
-        <option value="" disabled>Choose one</option>
-        <optgroup label="Service pillars">{pillars.map(pillar => <option key={pillar.key} value={pillar.title}>{pillar.verb} — {pillar.scope}</option>)}</optgroup>
-        <optgroup label="Specific needs">{enquiryServices.map(x => <option key={x}>{x}</option>)}</optgroup>
-      </select>)}
-      {field('budget', p => <select {...p} defaultValue=""><option value="">Select a range</option>{budgets.map(x => <option key={x}>{x}</option>)}</select>, { optional: true })}
+      {field('category', p => <CustomDropdown
+        id={p.id}
+        name={p.name}
+        value={categoryVal}
+        placeholder="Select your industry"
+        onChange={v => { setCategoryVal(v); p.onChange(); }}
+        options={[
+          ...industries.map(([x]) => ({ value: x, label: x })),
+          { value: 'Other', label: 'Other' },
+        ]}
+      />, { optional: true })}
+      {type === 'talk' && field('service', p => <CustomDropdown
+        id={p.id}
+        name={p.name}
+        value={serviceVal}
+        placeholder="Choose one"
+        onChange={v => { setServiceVal(v); p.onChange(); }}
+        options={[
+          ...pillars.map(pillar => ({ value: pillar.title, label: `${pillar.verb} — ${pillar.scope}` })),
+          ...enquiryServices.map(x => ({ value: x, label: x })),
+        ]}
+      />)}
+      {field('budget', p => <CustomDropdown
+        id={p.id}
+        name={p.name}
+        value={budgetVal}
+        placeholder="Select a range"
+        onChange={v => { setBudgetVal(v); p.onChange(); }}
+        options={budgets.map(x => ({ value: x, label: x }))}
+      />, { optional: true })}
       {field('message', p => <textarea {...p} rows={5} maxLength={3000}/>, {
         optional: true, wide: true,
         hint: type === 'audit' ? 'What should the audit focus on? Any goals or concerns help us prepare.' : 'Where is your business today, and what are you trying to achieve?',

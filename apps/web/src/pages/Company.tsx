@@ -34,8 +34,8 @@ export function Approach() {
               <Link to="/contact" className="button button-primary">
                 Discuss Your Objectives <ArrowRight size={18} />
               </Link>
-              <Link to="/website-audit" className="button button-secondary">
-                Audit Your Current Assets
+              <Link to="/contact" className="button button-secondary">
+                Start a Conversation
               </Link>
             </div>
           </div>

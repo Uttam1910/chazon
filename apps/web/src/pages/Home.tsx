@@ -13,7 +13,6 @@ import { useSite } from '../site-data'
 import { BusinessProblemSection } from '../components/BusinessProblemSection'
 import { DashboardMockup } from '../components/DashboardMockup'
 import { GrowthFramework } from '../components/GrowthFramework'
-import { HomeAuditSection } from '../components/HomeAuditSection'
 import { IndustriesShowcase } from '../components/IndustriesShowcase'
 import { PageShell } from '../components/Layout'
 import { ProcessTimeline } from '../components/ProcessTimeline'
@@ -29,10 +28,7 @@ export function Home() {
   // Sync scroll on hash or query param intent
   useEffect(() => {
     const params = new URLSearchParams(search)
-    if (params.get('enquiry') === 'audit' || hash === '#audit') {
-      const el = document.getElementById('audit-tool')
-      el?.scrollIntoView({ behavior: 'smooth' })
-    } else if (hash === '#services') {
+    if (hash === '#services') {
       const el = document.getElementById('services-overview')
       el?.scrollIntoView({ behavior: 'smooth' })
     } else if (hash === '#framework') {
@@ -151,10 +147,7 @@ export function Home() {
       {/* 6 & 7. WHY CHOOSE CHAZON + TECHNOLOGY & INTEGRATIONS */}
       <WhyChooseChazon />
 
-      {/* 8. INTERACTIVE WEBSITE AUDIT SECTION */}
-      <HomeAuditSection />
-
-      {/* 9. SIX-STAGE WORKING PROCESS */}
+      {/* 8. SIX-STAGE WORKING PROCESS */}
       <section className="section how-we-work-section surface-cream" id="how-we-work" aria-labelledby="hww-title">
         <div className="container">
           <div className="how-we-work-head-split">

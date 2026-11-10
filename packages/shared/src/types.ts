@@ -80,6 +80,8 @@ export type PublicSite = {
 
 // ---------- Dynamic Enquiry & Growth Analyzer Types ----------
 
+export type EnquiryCategory = 'BUILD' | 'GROW' | 'CONVERT' | 'AUTOMATE' | 'E-COMMERCE' | 'AI'
+
 export type EnquiryGoal =
   | 'build-new'
   | 'improve-existing'
@@ -230,6 +232,7 @@ export type AuditAnalysisResult = {
 }
 
 export type SmartEnquiryPayload = {
+  category?: string
   goals: EnquiryGoal[]
   dynamicAnswers: DynamicFormAnswers
   business: EnquiryBusinessInfo

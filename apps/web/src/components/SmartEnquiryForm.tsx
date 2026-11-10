@@ -1,1417 +1,1284 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  ArrowLeft,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react'
+import {
   ArrowRight,
   Bot,
   Check,
   CheckCircle2,
-  Compass,
-  Edit2,
-  ExternalLink,
-  Globe,
-  Layers,
-  Layout,
-  LineChart,
+  Laptop,
+  Lock,
   MessageCircle,
   MessageSquare,
-  Phone,
   RefreshCw,
-  Search,
   Send,
-  ShieldCheck,
   ShoppingBag,
+  Sparkles,
+  Target,
   TrendingUp,
   Zap,
 } from 'lucide-react'
-import type {
-  AuditAnalysisResult,
-  BusinessStage,
-  DynamicAutomateAnswers,
-  DynamicBuildAnswers,
-  DynamicConvertAnswers,
-  DynamicEcommerceAnswers,
-  DynamicFormAnswers,
-  DynamicGrowAnswers,
-  EnquiryBusinessInfo,
-  EnquiryContactInfo,
-  EnquiryGoal,
-  PreferredContactMethod,
-  SmartEnquiryPayload,
-  SmartEnquiryResponse,
-} from '@chazon/shared'
+import type { EnquiryCategory } from '@chazon/shared'
 import { config, demoMode, sourceDetail, track } from '../config'
+import { useRouter } from '../location'
+import { CustomDropdown } from './CustomDropdown'
 
-const GOAL_OPTIONS: { id: EnquiryGoal; title: string; desc: string; icon: typeof Globe }[] = [
-  { id: 'build-new', title: 'Build a new website', desc: 'Modern, high-converting digital foundation from scratch', icon: Layout },
-  { id: 'improve-existing', title: 'Improve existing website', desc: 'Redesign, revamp UX, optimize speed and structure', icon: RefreshCw },
-  { id: 'seo-visibility', title: 'Improve Google visibility & SEO', desc: 'Rank higher for commercial intent search queries', icon: Search },
-  { id: 'generate-leads', title: 'Generate more leads & enquiries', desc: 'Predictable qualified acquisition and demand generation', icon: TrendingUp },
-  { id: 'improve-conversions', title: 'Improve website conversions', desc: 'Frictionless customer journeys and CRO improvements', icon: LineChart },
-  { id: 'automate-ops', title: 'Automate business operations', desc: 'WhatsApp workflows, CRM integration, lead routing', icon: Zap },
-  { id: 'build-ecommerce', title: 'Build an e-commerce website', desc: 'Online store, payments, inventory, checkout systems', icon: ShoppingBag },
-  { id: 'integrate-ai', title: 'Integrate AI into my business', desc: 'AI customer assistants, smart triage, custom workflows', icon: Bot },
-  { id: 'multiple-services', title: 'I need multiple services', desc: 'Full-funnel digital revenue engine (Build + Grow + Convert)', icon: Layers },
-  { id: 'need-guidance', title: 'Not sure yet — I need guidance', desc: 'Diagnostic consultation and strategic roadmap recommendation', icon: Compass },
+export type { EnquiryCategory }
+
+export const ENQUIRY_CATEGORIES: {
+  id: EnquiryCategory
+  number: string
+  title: string
+  subtitle: string
+  desc: string
+  icon: typeof Laptop
+  highlight: string
+}[] = [
+  {
+    id: 'BUILD',
+    number: '01',
+    title: 'BUILD',
+    subtitle: 'Website development, redesign and digital platforms',
+    desc: 'High-performing business websites, web applications and client portals built for conversion.',
+    icon: Laptop,
+    highlight: 'Digital Foundation',
+  },
+  {
+    id: 'GROW',
+    number: '02',
+    title: 'GROW',
+    subtitle: 'SEO, digital marketing, content and audience growth',
+    desc: 'First-page Google rankings, qualified organic traffic, content strategy and search visibility.',
+    icon: TrendingUp,
+    highlight: 'Organic Demand',
+  },
+  {
+    id: 'CONVERT',
+    number: '03',
+    title: 'CONVERT',
+    subtitle: 'Lead generation, landing pages, CRO and sales conversion',
+    desc: 'High-converting landing pages, lead generation funnels and journey optimisation.',
+    icon: Target,
+    highlight: 'Conversion Engine',
+  },
+  {
+    id: 'AUTOMATE',
+    number: '04',
+    title: 'AUTOMATE',
+    subtitle: 'CRM, WhatsApp Business API, email and workflow automation',
+    desc: 'Instant WhatsApp lead responses, automated nurture sequences and CRM integrations.',
+    icon: Zap,
+    highlight: 'Workflow Automation',
+  },
+  {
+    id: 'E-COMMERCE',
+    number: '05',
+    title: 'E-COMMERCE',
+    subtitle: 'Online stores, product catalogues, payments and e-commerce',
+    desc: 'Modern online stores, streamlined checkouts, payment gateway integration and catalog systems.',
+    icon: ShoppingBag,
+    highlight: 'Digital Commerce',
+  },
+  {
+    id: 'AI',
+    number: '06',
+    title: 'AI',
+    subtitle: 'AI integrations, intelligent automation and custom AI solutions',
+    desc: 'Intelligent 24/7 customer assistants, smart triage and bespoke AI workflow integrations.',
+    icon: Bot,
+    highlight: 'Intelligent AI',
+  },
 ]
 
+export function normalizeCategory(val: string | null | undefined): EnquiryCategory | null {
+  if (!val) return null
+  const clean = val.trim().toUpperCase()
+  if (['BUILD', 'WEBSITE', 'WEBSITE-DEVELOPMENT', 'DEVELOPMENT', 'DESIGN', 'UI-UX'].includes(clean)) return 'BUILD'
+  if (['GROW', 'SEO', 'MARKETING', 'DIGITAL-MARKETING', 'CONTENT', 'PPC', 'GOOGLE-ADS'].includes(clean)) return 'GROW'
+  if (['CONVERT', 'CRO', 'LANDING-PAGE', 'LEAD-GEN', 'CONVERSION'].includes(clean)) return 'CONVERT'
+  if (['AUTOMATE', 'AUTOMATION', 'CRM', 'WHATSAPP', 'WORKFLOW'].includes(clean)) return 'AUTOMATE'
+  if (['E-COMMERCE', 'ECOMMERCE', 'COMMERCE', 'STORE', 'SHOPIFY'].includes(clean)) return 'E-COMMERCE'
+  if (['AI', 'ARTIFICIAL-INTELLIGENCE', 'INTELLIGENT'].includes(clean)) return 'AI'
+  return null
+}
+
 const BUDGET_OPTIONS = [
-  'Under ₹5,000',
-  '₹5,000–₹10,000',
-  '₹10,000–₹25,000',
-  '₹25,000–₹50,000',
-  '₹50,000–₹1,00,000',
-  '₹1,00,000+',
-  'Not sure yet',
+  'Under ₹50,000',
+  '₹50,000–₹1,50,000',
+  '₹1,50,000–₹3,00,000',
+  '₹3,00,000–₹5,00,000',
+  'Enterprise (₹5,00,000+)',
 ]
 
 const TIMELINE_OPTIONS = [
-  'Immediately',
-  'Within 2 weeks',
-  'Within a month',
-  'Within 2–3 months',
-  'Just exploring',
+  'Immediate (1–2 weeks)',
+  'Within 1 month',
+  '1–3 months',
+  'Flexible / Exploring',
 ]
 
-const STAGE_OPTIONS: BusinessStage[] = [
-  'New business',
-  'Existing business',
-  'Growing business',
-  'Established business',
+const SERVICE_DROPDOWN_OPTIONS = [
+  { value: 'Website Development (BUILD)', label: 'Website Development & Redesign (BUILD)' },
+  { value: 'SEO & Organic Growth (GROW)', label: 'SEO & Organic Search Visibility (GROW)' },
+  { value: 'Digital Marketing & Ads (GROW)', label: 'Paid Advertising & Digital Marketing (GROW)' },
+  { value: 'Conversion Rate Optimisation (CONVERT)', label: 'Landing Pages & CRO (CONVERT)' },
+  { value: 'WhatsApp & CRM Automation (AUTOMATE)', label: 'WhatsApp & CRM Automation (AUTOMATE)' },
+  { value: 'E-Commerce Online Store (E-COMMERCE)', label: 'E-Commerce Store & Payments (E-COMMERCE)' },
+  { value: 'Custom AI Integration (AI)', label: 'Custom AI Assistants & Workflow AI (AI)' },
+  { value: 'Full-Funnel Growth Partnership', label: 'Full-Funnel Digital Growth Partnership' },
+  { value: 'General Consultation / Other', label: 'General Consultation / Other Enquiry' },
 ]
 
-const CONTACT_METHODS: { id: PreferredContactMethod; label: string; icon: typeof MessageSquare }[] = [
-  { id: 'WhatsApp', label: 'WhatsApp', icon: MessageCircle },
-  { id: 'Phone', label: 'Phone call', icon: Phone },
-  { id: 'Email', label: 'Email', icon: MessageSquare },
-]
-
-interface SmartEnquiryFormProps {
+export interface SmartEnquiryFormProps {
+  initialCategory?: EnquiryCategory
   initialGoal?: string
   initialService?: string
-  auditContext?: AuditAnalysisResult | null
+  auditUrl?: string
+  auditRef?: string
+  auditScore?: string | number
   location?: string
-  onComplete?: (response: SmartEnquiryResponse) => void
+  onComplete?: (ref: string) => void
 }
 
 export function SmartEnquiryForm({
-  initialGoal = '',
-  initialService = '',
-  auditContext = null,
-  location = 'enquiry_hub',
+  initialCategory,
+  initialService,
+  auditUrl,
+  auditRef,
+  auditScore,
+  location = 'contact_page',
   onComplete,
 }: SmartEnquiryFormProps) {
+  const router = useRouter()
   const started = useRef(Date.now())
-  const [currentStep, setCurrentStep] = useState<number>(1)
+
+  // Parse URL search parameters on client & SSR
+  const getUrlParams = () => {
+    if (router?.search) return new URLSearchParams(router.search)
+    if (typeof window !== 'undefined') return new URLSearchParams(window.location.search)
+    return new URLSearchParams()
+  }
+
+  const params = getUrlParams()
+  const detectedCategory =
+    normalizeCategory(initialCategory) ||
+    normalizeCategory(params.get('type') || params.get('category') || params.get('service')) ||
+    (initialService ? normalizeCategory(initialService) : null)
+
+  const effectiveAuditUrl = auditUrl || params.get('url') || undefined
+  const effectiveAuditRef = auditRef || params.get('ref') || undefined
+  const effectiveAuditScore = auditScore || params.get('score') || undefined
+
+  // Mode: 'planner' (Interactive 3-step scope) vs 'message' (Quick contact form)
+  // Defaults to 'planner' if a specific type/service/audit is in URL; otherwise 'message' for fast drop-in note.
+  const [mode, setMode] = useState<'message' | 'planner'>(() => {
+    if (params.get('mode') === 'planner' || detectedCategory || effectiveAuditUrl) {
+      return 'planner'
+    }
+    return 'message'
+  })
+
+  // -------------------------------------------------------------
+  // Quick Message Form State
+  // -------------------------------------------------------------
+  const [quickName, setQuickName] = useState('')
+  const [quickEmail, setQuickEmail] = useState('')
+  const [quickPhone, setQuickPhone] = useState('')
+  const [quickBusiness, setQuickBusiness] = useState('')
+  const [quickService, setQuickService] = useState(() => {
+    if (detectedCategory === 'BUILD') return 'Website Development (BUILD)'
+    if (detectedCategory === 'GROW') return 'SEO & Organic Growth (GROW)'
+    if (detectedCategory === 'CONVERT') return 'Conversion Rate Optimisation (CONVERT)'
+    if (detectedCategory === 'AUTOMATE') return 'WhatsApp & CRM Automation (AUTOMATE)'
+    if (detectedCategory === 'E-COMMERCE') return 'E-Commerce Online Store (E-COMMERCE)'
+    if (detectedCategory === 'AI') return 'Custom AI Integration (AI)'
+    return 'Website Development (BUILD)'
+  })
+  const [quickMessage, setQuickMessage] = useState('')
+
+  // -------------------------------------------------------------
+  // Interactive Planner State (3 concise steps: 1. Focus -> 2. Scope -> 3. Info)
+  // -------------------------------------------------------------
+  const [selectedCategory, setSelectedCategory] = useState<EnquiryCategory>(() => detectedCategory || 'BUILD')
+  const [plannerStep, setPlannerStep] = useState<number>(() => (detectedCategory ? 2 : 1))
+
+  // Step 2 Specs per category
+  const [buildType, setBuildType] = useState('Business Website (Lead Gen)')
+  const [buildScale, setBuildScale] = useState('6–15 pages (Standard)')
+  const [buildFeatures, setBuildFeatures] = useState<string[]>(['CRM / Lead Routing', 'WhatsApp Integration'])
+  const [buildRefUrl, setBuildRefUrl] = useState('')
+
+  const [growGoal, setGrowGoal] = useState('First-page Google rankings & SEO')
+  const [growUrl, setGrowUrl] = useState('')
+  const [growFocus, setGrowFocus] = useState('High-intent commercial keywords')
+
+  const [convertUrl, setConvertUrl] = useState('')
+  const [convertGoal, setConvertGoal] = useState('Increase qualified lead generation')
+  const [convertProblem, setConvertProblem] = useState('Visitors leave without enquiring')
+
+  const [autoTool, setAutoTool] = useState('Looking for guidance on CRM setup')
+  const [autoNeeds, setAutoNeeds] = useState<string[]>(['WhatsApp Instant Reply', 'Lead Routing to Team'])
+
+  const [ecomPlatform, setEcomPlatform] = useState('Shopify')
+  const [ecomCatalog, setEcomCatalog] = useState('10–100 products')
+
+  const [aiFocus, setAiFocus] = useState('24/7 Smart Customer Assistant')
+  const [aiDetails, setAiDetails] = useState('')
+
+  // Shared Scope Investment
+  const [selectedBudget, setSelectedBudget] = useState('₹50,000–₹1,50,000')
+  const [selectedTimeline, setSelectedTimeline] = useState('Within 1 month')
+
+  // Step 3 Contact info
+  const [plannerName, setPlannerName] = useState('')
+  const [plannerEmail, setPlannerEmail] = useState('')
+  const [plannerPhone, setPlannerPhone] = useState('')
+  const [plannerBusiness, setPlannerBusiness] = useState('')
+  const [plannerNote, setPlannerNote] = useState('')
+
+  // Submission & UI feedback state
   const [busy, setBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-  const [submittedResponse, setSubmittedResponse] = useState<SmartEnquiryResponse | null>(null)
+  const [isSuccess, setIsSuccess] = useState(false)
+  const [successData, setSuccessData] = useState<{
+    reference: string
+    name: string
+    whatsAppHref?: string
+  } | null>(null)
 
-  // Step 1: Goals (multi-select)
-  const [selectedGoals, setSelectedGoals] = useState<EnquiryGoal[]>(() => {
-    if (initialGoal && GOAL_OPTIONS.some(g => g.id === initialGoal)) return [initialGoal as EnquiryGoal]
-    if (initialService) {
-      const lower = initialService.toLowerCase()
-      if (lower.includes('website') || lower.includes('build')) return ['build-new']
-      if (lower.includes('seo') || lower.includes('google')) return ['seo-visibility']
-      if (lower.includes('convert') || lower.includes('cro')) return ['improve-conversions']
-      if (lower.includes('automate') || lower.includes('crm')) return ['automate-ops']
-      if (lower.includes('commerce') || lower.includes('store')) return ['build-ecommerce']
-      if (lower.includes('ai')) return ['integrate-ai']
-    }
-    return []
-  })
-
-  // Step 2: Dynamic Service Answers
-  const [dynamicAnswers, setDynamicAnswers] = useState<DynamicFormAnswers>({
-    build: {
-      isNewOrRedesign: 'New website',
-      websiteType: 'Business website',
-      hasDomain: 'Yes',
-      contentStatus: 'Ready',
-      pageCount: '6–15 pages',
-      needsPayment: false,
-      features: [],
-      referenceUrl: '',
-    },
-    grow: {
-      hasWebsite: true,
-      websiteUrl: auditContext?.url || '',
-      primaryGoal: 'More Google visibility',
-      currentInvestment: 'Never invested',
-      usesSearchConsole: 'Not sure',
-      targetLocations: 'Pan-India',
-      targetKeywords: '',
-    },
-    convert: {
-      targetAction: 'Submit an enquiry',
-      conversionProblem: 'High traffic low enquiries',
-      hasWebsite: true,
-      websiteUrl: auditContext?.url || '',
-      trackingStatus: 'Basic tracking',
-      journeyToImprove: 'Homepage to enquiry',
-    },
-    automate: {
-      processesToAutomate: ['WhatsApp notifications', 'Lead capture & instant reply'],
-      currentTools: '',
-      usesCrm: 'Looking for one',
-      whatsAppVolume: 'Moderate',
-      needsAutoFollowUp: true,
-      needsAi: 'Not sure',
-      externalIntegrations: '',
-      manualWorkflowDescription: '',
-    },
-    ecommerce: {
-      hasStore: false,
-      platform: 'Shopify',
-      productCount: '11–100 products',
-      needsPayment: true,
-      needsShipping: true,
-      needsInventory: true,
-      needsAccounts: true,
-      needsOrderManagement: true,
-    },
-    ai: {
-      aiCapabilities: ['AI chatbot / customer assistant'],
-      hasSoftware: false,
-      description: '',
-    },
-  })
-
-  // Step 3: Business Information
-  const [businessInfo, setBusinessInfo] = useState<EnquiryBusinessInfo>({
-    businessName: '',
-    industry: 'Professional Services',
-    website: auditContext?.url || '',
-    location: '',
-    businessStage: 'Growing business',
-    targetAudience: 'B2B & Commercial Clients',
-    description: '',
-  })
-
-  // Step 4: Budget & Timeline
-  const [budget, setBudget] = useState<string>('₹25,000–₹50,000')
-  const [timeline, setTimeline] = useState<string>('Within 2 weeks')
-
-  // Step 5: Contact Information & Consent
-  const [contactInfo, setContactInfo] = useState<EnquiryContactInfo>({
-    name: '',
-    email: '',
-    phone: '',
-    preferredContact: 'WhatsApp',
-    message: '',
-    consentToContact: true,
-    marketingConsent: false,
-  })
-
-  // Audit attachment toggle
-  const [includeAudit, setIncludeAudit] = useState(!!auditContext)
-
-  // Track form start
+  // Track start
   useEffect(() => {
-    track('form_start', { form: 'smart_enquiry', location })
-  }, [location])
+    track('form_start', { form: mode === 'planner' ? 'interactive_scope' : 'quick_message', location })
+  }, [mode, location])
 
-  const toggleGoal = (id: EnquiryGoal) => {
-    setSelectedGoals(prev => {
-      if (id === 'multiple-services' || id === 'need-guidance') {
-        return [id]
-      }
-      const filtered = prev.filter(g => g !== 'multiple-services' && g !== 'need-guidance')
-      if (filtered.includes(id)) {
-        return filtered.filter(g => g !== id)
-      }
-      return [...filtered, id]
-    })
-    setFieldErrors(e => ({ ...e, goals: '' }))
+  const toggleFeature = (list: string[], setList: (l: string[]) => void, item: string) => {
+    if (list.includes(item)) {
+      setList(list.filter(i => i !== item))
+    } else {
+      setList([...list, item])
+    }
   }
 
-  // Active branches in Step 2 based on selected goals
-  const hasBuild = selectedGoals.some(g => g === 'build-new' || g === 'improve-existing' || g === 'multiple-services')
-  const hasGrow = selectedGoals.some(g => g === 'seo-visibility' || g === 'generate-leads' || g === 'multiple-services')
-  const hasConvert = selectedGoals.some(g => g === 'improve-conversions' || g === 'multiple-services')
-  const hasAutomate = selectedGoals.some(g => g === 'automate-ops' || g === 'multiple-services')
-  const hasEcommerce = selectedGoals.some(g => g === 'build-ecommerce')
-  const hasAi = selectedGoals.some(g => g === 'integrate-ai')
-  const isGuidanceOnly = selectedGoals.length === 1 && selectedGoals[0] === 'need-guidance'
-
-  // Validation per step
-  const validateCurrentStep = (step: number): boolean => {
+  // -------------------------------------------------------------
+  // Quick Message Submit Handler
+  // -------------------------------------------------------------
+  const handleQuickSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setErrorMessage(null)
     const errors: Record<string, string> = {}
 
-    if (step === 1) {
-      if (selectedGoals.length === 0) {
-        errors.goals = 'Please select at least one objective to continue.'
-      }
-    } else if (step === 3) {
-      if (!businessInfo.businessName.trim()) {
-        errors.businessName = 'Please enter your business or project name.'
-      }
-    } else if (step === 5) {
-      if (!contactInfo.name.trim() || contactInfo.name.trim().length < 2) {
-        errors.name = 'Please enter your full name.'
-      }
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-      if (!contactInfo.email.trim() || !emailRegex.test(contactInfo.email.trim())) {
-        errors.email = 'Please enter a valid work email address.'
-      }
-      const phoneDigits = contactInfo.phone.replace(/\D/g, '')
-      if (!contactInfo.phone.trim() || phoneDigits.length < 7) {
-        errors.phone = 'Please enter a phone or WhatsApp number with country code (e.g. +91 98200 00000).'
-      }
-      if (!contactInfo.consentToContact) {
-        errors.consent = 'Your consent is required for Chazon to contact you regarding this enquiry.'
-      }
+    if (!quickName.trim() || quickName.trim().length < 2) {
+      errors.quickName = 'Please enter your name.'
+    }
+    if (!quickEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(quickEmail.trim())) {
+      errors.quickEmail = 'Please enter a valid work email address.'
+    }
+    if (!quickMessage.trim() || quickMessage.trim().length < 5) {
+      errors.quickMessage = 'Please enter a short message describing your requirement.'
     }
 
-    setFieldErrors(errors)
-    return Object.keys(errors).length === 0
-  }
-
-  const handleNext = () => {
-    if (!validateCurrentStep(currentStep)) return
-    setErrorMessage(null)
-    // If user only selected guidance, skip deep service questions (Step 2) straight to business info (Step 3)
-    if (currentStep === 1 && isGuidanceOnly) {
-      setCurrentStep(3)
-    } else {
-      setCurrentStep(s => Math.min(6, s + 1))
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
     }
-  }
 
-  const handleBack = () => {
-    setErrorMessage(null)
-    if (currentStep === 3 && isGuidanceOnly) {
-      setCurrentStep(1)
-    } else {
-      setCurrentStep(s => Math.max(1, s - 1))
-    }
-  }
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!validateCurrentStep(5)) return
+    setFieldErrors({})
     setBusy(true)
-    setErrorMessage(null)
 
-    const payload: SmartEnquiryPayload = {
-      goals: selectedGoals,
-      dynamicAnswers,
-      business: businessInfo,
-      budget,
-      timeline,
-      contact: contactInfo,
-      auditRef: includeAudit && auditContext ? auditContext.id : undefined,
-      auditSummary:
-        includeAudit && auditContext
-          ? {
-              overallScore: auditContext.overallScore,
-              scores: auditContext.scores,
-              topBottlenecks: auditContext.issues
-                .filter(i => i.severity === 'critical')
-                .map(i => i.title)
-                .slice(0, 3),
-            }
-          : undefined,
+    const endpoint = `${config.apiUrl || ''}/api/public/enquiries`
+    const payload = {
+      name: quickName.trim(),
+      email: quickEmail.trim(),
+      phone: quickPhone.trim() || undefined,
+      business: quickBusiness.trim() || 'Not specified',
+      service: quickService,
+      category: normalizeCategory(quickService) || 'BUILD',
+      message: quickMessage.trim(),
+      auditRef: effectiveAuditRef,
       form_started: started.current,
       source_detail: sourceDetail(),
     }
 
-    if (demoMode) {
-      await new Promise(r => setTimeout(r, 600))
-      const demoRef = `CHZ-${new Date().getFullYear()}-DEMO`
-      const demoRes: SmartEnquiryResponse = {
-        received: true,
-        reference: demoRef,
-        message: 'Demo mode preview: your enquiry was simulated successfully.',
-        nextSteps: [
-          'Review of your digital foundation and current bottlenecks.',
-          'Formulation of strategic recommendations and scope assessment.',
-          'Direct contact via ' + contactInfo.preferredContact + ' within 4 to 24 business hours.',
-        ],
-        whatsAppHref: `https://wa.me/919820000000?text=${encodeURIComponent(`Hi Chazon team, test enquiry ${demoRef}`)}`,
-      }
-      setSubmittedResponse(demoRes)
-      setBusy(false)
-      onComplete?.(demoRes)
-      return
-    }
-
     try {
-      const endpoint = config.enquiryEndpoint || '/api/enquiries'
-      const response = await fetch(endpoint, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        const msg = errorData?.error?.message || 'We could not submit your enquiry. Please try again.'
+      if (res.ok) {
+        const data = await res.json()
+        const ref = data.reference || `CHZ-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+        setSuccessData({
+          reference: ref,
+          name: quickName.trim(),
+          whatsAppHref: data.whatsAppHref,
+        })
+        setIsSuccess(true)
+        track('form_submit_success', { form: 'quick_message', reference: ref })
+        if (onComplete) onComplete(ref)
+      } else {
+        const errJson = await res.json().catch(() => ({}))
+        const msg = errJson.error?.message || 'Submission failed. Please check the fields and try again.'
         setErrorMessage(msg)
-        setBusy(false)
-        track('form_error', { form: 'smart_enquiry', reason: 'server_rejection' })
-        return
       }
-
-      const result = (await response.json()) as { data: SmartEnquiryResponse }
-      const resData = result.data || {
-        received: true,
-        reference: `CHZ-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
-        message: 'Your enquiry has been received.',
-        nextSteps: [
-          'Founder and lead architect review of your requirements.',
-          'Preparation of preliminary roadmap and scope validation.',
-          'Direct outreach via ' + contactInfo.preferredContact + ' within 4 to 24 hours.',
-        ],
-      }
-      setSubmittedResponse(resData)
-      track('form_submission', { form: 'smart_enquiry', location })
-      onComplete?.(resData)
     } catch {
-      setErrorMessage('Network connection error. Please check your connectivity or reach us via WhatsApp.')
-      track('form_error', { form: 'smart_enquiry', reason: 'network' })
+      if (demoMode) {
+        const ref = `CHZ-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+        setSuccessData({ reference: ref, name: quickName.trim() })
+        setIsSuccess(true)
+        if (onComplete) onComplete(ref)
+      } else {
+        setErrorMessage('We could not reach the server. Please check your connection or contact us via WhatsApp.')
+      }
     } finally {
       setBusy(false)
     }
   }
 
-  // Confirmation view
-  if (submittedResponse) {
+  // -------------------------------------------------------------
+  // Interactive Scope Planner Submit Handler
+  // -------------------------------------------------------------
+  const handlePlannerSubmit = async () => {
+    setErrorMessage(null)
+    const errors: Record<string, string> = {}
+
+    if (!plannerName.trim() || plannerName.trim().length < 2) {
+      errors.plannerName = 'Please enter your name.'
+    }
+    if (!plannerEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(plannerEmail.trim())) {
+      errors.plannerEmail = 'Please enter a valid work email address.'
+    }
+    if (!plannerPhone.trim() || plannerPhone.trim().length < 7) {
+      errors.plannerPhone = 'Please enter a phone or WhatsApp number.'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
+
+    setFieldErrors({})
+    setBusy(true)
+
+    // Assemble category-specific answers
+    const dynamicAnswers: Record<string, unknown> = {}
+    if (selectedCategory === 'BUILD') {
+      dynamicAnswers.build = {
+        websiteType: buildType,
+        pageCount: buildScale,
+        features: buildFeatures,
+        referenceUrl: buildRefUrl || undefined,
+      }
+    } else if (selectedCategory === 'GROW') {
+      dynamicAnswers.grow = {
+        primaryGoal: growGoal,
+        websiteUrl: growUrl || undefined,
+        focus: growFocus,
+      }
+    } else if (selectedCategory === 'CONVERT') {
+      dynamicAnswers.convert = {
+        websiteUrl: convertUrl || undefined,
+        targetAction: convertGoal,
+        conversionProblem: convertProblem,
+      }
+    } else if (selectedCategory === 'AUTOMATE') {
+      dynamicAnswers.automate = {
+        currentCrm: autoTool,
+        automations: autoNeeds,
+      }
+    } else if (selectedCategory === 'E-COMMERCE') {
+      dynamicAnswers.ecommerce = {
+        platform: ecomPlatform,
+        productCount: ecomCatalog,
+      }
+    } else if (selectedCategory === 'AI') {
+      dynamicAnswers.ai = {
+        capability: aiFocus,
+        details: aiDetails || undefined,
+      }
+    }
+
+    const endpoint = `${config.apiUrl || ''}/api/public/enquiries`
+    const payload = {
+      category: selectedCategory,
+      goals: [selectedCategory],
+      dynamicAnswers,
+      business: {
+        businessName: plannerBusiness.trim() || 'Not specified',
+        industry: 'General',
+      },
+      budget: selectedBudget,
+      timeline: selectedTimeline,
+      contact: {
+        name: plannerName.trim(),
+        email: plannerEmail.trim(),
+        phone: plannerPhone.trim(),
+        preferredContact: 'WhatsApp',
+        message: plannerNote.trim() || `${selectedCategory} Project Scope Enquiry`,
+        consentToContact: true,
+      },
+      auditRef: effectiveAuditRef,
+      auditSummary: effectiveAuditScore ? { overallScore: Number(effectiveAuditScore) } : undefined,
+      form_started: started.current,
+      source_detail: sourceDetail(),
+    }
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const ref = data.reference || `CHZ-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+        setSuccessData({
+          reference: ref,
+          name: plannerName.trim(),
+          whatsAppHref: data.whatsAppHref,
+        })
+        setIsSuccess(true)
+        track('form_submit_success', { form: 'interactive_scope', reference: ref })
+        if (onComplete) onComplete(ref)
+      } else {
+        const errJson = await res.json().catch(() => ({}))
+        const msg = errJson.error?.message || 'Submission failed. Please check the fields and try again.'
+        setErrorMessage(msg)
+      }
+    } catch {
+      if (demoMode) {
+        const ref = `CHZ-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+        setSuccessData({ reference: ref, name: plannerName.trim() })
+        setIsSuccess(true)
+        if (onComplete) onComplete(ref)
+      } else {
+        setErrorMessage('We could not reach the server. Please check your connection or contact us via WhatsApp.')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Active Category Meta
+  const activeCategoryMeta = ENQUIRY_CATEGORIES.find(c => c.id === selectedCategory)
+
+  // -------------------------------------------------------------
+  // SUCCESS SCREEN
+  // -------------------------------------------------------------
+  if (isSuccess && successData) {
+    const defaultWa = `https://wa.me/919876543210?text=${encodeURIComponent(
+      `Hi Chazon team, I just submitted an enquiry (Ref: ${successData.reference}). Looking forward to discussing our project.`
+    )}`
+
     return (
-      <div className="smart-done-card" role="status" aria-live="polite">
-        <div className="smart-done-badge">
-          <CheckCircle2 size={38} className="text-success" aria-hidden="true" />
+      <div className="smart-success-card">
+        <div className="ssc-check-wrap" aria-hidden="true">
+          <CheckCircle2 size={44} />
         </div>
-        <span className="mono smart-done-ref">Enquiry Reference: {submittedResponse.reference}</span>
-        <h3>Thank you, {contactInfo.name.split(' ')[0]}. Your enquiry is confirmed.</h3>
-        <p className="smart-done-lead">{submittedResponse.message}</p>
+        <h2 className="ssc-title">Enquiry Received</h2>
+        <p className="ssc-intro">
+          Thank you, <strong>{successData.name}</strong>. Your project enquiry has been routed directly to our
+          founding team.
+        </p>
 
-        <div className="smart-done-steps">
-          <span className="mono steps-label">What happens next:</span>
-          <ol className="steps-list">
-            {submittedResponse.nextSteps.map((step, i) => (
-              <li key={step}>
-                <span className="mono">0{i + 1}</span>
-                <span>{step}</span>
-              </li>
-            ))}
-          </ol>
+        <div className="ssc-ref-box">
+          <span className="ssc-ref-label">Reference Code</span>
+          <strong className="ssc-ref-code mono">{successData.reference}</strong>
         </div>
 
-        <div className="smart-done-actions">
-          {submittedResponse.whatsAppHref && (
-            <a
-              href={submittedResponse.whatsAppHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="button button-primary smart-wa-btn"
-            >
-              <MessageCircle size={18} aria-hidden="true" />
-              <span>Connect on WhatsApp with Reference</span>
-              <ExternalLink size={16} aria-hidden="true" />
-            </a>
-          )}
-          <p className="smart-done-meta">
-            Expected response time: <strong>Under 4 hours</strong> during business hours (10:00–19:00 IST) · NDA & strict confidentiality guaranteed.
-          </p>
+        <div className="ssc-steps-list">
+          <div className="ssc-step-item">
+            <span className="ssc-step-num mono">01</span>
+            <span>Founder & growth team review your requirements and verify strategic fit.</span>
+          </div>
+          <div className="ssc-step-item">
+            <span className="ssc-step-num mono">02</span>
+            <span>We prepare a direct, actionable scope roadmap tailored to your goals.</span>
+          </div>
+          <div className="ssc-step-item">
+            <span className="ssc-step-num mono">03</span>
+            <span>We reach out directly via WhatsApp or Email within 4–24 hours.</span>
+          </div>
+        </div>
+
+        <div className="ssc-actions">
+          <a
+            href={successData.whatsAppHref || defaultWa}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="button button-whatsapp"
+          >
+            <MessageCircle size={18} aria-hidden="true" />
+            <span>Chat on WhatsApp with Reference</span>
+          </a>
+
+          <button
+            type="button"
+            className="ssc-reset-btn"
+            onClick={() => {
+              setIsSuccess(false)
+              setSuccessData(null)
+              setPlannerStep(1)
+            }}
+          >
+            Submit Another Enquiry
+          </button>
         </div>
       </div>
     )
   }
 
-  const totalSteps = isGuidanceOnly ? 5 : 6
-
+  // -------------------------------------------------------------
+  // MAIN FORM RENDER (DUAL MODE: QUICK MESSAGE VS INTERACTIVE PLANNER)
+  // -------------------------------------------------------------
   return (
-    <div className="smart-enquiry-container" id="smart-enquiry">
-      {/* Audit Banner if attached */}
-      {auditContext && (
-        <div className="audit-context-pill">
-          <ShieldCheck size={18} className="text-accent" aria-hidden="true" />
-          <div className="audit-context-text">
-            <strong>Website Audit Attached:</strong> {auditContext.url} (Overall Score: {auditContext.overallScore}/100)
-          </div>
-          <label className="audit-context-check">
-            <input
-              type="checkbox"
-              checked={includeAudit}
-              onChange={e => setIncludeAudit(e.target.checked)}
-            />
-            <span>Include in enquiry</span>
-          </label>
-        </div>
-      )}
+    <div className="smart-enquiry-container">
+      {/* Top Dual Mode Switcher Tabs */}
+      <div className="contact-mode-switcher" role="tablist" aria-label="Choose enquiry format">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'message'}
+          className={`cms-tab ${mode === 'message' ? 'is-active' : ''}`}
+          onClick={() => {
+            setMode('message')
+            setErrorMessage(null)
+            setFieldErrors({})
+          }}
+        >
+          <MessageSquare size={15} aria-hidden="true" />
+          <span>Quick Message</span>
+        </button>
 
-      {/* Progress Bar */}
-      <div className="smart-progress-bar" aria-label={`Step ${currentStep} of ${totalSteps}`}>
-        <div className="smart-progress-head">
-          <span className="mono step-tag">
-            Step 0{currentStep} of 0{totalSteps}
-          </span>
-          <span className="step-title-hint">
-            {currentStep === 1 && 'Your Objectives'}
-            {currentStep === 2 && 'Service Scope'}
-            {currentStep === 3 && 'Business Details'}
-            {currentStep === 4 && 'Budget & Timeline'}
-            {currentStep === 5 && 'Contact Information'}
-            {currentStep === 6 && 'Review & Submit'}
-          </span>
-        </div>
-        <div className="smart-progress-track">
-          <div
-            className="smart-progress-fill"
-            style={{ width: `${(currentStep / totalSteps) * 100}%` }}
-          />
-        </div>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'planner'}
+          className={`cms-tab ${mode === 'planner' ? 'is-active' : ''}`}
+          onClick={() => {
+            setMode('planner')
+            setErrorMessage(null)
+            setFieldErrors({})
+          }}
+        >
+          <Sparkles size={15} aria-hidden="true" />
+          <span>Interactive Scope Planner</span>
+          <span className="cms-badge">Fast</span>
+        </button>
       </div>
 
       {errorMessage && (
         <div className="smart-error-banner" role="alert">
-          {errorMessage}
+          <span>{errorMessage}</span>
         </div>
       )}
 
-      {/* STEP 1: Understand the visitor */}
-      {currentStep === 1 && (
-        <div className="smart-step-body">
-          <div className="smart-step-intro">
-            <h2>What would you like to achieve for your business?</h2>
-            <p className="lead">
-              Select one or multiple areas where your business needs digital growth. We adapt our questions to your goals.
+      {/* =========================================================
+          MODE 1: QUICK MESSAGE (Standard / Random Contact Form)
+          Matches visual reference: "Send us a message"
+          ========================================================= */}
+      {mode === 'message' && (
+        <form className="quick-message-form" onSubmit={handleQuickSubmit} noValidate>
+          <div className="qmf-head">
+            <h2 className="qmf-title">Send us a message</h2>
+            <p className="qmf-desc">
+              Have a question or project requirement? Share a few details and we will get back to you promptly.
             </p>
           </div>
 
-          {fieldErrors.goals && <p className="field-error-msg">{fieldErrors.goals}</p>}
-
-          <div className="smart-goal-grid" role="group" aria-label="Business objectives">
-            {GOAL_OPTIONS.map(opt => {
-              const isSelected = selectedGoals.includes(opt.id)
-              const Icon = opt.icon
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`smart-goal-card ${isSelected ? 'is-selected' : ''}`}
-                  onClick={() => toggleGoal(opt.id)}
-                  aria-pressed={isSelected}
-                >
-                  <div className="smart-card-top">
-                    <span className="smart-card-icon">
-                      <Icon size={22} aria-hidden="true" />
-                    </span>
-                    <span className="smart-card-check">
-                      {isSelected ? <Check size={16} aria-hidden="true" /> : null}
-                    </span>
-                  </div>
-                  <strong>{opt.title}</strong>
-                  <p>{opt.desc}</p>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* STEP 2: Dynamic service-specific questions */}
-      {currentStep === 2 && (
-        <div className="smart-step-body">
-          <div className="smart-step-intro">
-            <h2>Tell us about your specific requirements.</h2>
-            <p className="lead">
-              Answer the areas relevant to your selected services. Only questions matching your goals are shown.
-            </p>
-          </div>
-
-          <div className="smart-dynamic-sections">
-            {/* BUILD Questions */}
-            {hasBuild && (
-              <div className="smart-dynamic-box">
-                <div className="smart-dynamic-title">
-                  <Layout size={20} className="text-accent" aria-hidden="true" />
-                  <h3>BUILD — Website & Platform Specifications</h3>
-                </div>
-
-                <div className="smart-field-row">
-                  <label className="smart-label">
-                    Project Type
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.build?.isNewOrRedesign}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          build: { ...prev.build, isNewOrRedesign: e.target.value as DynamicBuildAnswers['isNewOrRedesign'] },
-                        }))
-                      }
-                    >
-                      <option value="New website">New website (starting fresh)</option>
-                      <option value="Existing website redesign">Existing website redesign / upgrade</option>
-                    </select>
-                  </label>
-
-                  <label className="smart-label">
-                    Category of Website
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.build?.websiteType}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          build: { ...prev.build, websiteType: e.target.value as DynamicBuildAnswers['websiteType'] },
-                        }))
-                      }
-                    >
-                      <option value="Business website">Business Website (Lead Generation)</option>
-                      <option value="Landing page">High-Converting Landing Page</option>
-                      <option value="E-commerce">E-commerce / Online Store</option>
-                      <option value="Portfolio">Portfolio / Practice Showcase</option>
-                      <option value="Web application">Custom Web Application / SaaS</option>
-                      <option value="Custom platform">Custom Platform & Client Portal</option>
-                    </select>
-                  </label>
-                </div>
-
-                <div className="smart-field-row">
-                  <label className="smart-label">
-                    Domain Status
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.build?.hasDomain}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          build: { ...prev.build, hasDomain: e.target.value as DynamicBuildAnswers['hasDomain'] },
-                        }))
-                      }
-                    >
-                      <option value="Yes">Yes, domain already acquired</option>
-                      <option value="No">No domain yet</option>
-                      <option value="Need help choosing">Need guidance choosing domain & hosting</option>
-                    </select>
-                  </label>
-
-                  <label className="smart-label">
-                    Content & Imagery
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.build?.contentStatus}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          build: { ...prev.build, contentStatus: e.target.value as DynamicBuildAnswers['contentStatus'] },
-                        }))
-                      }
-                    >
-                      <option value="Ready">Ready to implement</option>
-                      <option value="In progress">In progress / partial</option>
-                      <option value="Need Chazon to create">Need Chazon to craft copy & visual strategy</option>
-                    </select>
-                  </label>
-                </div>
-
-                <div className="smart-field-row">
-                  <label className="smart-label">
-                    Approximate Page Count
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.build?.pageCount}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          build: { ...prev.build, pageCount: e.target.value as DynamicBuildAnswers['pageCount'] },
-                        }))
-                      }
-                    >
-                      <option value="1–5 pages">1–5 pages (Focused / Single-page)</option>
-                      <option value="6–15 pages">6–15 pages (Standard Company Site)</option>
-                      <option value="15–30 pages">15–30 pages (Multi-service / Catalog)</option>
-                      <option value="30+ pages">30+ pages (Enterprise / Large Portal)</option>
-                    </select>
-                  </label>
-
-                  <label className="smart-label">
-                    Reference Website (Optional)
-                    <input
-                      type="url"
-                      className="smart-input"
-                      placeholder="https://example.com"
-                      value={dynamicAnswers.build?.referenceUrl || ''}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          build: { ...prev.build, referenceUrl: e.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                </div>
-              </div>
-            )}
-
-            {/* GROW Questions */}
-            {hasGrow && (
-              <div className="smart-dynamic-box">
-                <div className="smart-dynamic-title">
-                  <Search size={20} className="text-accent" aria-hidden="true" />
-                  <h3>GROW — Search Engine & Organic Demand</h3>
-                </div>
-
-                <div className="smart-field-row">
-                  <label className="smart-label">
-                    Current Website URL
-                    <input
-                      type="url"
-                      className="smart-input"
-                      placeholder="https://yourwebsite.com"
-                      value={dynamicAnswers.grow?.websiteUrl || ''}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          grow: { ...prev.grow, websiteUrl: e.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-
-                  <label className="smart-label">
-                    Primary SEO Goal
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.grow?.primaryGoal}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          grow: { ...prev.grow, primaryGoal: e.target.value as DynamicGrowAnswers['primaryGoal'] },
-                        }))
-                      }
-                    >
-                      <option value="More Google visibility">First-page Google visibility</option>
-                      <option value="More organic visitors">More qualified organic visitors</option>
-                      <option value="Local customers">Local search & Google Business ranking</option>
-                      <option value="More enquiries">Converting existing organic traffic</option>
-                      <option value="Better content strategy">Strategic commercial content & authority</option>
-                    </select>
-                  </label>
-                </div>
-
-                <div className="smart-field-row">
-                  <label className="smart-label">
-                    Current SEO Investment
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.grow?.currentInvestment}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          grow: { ...prev.grow, currentInvestment: e.target.value as DynamicGrowAnswers['currentInvestment'] },
-                        }))
-                      }
-                    >
-                      <option value="Never invested">Never invested in SEO</option>
-                      <option value="Tried in past">Tried in the past with unclear ROI</option>
-                      <option value="Currently investing">Currently investing but looking for better partner</option>
-                    </select>
-                  </label>
-
-                  <label className="smart-label">
-                    Target Geographic Markets
-                    <input
-                      type="text"
-                      className="smart-input"
-                      placeholder="e.g. Mumbai, Pan-India, US/UK"
-                      value={dynamicAnswers.grow?.targetLocations || ''}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          grow: { ...prev.grow, targetLocations: e.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                </div>
-              </div>
-            )}
-
-            {/* CONVERT Questions */}
-            {hasConvert && (
-              <div className="smart-dynamic-box">
-                <div className="smart-dynamic-title">
-                  <LineChart size={20} className="text-accent" aria-hidden="true" />
-                  <h3>CONVERT — Conversion Rate & Journey Optimisation</h3>
-                </div>
-
-                <div className="smart-field-row">
-                  <label className="smart-label">
-                    Primary Conversion Action Desired
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.convert?.targetAction}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          convert: { ...prev.convert, targetAction: e.target.value as DynamicConvertAnswers['targetAction'] },
-                        }))
-                      }
-                    >
-                      <option value="Submit an enquiry">Submit a detailed enquiry form</option>
-                      <option value="Contact through WhatsApp">Instant WhatsApp Business chat</option>
-                      <option value="Book an appointment">Book a calendar discovery call</option>
-                      <option value="Call">Direct phone call</option>
-                      <option value="Purchase">Immediate digital purchase</option>
-                    </select>
-                  </label>
-
-                  <label className="smart-label">
-                    Current Bottleneck
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.convert?.conversionProblem}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          convert: { ...prev.convert, conversionProblem: e.target.value as DynamicConvertAnswers['conversionProblem'] },
-                        }))
-                      }
-                    >
-                      <option value="High traffic low enquiries">Visitors arrive but don't enquire</option>
-                      <option value="High bounce rate">High bounce rate on landing pages</option>
-                      <option value="Poor mobile conversions">Mobile experience drops off</option>
-                      <option value="Drop-off at checkout/form">Form abandonment / checkout drop-off</option>
-                      <option value="Not sure">Not sure — need expert teardown</option>
-                    </select>
-                  </label>
-                </div>
-              </div>
-            )}
-
-            {/* AUTOMATE Questions */}
-            {hasAutomate && (
-              <div className="smart-dynamic-box">
-                <div className="smart-dynamic-title">
-                  <Zap size={20} className="text-accent" aria-hidden="true" />
-                  <h3>AUTOMATE — Workflow & Retention Infrastructure</h3>
-                </div>
-
-                <div className="smart-field-row">
-                  <label className="smart-label">
-                    CRM Usage
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.automate?.usesCrm}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          automate: { ...prev.automate, usesCrm: e.target.value as DynamicAutomateAnswers['usesCrm'] },
-                        }))
-                      }
-                    >
-                      <option value="Looking for one">No CRM yet (need recommendation & setup)</option>
-                      <option value="Yes">Yes, already using Zoho / HubSpot / Salesforce</option>
-                      <option value="No">No, currently using Google Sheets / Email</option>
-                    </select>
-                  </label>
-
-                  <label className="smart-label">
-                    WhatsApp Enquiry Volume
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.automate?.whatsAppVolume}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          automate: { ...prev.automate, whatsAppVolume: e.target.value as DynamicAutomateAnswers['whatsAppVolume'] },
-                        }))
-                      }
-                    >
-                      <option value="Moderate">Moderate (5–20 chats / week)</option>
-                      <option value="High volume">High volume (20+ chats / week)</option>
-                      <option value="Want to start">Want to introduce WhatsApp channel</option>
-                      <option value="None">None</option>
-                    </select>
-                  </label>
-                </div>
-
-                <label className="smart-label">
-                  Describe Your Current Manual Bottleneck
-                  <textarea
-                    className="smart-textarea"
-                    rows={2}
-                    placeholder="e.g. Enquiries come in through forms and WhatsApp but follow-ups take 24h because team handles them manually..."
-                    value={dynamicAnswers.automate?.manualWorkflowDescription || ''}
-                    onChange={e =>
-                      setDynamicAnswers(prev => ({
-                        ...prev,
-                        automate: { ...prev.automate, manualWorkflowDescription: e.target.value },
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-            )}
-
-            {/* E-COMMERCE Questions */}
-            {hasEcommerce && (
-              <div className="smart-dynamic-box">
-                <div className="smart-dynamic-title">
-                  <ShoppingBag size={20} className="text-accent" aria-hidden="true" />
-                  <h3>E-Commerce & Digital Commerce Requirements</h3>
-                </div>
-
-                <div className="smart-field-row">
-                  <label className="smart-label">
-                    Platform Preference
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.ecommerce?.platform}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          ecommerce: { ...prev.ecommerce, platform: e.target.value as DynamicEcommerceAnswers['platform'] },
-                        }))
-                      }
-                    >
-                      <option value="Shopify">Shopify (Recommended for D2C/Retail)</option>
-                      <option value="WooCommerce">WooCommerce (WordPress)</option>
-                      <option value="Custom platform">Custom Next.js / Headless E-commerce</option>
-                      <option value="None yet">Need Chazon recommendation</option>
-                    </select>
-                  </label>
-
-                  <label className="smart-label">
-                    Expected Catalog Size
-                    <select
-                      className="smart-select"
-                      value={dynamicAnswers.ecommerce?.productCount}
-                      onChange={e =>
-                        setDynamicAnswers(prev => ({
-                          ...prev,
-                          ecommerce: { ...prev.ecommerce, productCount: e.target.value as DynamicEcommerceAnswers['productCount'] },
-                        }))
-                      }
-                    >
-                      <option value="1–10 products">1–10 curated products</option>
-                      <option value="11–100 products">11–100 products</option>
-                      <option value="100–1,000 products">100–1,000 products</option>
-                      <option value="1,000+ products">1,000+ products</option>
-                    </select>
-                  </label>
-                </div>
-              </div>
-            )}
-
-            {/* AI Solutions */}
-            {hasAi && (
-              <div className="smart-dynamic-box">
-                <div className="smart-dynamic-title">
-                  <Bot size={20} className="text-accent" aria-hidden="true" />
-                  <h3>AI Integration & Automated Assistants</h3>
-                </div>
-
-                <label className="smart-label">
-                  What would you like AI to assist with?
-                  <textarea
-                    className="smart-textarea"
-                    rows={2}
-                    placeholder="e.g. 24/7 intelligent customer inquiry answering, smart lead qualification, document processing..."
-                    value={dynamicAnswers.ai?.description || ''}
-                    onChange={e =>
-                      setDynamicAnswers(prev => ({
-                        ...prev,
-                        ai: { ...prev.ai, description: e.target.value },
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* STEP 3: Business Information */}
-      {currentStep === 3 && (
-        <div className="smart-step-body">
-          <div className="smart-step-intro">
-            <h2>Tell us about your business.</h2>
-            <p className="lead">
-              Context matters. We design digital engines specifically around your commercial model and stage.
-            </p>
-          </div>
-
-          <div className="smart-form-grid">
-            <div className="smart-field-row">
-              <label className="smart-label">
-                Business Name <span className="req">*</span>
-                <input
-                  type="text"
-                  required
-                  className={`smart-input ${fieldErrors.businessName ? 'is-invalid' : ''}`}
-                  placeholder="e.g. Apex Health & Nutrition"
-                  value={businessInfo.businessName}
-                  onChange={e => {
-                    setBusinessInfo(b => ({ ...b, businessName: e.target.value }))
-                    if (e.target.value.trim()) setFieldErrors(err => ({ ...err, businessName: '' }))
-                  }}
-                />
-                {fieldErrors.businessName && <span className="field-error-msg">{fieldErrors.businessName}</span>}
-              </label>
-
-              <label className="smart-label">
-                Industry Sector
-                <select
-                  className="smart-select"
-                  value={businessInfo.industry}
-                  onChange={e => setBusinessInfo(b => ({ ...b, industry: e.target.value }))}
-                >
-                  <option value="Professional Services">Professional & B2B Services</option>
-                  <option value="D2C & E-commerce">D2C & E-Commerce</option>
-                  <option value="Healthcare & Wellness">Healthcare & Wellness</option>
-                  <option value="Manufacturing & Industrial">Manufacturing & Industrial</option>
-                  <option value="Real Estate & Architecture">Real Estate & Architecture</option>
-                  <option value="Hospitality & Tourism">Hospitality & Tourism</option>
-                  <option value="Retail & Consumer Brands">Retail & Consumer Brands</option>
-                  <option value="Technology & Start-up">Technology & Software</option>
-                  <option value="Other">Other Unique Industry</option>
-                </select>
-              </label>
-            </div>
-
-            <div className="smart-field-row">
-              <label className="smart-label">
-                Current Website or Profile URL (Optional)
-                <input
-                  type="text"
-                  className="smart-input"
-                  placeholder="https://yourbusiness.com"
-                  value={businessInfo.website || ''}
-                  onChange={e => setBusinessInfo(b => ({ ...b, website: e.target.value }))}
-                />
-              </label>
-
-              <label className="smart-label">
-                Business Location (City / Region)
-                <input
-                  type="text"
-                  className="smart-input"
-                  placeholder="e.g. Mumbai, Delhi NCR, Bangalore, International"
-                  value={businessInfo.location || ''}
-                  onChange={e => setBusinessInfo(b => ({ ...b, location: e.target.value }))}
-                />
-              </label>
-            </div>
-
-            <div className="smart-field-row">
-              <label className="smart-label">
-                Business Stage
-                <select
-                  className="smart-select"
-                  value={businessInfo.businessStage}
-                  onChange={e => setBusinessInfo(b => ({ ...b, businessStage: e.target.value as BusinessStage }))}
-                >
-                  {STAGE_OPTIONS.map(s => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="smart-label">
-                Target Audience
-                <input
-                  type="text"
-                  className="smart-input"
-                  placeholder="e.g. High-net-worth individuals, SME founders, D2C consumers"
-                  value={businessInfo.targetAudience}
-                  onChange={e => setBusinessInfo(b => ({ ...b, targetAudience: e.target.value }))}
-                />
-              </label>
-            </div>
-
+          <div className="qmf-fields">
+            {/* Your Name */}
             <label className="smart-label">
-              Short Description of Your Business
-              <textarea
-                className="smart-textarea"
-                rows={2}
-                placeholder="Briefly describe what your business offers and what makes your product/service distinctive..."
-                value={businessInfo.description || ''}
-                onChange={e => setBusinessInfo(b => ({ ...b, description: e.target.value }))}
+              Your Name <span className="req">*</span>
+              <input
+                type="text"
+                required
+                className={`smart-input ${fieldErrors.quickName ? 'is-invalid' : ''}`}
+                placeholder="Enter your name"
+                value={quickName}
+                onChange={e => {
+                  setQuickName(e.target.value)
+                  if (e.target.value.trim().length >= 2) {
+                    setFieldErrors(prev => ({ ...prev, quickName: '' }))
+                  }
+                }}
               />
+              {fieldErrors.quickName && <span className="field-error-msg">{fieldErrors.quickName}</span>}
             </label>
-          </div>
-        </div>
-      )}
 
-      {/* STEP 4: Budget & Timeline */}
-      {currentStep === 4 && (
-        <div className="smart-step-body">
-          <div className="smart-step-intro">
-            <h2>Planned Investment & Timeline</h2>
-            <p className="lead">
-              Transparent, realistic planning allows us to recommend the right deliverables without wasted back-and-forth.
-            </p>
-          </div>
-
-          <div className="smart-investment-section">
-            <label className="smart-section-label">
-              Target Monthly / Project Budget
-              <small>Choose an estimated range. Budget is optional if you prefer guidance during consultation.</small>
-            </label>
-            <div className="smart-pill-grid" role="radiogroup" aria-label="Budget options">
-              {BUDGET_OPTIONS.map(b => (
-                <button
-                  key={b}
-                  type="button"
-                  className={`smart-pill-btn ${budget === b ? 'is-selected' : ''}`}
-                  onClick={() => setBudget(b)}
-                  role="radio"
-                  aria-checked={budget === b}
-                >
-                  {budget === b && <Check size={14} className="mr-1" aria-hidden="true" />}
-                  {b}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ marginTop: '28px' }}>
-              <label className="smart-section-label">
-                When would you like to begin implementation?
-              </label>
-              <div className="smart-pill-grid" role="radiogroup" aria-label="Timeline options">
-                {TIMELINE_OPTIONS.map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    className={`smart-pill-btn ${timeline === t ? 'is-selected' : ''}`}
-                    onClick={() => setTimeline(t)}
-                    role="radio"
-                    aria-checked={timeline === t}
-                  >
-                    {timeline === t && <Check size={14} className="mr-1" aria-hidden="true" />}
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 5: Contact Information & Consent */}
-      {currentStep === 5 && (
-        <div className="smart-step-body">
-          <div className="smart-step-intro">
-            <h2>How should we get in touch?</h2>
-            <p className="lead">
-              We respond promptly with practical recommendations. No aggressive sales pitches.
-            </p>
-          </div>
-
-          <div className="smart-form-grid">
-            <div className="smart-field-row">
-              <label className="smart-label">
-                Full Name <span className="req">*</span>
-                <input
-                  type="text"
-                  required
-                  className={`smart-input ${fieldErrors.name ? 'is-invalid' : ''}`}
-                  placeholder="e.g. Vikram Malhotra"
-                  value={contactInfo.name}
-                  onChange={e => {
-                    setContactInfo(c => ({ ...c, name: e.target.value }))
-                    if (e.target.value.trim().length >= 2) setFieldErrors(err => ({ ...err, name: '' }))
-                  }}
-                />
-                {fieldErrors.name && <span className="field-error-msg">{fieldErrors.name}</span>}
-              </label>
-
-              <label className="smart-label">
-                Work Email <span className="req">*</span>
-                <input
-                  type="email"
-                  required
-                  className={`smart-input ${fieldErrors.email ? 'is-invalid' : ''}`}
-                  placeholder="name@business.com"
-                  value={contactInfo.email}
-                  onChange={e => {
-                    setContactInfo(c => ({ ...c, email: e.target.value }))
-                    if (e.target.value.includes('@')) setFieldErrors(err => ({ ...err, email: '' }))
-                  }}
-                />
-                {fieldErrors.email && <span className="field-error-msg">{fieldErrors.email}</span>}
-              </label>
-            </div>
-
-            <div className="smart-field-row">
-              <label className="smart-label">
-                Phone Number with Country Code <span className="req">*</span>
-                <input
-                  type="tel"
-                  required
-                  className={`smart-input ${fieldErrors.phone ? 'is-invalid' : ''}`}
-                  placeholder="+91 98200 00000"
-                  value={contactInfo.phone}
-                  onChange={e => {
-                    setContactInfo(c => ({ ...c, phone: e.target.value }))
-                    if (e.target.value.length > 7) setFieldErrors(err => ({ ...err, phone: '' }))
-                  }}
-                />
-                {fieldErrors.phone && <span className="field-error-msg">{fieldErrors.phone}</span>}
-              </label>
-
-              <div>
-                <label className="smart-label">Preferred Contact Channel</label>
-                <div className="smart-contact-method-row" role="radiogroup">
-                  {CONTACT_METHODS.map(m => {
-                    const isSelected = contactInfo.preferredContact === m.id
-                    const Icon = m.icon
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        className={`smart-method-btn ${isSelected ? 'is-selected' : ''}`}
-                        onClick={() => setContactInfo(c => ({ ...c, preferredContact: m.id }))}
-                        role="radio"
-                        aria-checked={isSelected}
-                      >
-                        <Icon size={16} aria-hidden="true" />
-                        <span>{m.label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-
+            {/* Email Address */}
             <label className="smart-label">
-              Additional Details or Specific Requirements (Optional)
-              <textarea
-                className="smart-textarea"
-                rows={3}
-                placeholder="Share any specific constraints, current conversion frustrations, or targets..."
-                value={contactInfo.message || ''}
-                onChange={e => setContactInfo(c => ({ ...c, message: e.target.value }))}
+              Email Address <span className="req">*</span>
+              <input
+                type="email"
+                required
+                className={`smart-input ${fieldErrors.quickEmail ? 'is-invalid' : ''}`}
+                placeholder="Enter your work email"
+                value={quickEmail}
+                onChange={e => {
+                  setQuickEmail(e.target.value)
+                  if (e.target.value.includes('@')) {
+                    setFieldErrors(prev => ({ ...prev, quickEmail: '' }))
+                  }
+                }}
+              />
+              {fieldErrors.quickEmail && <span className="field-error-msg">{fieldErrors.quickEmail}</span>}
+            </label>
+
+            {/* Phone or WhatsApp */}
+            <label className="smart-label">
+              Phone or WhatsApp (Optional)
+              <input
+                type="tel"
+                className="smart-input"
+                placeholder="+91 98200 00000"
+                value={quickPhone}
+                onChange={e => setQuickPhone(e.target.value)}
               />
             </label>
 
-            <div className="smart-consent-box">
-              <label className="smart-checkbox-label">
-                <input
-                  type="checkbox"
-                  required
-                  checked={contactInfo.consentToContact}
-                  onChange={e => {
-                    setContactInfo(c => ({ ...c, consentToContact: e.target.checked }))
-                    if (e.target.checked) setFieldErrors(err => ({ ...err, consent: '' }))
-                  }}
-                />
-                <span>
-                  I consent to Chazon Digital Ventures contacting me regarding this project enquiry. <span className="req">*</span>
-                </span>
-              </label>
-              {fieldErrors.consent && <p className="field-error-msg">{fieldErrors.consent}</p>}
+            {/* Your Business */}
+            <label className="smart-label">
+              Your Business (Optional)
+              <input
+                type="text"
+                className="smart-input"
+                placeholder="e.g. E-commerce, Consulting, Healthcare"
+                value={quickBusiness}
+                onChange={e => setQuickBusiness(e.target.value)}
+              />
+            </label>
 
-              <label className="smart-checkbox-label text-muted">
-                <input
-                  type="checkbox"
-                  checked={contactInfo.marketingConsent}
-                  onChange={e => setContactInfo(c => ({ ...c, marketingConsent: e.target.checked }))}
-                />
-                <span>(Optional) Send me occasional growth insights and digital teardowns.</span>
-              </label>
+            {/* Service or Enquiry Type */}
+            <div className="smart-label">
+              Service or Enquiry Type
+              <CustomDropdown
+                value={quickService}
+                onChange={val => setQuickService(val)}
+                options={SERVICE_DROPDOWN_OPTIONS}
+              />
             </div>
+
+            {/* Message */}
+            <label className="smart-label">
+              How can we help you? <span className="req">*</span>
+              <textarea
+                required
+                rows={4}
+                className={`smart-textarea ${fieldErrors.quickMessage ? 'is-invalid' : ''}`}
+                placeholder="Tell us about your requirement, goal or project..."
+                value={quickMessage}
+                onChange={e => {
+                  setQuickMessage(e.target.value)
+                  if (e.target.value.trim().length >= 5) {
+                    setFieldErrors(prev => ({ ...prev, quickMessage: '' }))
+                  }
+                }}
+              />
+              {fieldErrors.quickMessage && (
+                <span className="field-error-msg">{fieldErrors.quickMessage}</span>
+              )}
+            </label>
           </div>
-        </div>
-      )}
 
-      {/* STEP 6: Review & Submit */}
-      {currentStep === 6 && (
-        <div className="smart-step-body">
-          <div className="smart-step-intro">
-            <h2>Review Your Enquiry Summary</h2>
-            <p className="lead">
-              Review your details before submission. Click any edit button to make adjustments.
-            </p>
-          </div>
-
-          <div className="smart-review-grid">
-            {/* Review Block 1: Objectives */}
-            <div className="smart-review-card">
-              <div className="smart-review-card-head">
-                <strong>01. Selected Objectives</strong>
-                <button
-                  type="button"
-                  className="smart-edit-link"
-                  onClick={() => setCurrentStep(1)}
-                  aria-label="Edit selected objectives"
-                >
-                  <Edit2 size={14} aria-hidden="true" />
-                  <span>Edit</span>
-                </button>
-              </div>
-              <ul className="smart-review-tags">
-                {selectedGoals.map(g => {
-                  const match = GOAL_OPTIONS.find(o => o.id === g)
-                  return <li key={g}>{match?.title || g}</li>
-                })}
-              </ul>
-            </div>
-
-            {/* Review Block 2: Business Info */}
-            <div className="smart-review-card">
-              <div className="smart-review-card-head">
-                <strong>02. Business Context</strong>
-                <button
-                  type="button"
-                  className="smart-edit-link"
-                  onClick={() => setCurrentStep(3)}
-                  aria-label="Edit business information"
-                >
-                  <Edit2 size={14} aria-hidden="true" />
-                  <span>Edit</span>
-                </button>
-              </div>
-              <dl className="smart-review-dl">
-                <div>
-                  <dt>Business:</dt>
-                  <dd>{businessInfo.businessName}</dd>
-                </div>
-                <div>
-                  <dt>Industry:</dt>
-                  <dd>{businessInfo.industry}</dd>
-                </div>
-                {businessInfo.website && (
-                  <div>
-                    <dt>Website:</dt>
-                    <dd>{businessInfo.website}</dd>
-                  </div>
-                )}
-                <div>
-                  <dt>Stage:</dt>
-                  <dd>{businessInfo.businessStage}</dd>
-                </div>
-              </dl>
-            </div>
-
-            {/* Review Block 3: Budget & Timeline */}
-            <div className="smart-review-card">
-              <div className="smart-review-card-head">
-                <strong>03. Investment & Timeline</strong>
-                <button
-                  type="button"
-                  className="smart-edit-link"
-                  onClick={() => setCurrentStep(4)}
-                  aria-label="Edit budget and timeline"
-                >
-                  <Edit2 size={14} aria-hidden="true" />
-                  <span>Edit</span>
-                </button>
-              </div>
-              <dl className="smart-review-dl">
-                <div>
-                  <dt>Budget:</dt>
-                  <dd>{budget}</dd>
-                </div>
-                <div>
-                  <dt>Start Timeline:</dt>
-                  <dd>{timeline}</dd>
-                </div>
-              </dl>
-            </div>
-
-            {/* Review Block 4: Contact */}
-            <div className="smart-review-card">
-              <div className="smart-review-card-head">
-                <strong>04. Contact Details</strong>
-                <button
-                  type="button"
-                  className="smart-edit-link"
-                  onClick={() => setCurrentStep(5)}
-                  aria-label="Edit contact details"
-                >
-                  <Edit2 size={14} aria-hidden="true" />
-                  <span>Edit</span>
-                </button>
-              </div>
-              <dl className="smart-review-dl">
-                <div>
-                  <dt>Name:</dt>
-                  <dd>{contactInfo.name}</dd>
-                </div>
-                <div>
-                  <dt>Email:</dt>
-                  <dd>{contactInfo.email}</dd>
-                </div>
-                <div>
-                  <dt>Phone:</dt>
-                  <dd>{contactInfo.phone}</dd>
-                </div>
-                <div>
-                  <dt>Channel:</dt>
-                  <dd>{contactInfo.preferredContact}</dd>
-                </div>
-              </dl>
-            </div>
-
-            {includeAudit && auditContext && (
-              <div className="smart-review-card smart-audit-card">
-                <div className="smart-review-card-head">
-                  <strong>Attached Website Audit Context</strong>
-                  <span className="mono badge-score">{auditContext.overallScore}/100</span>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.875rem' }}>
-                  Target: {auditContext.url} · {auditContext.issues.filter(i => i.severity === 'critical').length} critical leaks detected
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Navigation Buttons */}
-      <div className="smart-form-nav">
-        {currentStep > 1 && (
-          <button
-            type="button"
-            className="button button-secondary"
-            onClick={handleBack}
-            disabled={busy}
-          >
-            <ArrowLeft size={16} aria-hidden="true" />
-            <span>Back</span>
-          </button>
-        )}
-
-        {currentStep < 6 ? (
-          <button
-            type="button"
-            className="button button-primary smart-nav-next"
-            onClick={handleNext}
-          >
-            <span>Continue</span>
-            <ArrowRight size={16} aria-hidden="true" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="button button-primary smart-nav-submit"
-            onClick={handleSubmit}
-            disabled={busy}
-          >
+          <button type="submit" className="button button-primary qmf-submit-btn" disabled={busy}>
             {busy ? (
               <>
-                <RefreshCw size={18} className="spin" aria-hidden="true" />
-                <span>Submitting Enquiry…</span>
+                <RefreshCw size={16} className="spin" aria-hidden="true" />
+                <span>Sending Message...</span>
               </>
             ) : (
               <>
-                <Send size={18} aria-hidden="true" />
-                <span>Submit Business Enquiry</span>
+                <span>Send Message</span>
+                <ArrowRight size={16} aria-hidden="true" />
               </>
             )}
           </button>
-        )}
-      </div>
+
+          <div className="smart-privacy-assurance">
+            <Lock size={14} aria-hidden="true" />
+            <span>We respect your privacy. Your information is kept strictly confidential.</span>
+          </div>
+        </form>
+      )}
+
+      {/* =========================================================
+          MODE 2: INTERACTIVE SCOPE PLANNER (3 Fast, Simple Steps!)
+          Step 1: Focus Area (1 Click)
+          Step 2: Key Specifications & Scale
+          Step 3: Contact Details & Proposal Request
+          ========================================================= */}
+      {mode === 'planner' && (
+        <div className="planner-flow-wrapper">
+          {/* 3-Step Progress Indicator */}
+          <div className="smart-progress-bar" aria-label={`Step ${plannerStep} of 3`}>
+            <div className="smart-progress-head">
+              <span className="mono step-tag">Step 0{plannerStep} of 03</span>
+              <span className="step-title-hint">
+                {plannerStep === 1 && 'Choose Focus'}
+                {plannerStep === 2 && `${activeCategoryMeta?.title || 'Scope'} Specifications`}
+                {plannerStep === 3 && 'Contact & Proposal'}
+              </span>
+            </div>
+            <div className="smart-progress-track">
+              <div
+                className="smart-progress-fill"
+                style={{ width: `${(plannerStep / 3) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          {/* STEP 1: Focus Area (1-Click Select & Advance) */}
+          {plannerStep === 1 && (
+            <div className="planner-step-body">
+              <div className="planner-step-intro">
+                <h2 className="planner-step-title">Select Your Focus Area</h2>
+                <p className="planner-step-desc">
+                  Choose the primary area where your business needs digital growth.
+                </p>
+              </div>
+
+              <div className="smart-category-grid" role="radiogroup" aria-label="Enquiry categories">
+                {ENQUIRY_CATEGORIES.map(cat => {
+                  const isSelected = selectedCategory === cat.id
+                  const Icon = cat.icon
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      className={`smart-category-card ${isSelected ? 'is-selected' : ''}`}
+                      onClick={() => {
+                        setSelectedCategory(cat.id)
+                        setPlannerStep(2)
+                      }}
+                      role="radio"
+                      aria-checked={isSelected}
+                    >
+                      <div className="smart-card-top">
+                        <span className="smart-card-num mono">{cat.number}</span>
+                        <span className="smart-card-icon">
+                          <Icon size={20} aria-hidden="true" />
+                        </span>
+                        <span className="smart-card-check">
+                          {isSelected ? <Check size={14} aria-hidden="true" /> : null}
+                        </span>
+                      </div>
+                      <strong className="smart-card-title">{cat.title}</strong>
+                      <span className="smart-card-subtitle">{cat.subtitle}</span>
+                      <p className="smart-card-desc">{cat.desc}</p>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: Key Specifications & Scale */}
+          {plannerStep === 2 && activeCategoryMeta && (
+            <div className="planner-step-body">
+              {/* Category Pill with Change link */}
+              <div className="smart-category-pill-bar">
+                <div className="scpb-left">
+                  <span className="scpb-badge">{activeCategoryMeta.title}</span>
+                  <span className="scpb-subtitle">{activeCategoryMeta.subtitle}</span>
+                </div>
+                <button
+                  type="button"
+                  className="scpb-change-btn"
+                  onClick={() => setPlannerStep(1)}
+                  aria-label="Change category"
+                >
+                  <RefreshCw size={12} aria-hidden="true" />
+                  <span>Change</span>
+                </button>
+              </div>
+
+              <div className="planner-step-intro">
+                <h2 className="planner-step-title">{activeCategoryMeta.title} Specifications</h2>
+                <p className="planner-step-desc">
+                  Tailor the essential scope and priorities for your {activeCategoryMeta.title.toLowerCase()} solution.
+                </p>
+              </div>
+
+              {/* Dynamic inputs per category */}
+              <div className="smart-dynamic-box">
+                {selectedCategory === 'BUILD' && (
+                  <>
+                    <div className="smart-label">
+                      Website / Application Type
+                      <CustomDropdown
+                        value={buildType}
+                        onChange={val => setBuildType(val)}
+                        options={[
+                          { value: 'Business Website (Lead Gen)', label: 'Business Website (Lead Generation)' },
+                          { value: 'High-Converting Landing Page', label: 'High-Converting Landing Page' },
+                          { value: 'Existing Website Redesign', label: 'Existing Website Redesign & Modernisation' },
+                          { value: 'Custom Web Application / SaaS', label: 'Custom Web Application / Portal' },
+                          { value: 'Portfolio / Practice Showcase', label: 'Portfolio / Practice Showcase' },
+                        ]}
+                      />
+                    </div>
+
+                    <div className="smart-label">
+                      Approximate Scope & Page Count
+                      <CustomDropdown
+                        value={buildScale}
+                        onChange={val => setBuildScale(val)}
+                        options={[
+                          { value: '1–5 pages (Focused)', label: '1–5 pages (Focused / Single-page)' },
+                          { value: '6–15 pages (Standard)', label: '6–15 pages (Standard Corporate Site)' },
+                          { value: '15–30 pages (Multi-service)', label: '15–30 pages (Multi-service / Catalog)' },
+                          { value: '30+ pages (Enterprise)', label: '30+ pages (Enterprise / Large Portal)' },
+                        ]}
+                      />
+                    </div>
+
+                    <div>
+                      <span className="smart-label">Key Features Needed</span>
+                      <div className="smart-checkbox-grid">
+                        {[
+                          'CRM / Lead Routing',
+                          'WhatsApp Integration',
+                          'Blog / Content Hub',
+                          'Payment Gateway',
+                          'Multi-language Support',
+                          'Client Portal',
+                        ].map(feat => {
+                          const checked = buildFeatures.includes(feat)
+                          return (
+                            <button
+                              key={feat}
+                              type="button"
+                              className={`smart-check-card ${checked ? 'is-checked' : ''}`}
+                              onClick={() => toggleFeature(buildFeatures, setBuildFeatures, feat)}
+                            >
+                              <span className={`custom-chk ${checked ? 'is-active' : ''}`}>
+                                {checked && <Check size={12} strokeWidth={3} />}
+                              </span>
+                              <span>{feat}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <label className="smart-label">
+                      Design Reference or Current Website URL (Optional)
+                      <input
+                        type="url"
+                        className="smart-input"
+                        placeholder="https://example.com"
+                        value={buildRefUrl}
+                        onChange={e => setBuildRefUrl(e.target.value)}
+                      />
+                    </label>
+                  </>
+                )}
+
+                {selectedCategory === 'GROW' && (
+                  <>
+                    <div className="smart-label">
+                      Primary SEO & Growth Objective
+                      <CustomDropdown
+                        value={growGoal}
+                        onChange={val => setGrowGoal(val)}
+                        options={[
+                          { value: 'First-page Google rankings & SEO', label: 'First-Page Google Rankings & Organic Traffic' },
+                          { value: 'Qualified commercial lead generation', label: 'More Qualified Inbound Leads & Calls' },
+                          { value: 'Local search & Google Business Profile', label: 'Local Search & Google Business Profile' },
+                          { value: 'Paid Google & Meta Ads ROI', label: 'Paid Advertising (Google & Meta Ads) Optimisation' },
+                          { value: 'Content & Authority Marketing', label: 'Strategic Commercial Content & Authority' },
+                        ]}
+                      />
+                    </div>
+
+                    <label className="smart-label">
+                      Current Website URL (Optional)
+                      <input
+                        type="url"
+                        className="smart-input"
+                        placeholder="https://yourbusiness.com"
+                        value={growUrl}
+                        onChange={e => setGrowUrl(e.target.value)}
+                      />
+                    </label>
+
+                    <label className="smart-label">
+                      Priority Target Keyword or Challenge
+                      <input
+                        type="text"
+                        className="smart-input"
+                        placeholder="e.g. Outranking competitors for industrial equipment"
+                        value={growFocus}
+                        onChange={e => setGrowFocus(e.target.value)}
+                      />
+                    </label>
+                  </>
+                )}
+
+                {selectedCategory === 'CONVERT' && (
+                  <>
+                    <label className="smart-label">
+                      Existing Website or Landing Page URL
+                      <input
+                        type="url"
+                        className="smart-input"
+                        placeholder="https://yourbusiness.com"
+                        value={convertUrl}
+                        onChange={e => setConvertUrl(e.target.value)}
+                      />
+                    </label>
+
+                    <div className="smart-label">
+                      Primary Conversion Goal
+                      <CustomDropdown
+                        value={convertGoal}
+                        onChange={val => setConvertGoal(val)}
+                        options={[
+                          { value: 'Increase qualified lead generation', label: 'Increase Qualified Enquiries / Calls' },
+                          { value: 'Improve WhatsApp clicks to chat', label: 'Increase WhatsApp Inbound Conversations' },
+                          { value: 'Higher landing page opt-ins', label: 'Higher Conversion on Paid Ad Traffic' },
+                          { value: 'Checkout / purchase rate', label: 'Lower Drop-off at Checkout' },
+                        ]}
+                      />
+                    </div>
+
+                    <label className="smart-label">
+                      Main Challenge to Solve
+                      <input
+                        type="text"
+                        className="smart-input"
+                        placeholder="e.g. Getting website visits but very few conversions"
+                        value={convertProblem}
+                        onChange={e => setConvertProblem(e.target.value)}
+                      />
+                    </label>
+                  </>
+                )}
+
+                {selectedCategory === 'AUTOMATE' && (
+                  <>
+                    <div className="smart-label">
+                      Current CRM / Lead Tracking System
+                      <CustomDropdown
+                        value={autoTool}
+                        onChange={val => setAutoTool(val)}
+                        options={[
+                          { value: 'Looking for guidance on CRM setup', label: 'No CRM yet — need guidance choosing & setting up' },
+                          { value: 'Using WhatsApp Business manually', label: 'Using WhatsApp Business app manually' },
+                          { value: 'Zoho / HubSpot / Salesforce', label: 'Already using Zoho, HubSpot, or Salesforce' },
+                          { value: 'Google Sheets / Excel', label: 'Managing leads in Google Sheets / Excel' },
+                        ]}
+                      />
+                    </div>
+
+                    <div>
+                      <span className="smart-label">Desired Automations</span>
+                      <div className="smart-checkbox-grid">
+                        {[
+                          'WhatsApp Instant Reply',
+                          'Lead Routing to Team',
+                          'Automated Nurture Sequence',
+                          'Payment / Invoice Alerts',
+                          'CRM Integration',
+                          'Customer Triage Bot',
+                        ].map(item => {
+                          const checked = autoNeeds.includes(item)
+                          return (
+                            <button
+                              key={item}
+                              type="button"
+                              className={`smart-check-card ${checked ? 'is-checked' : ''}`}
+                              onClick={() => toggleFeature(autoNeeds, setAutoNeeds, item)}
+                            >
+                              <span className={`custom-chk ${checked ? 'is-active' : ''}`}>
+                                {checked && <Check size={12} strokeWidth={3} />}
+                              </span>
+                              <span>{item}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {selectedCategory === 'E-COMMERCE' && (
+                  <>
+                    <div className="smart-label">
+                      Platform Preference
+                      <CustomDropdown
+                        value={ecomPlatform}
+                        onChange={val => setEcomPlatform(val)}
+                        options={[
+                          { value: 'Shopify', label: 'Shopify (Fast, reliable, scalable)' },
+                          { value: 'WooCommerce', label: 'WooCommerce / WordPress' },
+                          { value: 'Custom Headless Store', label: 'Custom Modern Headless Store (Next.js)' },
+                          { value: 'Need guidance choosing platform', label: 'Need guidance choosing the best platform' },
+                        ]}
+                      />
+                    </div>
+
+                    <div className="smart-label">
+                      Product Catalogue Size
+                      <CustomDropdown
+                        value={ecomCatalog}
+                        onChange={val => setEcomCatalog(val)}
+                        options={[
+                          { value: '1–10 products (Curated)', label: '1–10 products (Curated / Single product brand)' },
+                          { value: '10–100 products (Growing store)', label: '10–100 products (Growing online store)' },
+                          { value: '100–1,000 products (Full catalog)', label: '100–1,000 products (Extensive catalog)' },
+                          { value: '1,000+ products (Enterprise)', label: '1,000+ products (Enterprise scale)' },
+                        ]}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {selectedCategory === 'AI' && (
+                  <>
+                    <div className="smart-label">
+                      Primary AI Functionality
+                      <CustomDropdown
+                        value={aiFocus}
+                        onChange={val => setAiFocus(val)}
+                        options={[
+                          { value: '24/7 Smart Customer Assistant', label: '24/7 Smart Customer Assistant (Web & WhatsApp)' },
+                          { value: 'Automated Lead Qualification Bot', label: 'Automated Lead Qualification & Triage Bot' },
+                          { value: 'Internal Document & Knowledge AI', label: 'Internal Document AI & Staff Assistant' },
+                          { value: 'Custom Predictive AI Integration', label: 'Custom Business Process Automation AI' },
+                        ]}
+                      />
+                    </div>
+
+                    <label className="smart-label">
+                      Business Challenge to Solve with AI
+                      <textarea
+                        rows={2}
+                        className="smart-textarea"
+                        placeholder="Describe what manual process you would like AI to handle..."
+                        value={aiDetails}
+                        onChange={e => setAiDetails(e.target.value)}
+                      />
+                    </label>
+                  </>
+                )}
+
+                {/* Investment & Timeline quick pills */}
+                <div className="planner-investment-block">
+                  <span className="smart-label">Estimated Investment Bracket</span>
+                  <div className="smart-pill-grid" role="radiogroup" aria-label="Budget options">
+                    {BUDGET_OPTIONS.map(b => (
+                      <button
+                        key={b}
+                        type="button"
+                        className={`smart-pill-btn ${selectedBudget === b ? 'is-selected' : ''}`}
+                        onClick={() => setSelectedBudget(b)}
+                        role="radio"
+                        aria-checked={selectedBudget === b}
+                      >
+                        {selectedBudget === b && <Check size={13} className="mr-1" aria-hidden="true" />}
+                        {b}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="smart-label">Target Implementation Timeline</span>
+                  <div className="smart-pill-grid" role="radiogroup" aria-label="Timeline options">
+                    {TIMELINE_OPTIONS.map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        className={`smart-pill-btn ${selectedTimeline === t ? 'is-selected' : ''}`}
+                        onClick={() => setSelectedTimeline(t)}
+                        role="radio"
+                        aria-checked={selectedTimeline === t}
+                      >
+                        {selectedTimeline === t && <Check size={13} className="mr-1" aria-hidden="true" />}
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation buttons */}
+              <div className="smart-form-nav">
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() => setPlannerStep(1)}
+                >
+                  ← Back
+                </button>
+                <button
+                  type="button"
+                  className="button button-primary smart-nav-next"
+                  onClick={() => setPlannerStep(3)}
+                >
+                  <span>Continue to Contact</span>
+                  <ArrowRight size={16} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: Contact Details & Submit */}
+          {plannerStep === 3 && (
+            <div className="planner-step-body">
+              <div className="planner-step-intro">
+                <h2 className="planner-step-title">Where Should We Send Your Scope?</h2>
+                <p className="planner-step-desc">
+                  We review your specifications and prepare a strategic recommendation. No automated spam.
+                </p>
+              </div>
+
+              {/* Scope Summary Preview Chip */}
+              <div className="planner-scope-summary-pill">
+                <span className="scpb-badge">{selectedCategory}</span>
+                <span className="pss-text">
+                  Scope: {selectedBudget} · {selectedTimeline}
+                </span>
+                <button
+                  type="button"
+                  className="pss-edit-btn"
+                  onClick={() => setPlannerStep(2)}
+                  aria-label="Edit scope"
+                >
+                  Edit
+                </button>
+              </div>
+
+              <div className="qmf-fields">
+                <label className="smart-label">
+                  Your Full Name <span className="req">*</span>
+                  <input
+                    type="text"
+                    required
+                    className={`smart-input ${fieldErrors.plannerName ? 'is-invalid' : ''}`}
+                    placeholder="e.g. Vikram Malhotra"
+                    value={plannerName}
+                    onChange={e => {
+                      setPlannerName(e.target.value)
+                      if (e.target.value.trim().length >= 2) {
+                        setFieldErrors(prev => ({ ...prev, plannerName: '' }))
+                      }
+                    }}
+                  />
+                  {fieldErrors.plannerName && (
+                    <span className="field-error-msg">{fieldErrors.plannerName}</span>
+                  )}
+                </label>
+
+                <label className="smart-label">
+                  Work Email <span className="req">*</span>
+                  <input
+                    type="email"
+                    required
+                    className={`smart-input ${fieldErrors.plannerEmail ? 'is-invalid' : ''}`}
+                    placeholder="name@business.com"
+                    value={plannerEmail}
+                    onChange={e => {
+                      setPlannerEmail(e.target.value)
+                      if (e.target.value.includes('@')) {
+                        setFieldErrors(prev => ({ ...prev, plannerEmail: '' }))
+                      }
+                    }}
+                  />
+                  {fieldErrors.plannerEmail && (
+                    <span className="field-error-msg">{fieldErrors.plannerEmail}</span>
+                  )}
+                </label>
+
+                <label className="smart-label">
+                  WhatsApp or Phone Number <span className="req">*</span>
+                  <input
+                    type="tel"
+                    required
+                    className={`smart-input ${fieldErrors.plannerPhone ? 'is-invalid' : ''}`}
+                    placeholder="+91 98200 00000"
+                    value={plannerPhone}
+                    onChange={e => {
+                      setPlannerPhone(e.target.value)
+                      if (e.target.value.trim().length >= 7) {
+                        setFieldErrors(prev => ({ ...prev, plannerPhone: '' }))
+                      }
+                    }}
+                  />
+                  {fieldErrors.plannerPhone && (
+                    <span className="field-error-msg">{fieldErrors.plannerPhone}</span>
+                  )}
+                </label>
+
+                <label className="smart-label">
+                  Business / Company Name (Optional)
+                  <input
+                    type="text"
+                    className="smart-input"
+                    placeholder="e.g. Apex Health & Nutrition"
+                    value={plannerBusiness}
+                    onChange={e => setPlannerBusiness(e.target.value)}
+                  />
+                </label>
+
+                <label className="smart-label">
+                  Any Specific Goals or Notes (Optional)
+                  <textarea
+                    rows={2}
+                    className="smart-textarea"
+                    placeholder="Tell us any specific challenges, existing links or questions..."
+                    value={plannerNote}
+                    onChange={e => setPlannerNote(e.target.value)}
+                  />
+                </label>
+              </div>
+
+              {/* Navigation buttons */}
+              <div className="smart-form-nav">
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() => setPlannerStep(2)}
+                  disabled={busy}
+                >
+                  ← Back
+                </button>
+                <button
+                  type="button"
+                  className="button button-primary smart-nav-submit"
+                  onClick={handlePlannerSubmit}
+                  disabled={busy}
+                >
+                  {busy ? (
+                    <>
+                      <RefreshCw size={16} className="spin" aria-hidden="true" />
+                      <span>Submitting Scope...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Get Strategic Proposal</span>
+                      <Send size={16} aria-hidden="true" />
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="smart-privacy-assurance">
+                <Lock size={14} aria-hidden="true" />
+                <span>Your information is strictly protected under NDA. We never share client data.</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

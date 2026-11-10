@@ -105,7 +105,7 @@ export function FinalCta({ title, intro, talkTo = '/contact' }: { title?: ReactN
       </div>
       <div className="final-paths">
         <PathCard to={talkTo} index="01" title={settings.ctaTalkLabel} text="A conversation about your goals and where digital can help." location="final_cta_talk"/>
-        <PathCard to="/growth-audit" index="02" title={settings.ctaAuditLabel} text="A structured review of how hard your digital presence is working." location="final_cta_audit"/>
+        <PathCard to="/approach" index="02" title="Explore Our Approach" text="How we align strategy, technology, marketing and continuous optimisation." location="final_cta_approach"/>
         {directChannels.length > 0 && <ul className="final-direct">{directChannels.map(c => <li key={c.key}>
           <ChannelLink channel={c} location="final_cta" className="inline-channel"><ChannelIcon channel={c} size={18}/>{c.detail}</ChannelLink>
         </li>)}</ul>}
