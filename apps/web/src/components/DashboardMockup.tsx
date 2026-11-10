@@ -1,3 +1,6 @@
+import { Sparkles } from 'lucide-react'
+import { Link } from '../router'
+
 export function DashboardMockup() {
   return (
     <div className="hero-dashboard-scene" aria-label="Chazon Business Growth dashboard demonstration">
@@ -13,6 +16,21 @@ export function DashboardMockup() {
           loading="eager"
         />
       </picture>
+
+      {/* Floating Interactive Health Diagnostic Card */}
+      <Link to="/website-audit" className="hero-floating-audit-pill" aria-label="Audit your website diagnostic">
+        <div className="hfap-icon-pulse">
+          <span className="hfap-dot" />
+          <Sparkles size={16} />
+        </div>
+        <div className="hfap-text">
+          <strong>Website Growth Diagnostic</strong>
+          <small>Check Speed, SEO & Conversion Leaks ↗</small>
+        </div>
+        <div className="hfap-score-tag">
+          <span>82</span>
+        </div>
+      </Link>
     </div>
   )
 }

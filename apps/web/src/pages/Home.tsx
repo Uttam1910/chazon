@@ -3,6 +3,7 @@ import {
   ArrowRight,
   BarChart2,
   Coins,
+  Globe,
   Users,
 } from 'lucide-react'
 import { homeFaqs } from '../content'
@@ -13,6 +14,7 @@ import { useSite } from '../site-data'
 import { BusinessProblemSection } from '../components/BusinessProblemSection'
 import { DashboardMockup } from '../components/DashboardMockup'
 import { GrowthFramework } from '../components/GrowthFramework'
+import { HomeAuditSection } from '../components/HomeAuditSection'
 import { IndustriesShowcase } from '../components/IndustriesShowcase'
 import { PageShell } from '../components/Layout'
 import { ProcessTimeline } from '../components/ProcessTimeline'
@@ -22,8 +24,20 @@ import { Faq } from '../components/ui'
 
 export function Home() {
   const { settings, seo, live, socialChannels } = useSite()
-  const { hash, search } = useRouter()
+  const { hash, search, navigate } = useRouter()
   const [, setSelectedService] = useState<string>('')
+  const [heroUrl, setHeroUrl] = useState('')
+
+  const handleHeroAuditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = heroUrl.trim()
+    if (!trimmed) {
+      navigate('/website-audit')
+      return
+    }
+    const clean = trimmed.replace(/^https?:\/\//, '')
+    navigate(`/website-audit?url=${encodeURIComponent(clean)}`)
+  }
 
   // Sync scroll on hash or query param intent
   useEffect(() => {
@@ -96,11 +110,40 @@ export function Home() {
               We help businesses attract the right audience, convert opportunities into customers, and build sustainable digital growth through strategy, technology and marketing.
             </p>
 
+            {/* Above-the-fold Interactive Website Audit Box */}
+            <div className="hero-audit-box">
+              <form onSubmit={handleHeroAuditSubmit} className="hero-audit-form" role="search" aria-label="Instant Website Audit">
+                <div className="hero-audit-input-wrap">
+                  <Globe size={18} className="hero-audit-icon" aria-hidden="true" />
+                  <input
+                    type="text"
+                    value={heroUrl}
+                    onChange={(e) => setHeroUrl(e.target.value)}
+                    placeholder="Enter your website URL (e.g. yourbusiness.com)"
+                    className="hero-audit-input"
+                    aria-label="Website URL for instant audit"
+                    required
+                  />
+                </div>
+                <button type="submit" className="hero-audit-submit-btn">
+                  Audit Website <ArrowRight size={16} />
+                </button>
+              </form>
+
+              <div className="hero-audit-perks">
+                <span className="hap-item">⚡ 30-sec diagnostic</span>
+                <span className="hap-dot">•</span>
+                <span className="hap-item">Find SEO & Speed leaks</span>
+                <span className="hap-dot">•</span>
+                <span className="hap-item hap-free">100% Free · No signup</span>
+              </div>
+            </div>
+
             <div className="hero-btn-row">
-              <Link to="/services" className="button button-primary hero-primary-btn">
-                Explore Our Services <ArrowRight size={18} />
+              <Link to="/services" className="button button-outline hero-secondary-btn">
+                Explore Our Services <ArrowRight size={16} />
               </Link>
-              <Link to="/contact" className="button button-outline hero-secondary-btn">
+              <Link to="/contact" className="button button-ghost hero-ghost-btn">
                 Let’s Discuss Your Growth
               </Link>
             </div>
@@ -144,7 +187,10 @@ export function Home() {
       {/* 5. FOUR SERVICE CATEGORIES COVERING ALL TEN SERVICES */}
       <ServicesGrid />
 
-      {/* 6 & 7. WHY CHOOSE CHAZON + TECHNOLOGY & INTEGRATIONS */}
+      {/* 6. INTERACTIVE INSTANT WEBSITE AUDIT TOOL */}
+      <HomeAuditSection />
+
+      {/* 7. WHY CHOOSE CHAZON + TECHNOLOGY & INTEGRATIONS */}
       <WhyChooseChazon />
 
       {/* 8. SIX-STAGE WORKING PROCESS */}

@@ -50,9 +50,24 @@ export function WebsiteAudit() {
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const autoStartedRef = useRef(false)
+  const isScanningRef = useRef(false)
 
-  // Clean up timer on unmount
+  // Clean up timer on unmount & auto-start if URL param present (guarded against React StrictMode duplicate calls)
   useEffect(() => {
+    if (typeof window !== 'undefined' && !autoStartedRef.current) {
+      const params = new URLSearchParams(window.location.search)
+      const queryUrl = params.get('url')
+      if (queryUrl) {
+        autoStartedRef.current = true
+        let trimmed = queryUrl.trim()
+        if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+          trimmed = `https://${trimmed}`
+        }
+        setUrl(trimmed)
+        handleStartAudit(undefined, trimmed)
+      }
+    }
     return () => {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current)
       if (abortControllerRef.current) abortControllerRef.current.abort()
@@ -60,9 +75,10 @@ export function WebsiteAudit() {
   }, [])
 
   // Start Real Audit
-  const handleStartAudit = async (e?: FormEvent) => {
+  const handleStartAudit = async (e?: FormEvent, targetUrl?: string) => {
     if (e) e.preventDefault()
-    let trimmed = url.trim()
+    if (isScanningRef.current) return
+    let trimmed = (targetUrl ?? url).trim()
 
     if (!trimmed) {
       setError('Please enter your website URL to run the audit.')
@@ -74,6 +90,7 @@ export function WebsiteAudit() {
       setUrl(trimmed)
     }
 
+    isScanningRef.current = true
     setScanning(true)
     setError(null)
     setReport(null)
@@ -161,6 +178,7 @@ export function WebsiteAudit() {
       }
       track('form_error', { form: 'website_audit', error: String(err) })
     } finally {
+      isScanningRef.current = false
       setScanning(false)
       abortControllerRef.current = null
       if (progressTimerRef.current) clearInterval(progressTimerRef.current)
@@ -169,6 +187,7 @@ export function WebsiteAudit() {
 
   // Cancel Scan
   const handleCancelScan = async () => {
+    isScanningRef.current = false
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }

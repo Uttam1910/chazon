@@ -685,6 +685,13 @@ export function Header({
             </Link>
 
             <Link
+              to="/website-audit"
+              className={`nav-link ${path.startsWith('/website-audit') || path.startsWith('/growth-audit') ? 'is-active' : ''}`}
+            >
+              Website Audit
+            </Link>
+
+            <Link
               to="/contact"
               className={`nav-link ${path === '/contact' ? 'is-active' : ''}`}
             >
@@ -842,6 +849,11 @@ export function Header({
               </Link>
             </li>
             <li>
+              <Link to="/website-audit" onClick={() => setMobileOpen(false)}>
+                Free Website Audit Diagnostic
+              </Link>
+            </li>
+            <li>
               <Link to="/contact" onClick={() => setMobileOpen(false)}>
                 Contact & Inquiries
               </Link>
@@ -948,6 +960,9 @@ export function Footer({ hideCta = false }: { hideCta?: boolean }) {
             <ul className="footer-links-list">
               <li>
                 <Link to="/#framework">Growth Framework</Link>
+              </li>
+              <li>
+                <Link to="/website-audit">Website Audit</Link>
               </li>
               <li>
                 <Link to="/contact">Contact</Link>
