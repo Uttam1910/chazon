@@ -468,6 +468,7 @@ export function Header({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setServicesOpen(false)
+        setMobileOpen(false)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -738,15 +739,30 @@ export function Header({
 
           <ul className="mobile-nav-links">
             <li>
-              <Link to="/" onClick={() => setMobileOpen(false)}>
-                Home
+              <Link
+                to="/"
+                className={`mobile-nav-item ${path === '/' ? 'is-active' : ''}`}
+                onClick={() => setMobileOpen(false)}
+              >
+                <span>Home</span>
+                <ArrowRight size={16} className="mobile-nav-arrow" />
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/about"
+                className={`mobile-nav-item ${path === '/about' ? 'is-active' : ''}`}
+                onClick={() => setMobileOpen(false)}
+              >
+                <span>About</span>
+                <ArrowRight size={16} className="mobile-nav-arrow" />
               </Link>
             </li>
             {/* Services Mobile Accordion */}
             <li className="mobile-nav-accordion-item">
               <button
                 type="button"
-                className={`mobile-accordion-toggle ${mobileServicesOpen ? 'is-expanded' : ''}`}
+                className={`mobile-accordion-toggle ${mobileServicesOpen ? 'is-expanded' : ''} ${path.startsWith('/services') ? 'is-active' : ''}`}
                 aria-expanded={mobileServicesOpen}
                 onClick={() => setMobileServicesOpen((v) => !v)}
               >
@@ -839,23 +855,43 @@ export function Header({
               )}
             </li>
             <li>
-              <Link to="/work" onClick={() => setMobileOpen(false)}>
-                Our Work & Case Studies
+              <Link
+                to="/#framework"
+                className="mobile-nav-item"
+                onClick={() => setMobileOpen(false)}
+              >
+                <span>Growth Framework</span>
+                <ArrowRight size={16} className="mobile-nav-arrow" />
               </Link>
             </li>
             <li>
-              <Link to="/about" onClick={() => setMobileOpen(false)}>
-                About Chazon & Leadership
+              <Link
+                to="/website-audit"
+                className={`mobile-nav-item ${path.startsWith('/website-audit') || path.startsWith('/growth-audit') ? 'is-active' : ''}`}
+                onClick={() => setMobileOpen(false)}
+              >
+                <span>Website Audit</span>
+                <ArrowRight size={16} className="mobile-nav-arrow" />
               </Link>
             </li>
             <li>
-              <Link to="/website-audit" onClick={() => setMobileOpen(false)}>
-                Free Website Audit Diagnostic
+              <Link
+                to="/work"
+                className={`mobile-nav-item ${path.startsWith('/work') ? 'is-active' : ''}`}
+                onClick={() => setMobileOpen(false)}
+              >
+                <span>Our Work & Case Studies</span>
+                <ArrowRight size={16} className="mobile-nav-arrow" />
               </Link>
             </li>
             <li>
-              <Link to="/contact" onClick={() => setMobileOpen(false)}>
-                Contact & Inquiries
+              <Link
+                to="/contact"
+                className={`mobile-nav-item ${path === '/contact' ? 'is-active' : ''}`}
+                onClick={() => setMobileOpen(false)}
+              >
+                <span>Contact</span>
+                <ArrowRight size={16} className="mobile-nav-arrow" />
               </Link>
             </li>
           </ul>
@@ -863,7 +899,7 @@ export function Header({
           <div className="mobile-drawer-cta">
             <Link
               to="/contact"
-              className="button button-primary btn-full-width"
+              className="button button-primary btn-full-width mobile-drawer-primary-btn"
               onClick={() => setMobileOpen(false)}
             >
               Let’s Talk About Your Project <ArrowRight size={18} />
