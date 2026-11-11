@@ -1787,13 +1787,57 @@ button.nav-link.has-dropdown.is-active::after {
   flex-shrink: 0;
 }
 @media (max-width: 640px) {
+  .hero-audit-box {
+    padding: 12px;
+    border-radius: 16px;
+    margin-bottom: 14px;
+  }
   .hero-audit-form {
     flex-direction: column;
     align-items: stretch;
+    gap: 10px;
+  }
+  .hero-audit-icon {
+    left: 12px;
+    width: 15px;
+    height: 15px;
+  }
+  .hero-audit-input {
+    height: 44px;
+    padding: 8px 12px 8px 34px;
+    border-radius: 12px;
+    font-size: 0.875rem;
+  }
+  .hero-audit-input::placeholder {
+    font-size: 0.75rem;
   }
   .hero-audit-submit-btn {
     width: 100%;
+    height: 44px;
     justify-content: center;
+    border-radius: 12px;
+    font-size: 0.9375rem;
+  }
+  .hero-audit-perks {
+    justify-content: center;
+    text-align: center;
+    padding-left: 0;
+    gap: 6px 10px;
+    margin-top: 10px;
+  }
+  .hero-audit-perks .hap-dot {
+    display: none;
+  }
+  .hero-audit-perks .hap-item {
+    font-size: 0.75rem;
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+  .hero-audit-perks .hap-free {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+    padding: 2px 9px;
+    border-radius: 999px;
   }
   .hero-floating-audit-pill {
     position: static;
@@ -4979,9 +5023,39 @@ button.nav-link.has-dropdown.is-active::after {
     width: auto;
     max-width: calc(100vw - 96px);
   }
+  .floating-whatsapp-fab {
+    width: 44px;
+    height: 44px;
+    bottom: 14px;
+    right: 14px;
+    box-shadow: 0 6px 18px rgba(37, 211, 102, 0.34);
+  }
+  .floating-whatsapp-fab svg {
+    width: 20px;
+    height: 20px;
+  }
+  .hero-redesigned {
+    padding-top: 16px;
+    padding-bottom: 32px;
+  }
+  .hero-redesigned-grid {
+    gap: 24px;
+  }
+  .hero-pill-badge {
+    font-size: 0.75rem;
+    padding: 5px 12px;
+    margin-bottom: 14px;
+  }
   .hero-main-heading {
-    font-size: clamp(1.35rem, 5.5vw, 1.8rem) !important;
-    line-height: 1.18 !important;
+    font-size: clamp(1.625rem, 6.8vw, 2.05rem) !important;
+    line-height: 1.14 !important;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hero-subhead-lead {
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    margin-bottom: 18px;
   }
   .footer-main-grid {
     grid-template-columns: 1fr;
@@ -4997,9 +5071,46 @@ button.nav-link.has-dropdown.is-active::after {
   .hero-btn-row {
     flex-direction: column;
     width: 100%;
+    gap: 8px;
+    margin-bottom: 18px;
   }
   .hero-btn-row .button {
     width: 100%;
+  }
+  .hero-btn-row .hero-secondary-btn {
+    min-height: 44px;
+    padding: 10px 20px;
+    font-size: 0.875rem;
+    border-radius: 12px;
+  }
+  .hero-btn-row .hero-ghost-btn {
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #D84502;
+  }
+  .hero-trust-bullets {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 16px;
+    padding-top: 2px;
+  }
+  .hero-trust-bullets .htb-item {
+    font-size: 0.75rem;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  .hero-trust-bullets .htb-icon-badge {
+    width: 20px;
+    height: 20px;
+  }
+  .hero-trust-bullets .htb-icon-badge svg {
+    width: 12px;
+    height: 12px;
   }
   .button-row {
     flex-direction: column;
@@ -5033,18 +5144,6 @@ button.nav-link.has-dropdown.is-active::after {
   }
   .framework-step-wrapper {
     flex: 1 1 100%;
-  }
-  .hero-main-heading {
-    font-size: clamp(1.4rem, 6.2vw, 1.65rem) !important;
-    line-height: 1.18 !important;
-    letter-spacing: -0.02em;
-  }
-  .hero-trust-bullets {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 14px;
   }
   .fcc-btns {
     flex-direction: column;
@@ -10802,8 +10901,14 @@ select.smart-select {
   .asv-grid,
   .arv-scores-grid,
   .arv-details-split {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 36px;
+  }
+
+  .contact-left-col,
+  .contact-right-col {
+    max-width: 100%;
+    min-width: 0;
   }
 
   .audit-hero-points-list {
@@ -10816,7 +10921,6 @@ select.smart-select {
 }
 
 @media (max-width: 640px) {
-  .contact-headline,
   .audit-hero-headline,
   .asv-title {
     font-size: clamp(2rem, 7.5vw, 2.5rem);
@@ -10884,38 +10988,202 @@ select.smart-select {
     justify-content: center;
   }
 
-  /* Smart Multi-step Mobile Adjustments */
+  /* Contact & Smart Multi-step Mobile Adjustments */
+  .contact-page-wrapper {
+    padding-top: 20px;
+    padding-bottom: 48px;
+    min-height: auto;
+  }
+
+  .contact-page-breadcrumb {
+    margin-bottom: 16px;
+    font-size: 0.78125rem;
+    flex-wrap: wrap;
+  }
+
   .contact-layout-grid {
-    grid-template-columns: 1fr !important;
-    gap: 28px;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 24px;
   }
 
   .contact-left-col,
   .contact-right-col {
     width: 100% !important;
     max-width: 100% !important;
+    min-width: 0;
+  }
+
+  .contact-eyebrow {
+    font-size: 0.75rem;
+    margin-bottom: 8px;
+  }
+
+  .contact-headline {
+    font-size: clamp(1.85rem, 7.5vw, 2.35rem);
+    margin-bottom: 12px;
+  }
+
+  .contact-intro {
+    font-size: 0.9375rem;
+    margin-bottom: 20px;
+    max-width: 100%;
+  }
+
+  .contact-points-list {
+    gap: 14px;
+  }
+
+  .contact-point-item {
+    gap: 12px;
+  }
+
+  .cpi-icon-wrap {
+    width: 38px;
+    height: 38px;
+  }
+
+  .cpi-title {
+    font-size: 0.9375rem;
+    margin-bottom: 2px;
+  }
+
+  .cpi-desc {
+    font-size: 0.8125rem;
   }
 
   .contact-form-card {
-    padding: clamp(18px, 4vw, 24px) 16px;
+    padding: 18px 14px;
     border-radius: 18px;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     box-sizing: border-box;
   }
 
+  .smart-enquiry-container,
+  .quick-message-form,
+  .planner-flow-wrapper,
+  .smart-label {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .contact-mode-switcher {
+    margin-bottom: 18px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .cms-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 9px 8px;
+    gap: 5px;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    white-space: normal;
+    flex-wrap: wrap;
+    text-align: center;
+  }
+
+  .cms-badge {
+    font-size: 0.625rem;
+    padding: 1px 5px;
+  }
+
+  .qmf-head {
+    margin-bottom: 16px;
+  }
+
+  .qmf-title {
+    font-size: 1.5rem;
+  }
+
+  .qmf-desc {
+    font-size: 0.8125rem;
+  }
+
+  .qmf-fields {
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .smart-input,
+  .smart-select,
+  .smart-textarea,
+  .custom-dropdown-trigger {
+    min-height: 46px;
+    padding: 11px 14px;
+    font-size: 0.9375rem;
+  }
+
+  .custom-dropdown-container,
+  .custom-dropdown-trigger {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .custom-dropdown-value {
+    min-width: 0;
+    text-align: left;
+  }
+
+  .qmf-submit-btn {
+    height: 46px;
+  }
+
+  .smart-privacy-assurance {
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .smart-privacy-assurance svg {
+    flex-shrink: 0;
+  }
+
+  .smart-progress-bar {
+    margin-bottom: 16px;
+  }
+
+  .planner-step-intro {
+    margin-bottom: 14px;
+  }
+
+  .planner-step-title {
+    font-size: 1.375rem;
+  }
+
   .smart-category-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px;
+  }
+
+  .smart-category-card {
+    padding: 14px;
+    min-width: 0;
+  }
+
+  .smart-field-row,
+  .smart-field-row.cols-2 {
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
 
-  .smart-field-row {
-    grid-template-columns: 1fr;
-    gap: 12px;
+  .smart-dynamic-box {
+    gap: 16px;
   }
 
   .smart-checkbox-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
+  }
+
+  .smart-check-card {
+    padding: 11px 12px;
+    font-size: 0.8125rem;
+    min-width: 0;
+    text-align: left;
   }
 
   .smart-review-dl {
@@ -10946,6 +11214,13 @@ select.smart-select {
     margin-bottom: 18px;
   }
 
+  .planner-scope-summary-pill,
+  .smart-audit-attached-bar,
+  .audit-context-pill {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
   .scpb-subtitle {
     display: none;
   }
@@ -10955,11 +11230,26 @@ select.smart-select {
     gap: 10px;
   }
 
+  .smart-form-nav .button,
   .smart-nav-next,
   .smart-nav-submit,
   .smart-nav-back {
     width: 100%;
     margin-left: 0;
+    justify-content: center;
+  }
+
+  .smart-success-card {
+    padding: 16px 4px;
+  }
+
+  .ssc-title {
+    font-size: 1.625rem;
+  }
+
+  .ssc-ref-code {
+    font-size: 1rem;
+    overflow-wrap: anywhere;
   }
 }
 

@@ -876,16 +876,6 @@ export function Header({
             </li>
             <li>
               <Link
-                to="/work"
-                className={`mobile-nav-item ${path.startsWith('/work') ? 'is-active' : ''}`}
-                onClick={() => setMobileOpen(false)}
-              >
-                <span>Our Work & Case Studies</span>
-                <ArrowRight size={16} className="mobile-nav-arrow" />
-              </Link>
-            </li>
-            <li>
-              <Link
                 to="/contact"
                 className={`mobile-nav-item ${path === '/contact' ? 'is-active' : ''}`}
                 onClick={() => setMobileOpen(false)}
