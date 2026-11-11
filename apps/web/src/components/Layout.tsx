@@ -915,6 +915,7 @@ export function Footer({ hideCta = false }: { hideCta?: boolean }) {
   const { channels, settings } = useSite()
   const { path } = useRouter()
   const currentYear = new Date().getFullYear()
+  const socialChannels = channels.filter((c) => ['linkedin', 'instagram', 'facebook'].includes(c.key))
 
   // Only show fallback callout band on subpages that do not already have a dedicated CTA banner (such as Home, About, Contact)
   const showCtaBand =
@@ -1029,22 +1030,20 @@ export function Footer({ hideCta = false }: { hideCta?: boolean }) {
           </div>
 
           {/* Col 6: Follow Us */}
-          <div className="footer-col">
+          <div className={`footer-col footer-col-social${socialChannels.length === 0 ? ' is-empty' : ''}`}>
             <h3 className="footer-col-title">Follow Us</h3>
             <div className="footer-social-row">
               <div className="social-links-icons">
-                {channels
-                  .filter((c) => ['linkedin', 'instagram', 'facebook'].includes(c.key))
-                  .map((c) => (
-                    <ChannelLink
-                      key={c.key}
-                      channel={c}
-                      location="footer_social"
-                      className="footer-social-icon-btn"
-                    >
-                      <ChannelIcon channel={c} size={18} />
-                    </ChannelLink>
-                  ))}
+                {socialChannels.map((c) => (
+                  <ChannelLink
+                    key={c.key}
+                    channel={c}
+                    location="footer_social"
+                    className="footer-social-icon-btn"
+                  >
+                    <ChannelIcon channel={c} size={18} />
+                  </ChannelLink>
+                ))}
               </div>
             </div>
           </div>

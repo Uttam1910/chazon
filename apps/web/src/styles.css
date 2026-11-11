@@ -7188,8 +7188,78 @@ button.nav-link.has-dropdown.is-active::after {
     flex-direction: column;
     text-align: center;
   }
+  .surface-dark-footer {
+    padding-top: 40px;
+    padding-bottom: 84px;
+  }
   .surface-dark-footer .footer-main-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px 16px;
+    padding-bottom: 28px;
+  }
+  .surface-dark-footer .footer-col {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .surface-dark-footer .footer-col-brand {
+    grid-column: 1 / -1;
+    padding-bottom: 22px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .surface-dark-footer .footer-col-brand .brand {
+    justify-content: center;
+  }
+  .surface-dark-footer .footer-col-brand .brand-logo-img {
+    object-position: center;
+  }
+  .surface-dark-footer .footer-bio-text {
+    max-width: 300px;
+    margin: 12px auto 10px;
+  }
+  .surface-dark-footer .footer-copyright-note {
+    margin: 0;
+  }
+  .surface-dark-footer .footer-col-title {
+    margin-bottom: 12px;
+  }
+  .surface-dark-footer .footer-links-list,
+  .surface-dark-footer .footer-contact-list {
+    align-items: center;
+    gap: 10px;
+  }
+  .surface-dark-footer .footer-links-list a {
+    line-height: 1.4;
+    padding: 2px 0;
+  }
+  .surface-dark-footer .footer-contact-list a,
+  .surface-dark-footer .footer-address-line {
+    justify-content: center;
+    flex-wrap: wrap;
+    text-align: center;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+  }
+  .surface-dark-footer .footer-col-social {
+    grid-column: 1 / -1;
+    padding-top: 4px;
+  }
+  .surface-dark-footer .footer-col-social.is-empty {
+    display: none;
+  }
+  .surface-dark-footer .social-links-icons {
+    justify-content: center;
+  }
+  .surface-dark-footer .footer-bottom-bar {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding-top: 20px;
+  }
+  .surface-dark-footer .footer-bottom-links {
+    justify-content: center;
   }
   .audit-quick-form {
     flex-direction: column;
