@@ -123,6 +123,18 @@ model AuditScan {
   @@index([createdAt])
 }
 
+/// Ephemeral Website Audit job status & report persisted for serverless polling across containers.
+model AuditJob {
+  id        String   @id
+  status    Json
+  report    Json?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
+}
+
 model LeadNote {
   id        String     @id @default(cuid())
   leadId    String

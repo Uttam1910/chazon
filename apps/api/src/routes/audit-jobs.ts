@@ -1,4 +1,4 @@
-import { Router, json, type Request, type Response } from 'express'
+import { Router, json, type NextFunction, type Request, type Response } from 'express'
 import cors from 'cors'
 import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
@@ -12,13 +12,15 @@ import {
   OBJECTIVES,
   TIMEFRAMES,
   TRI_STATE,
+  type AuditJobStatus,
   type AuditReport,
   type AuditRequest,
   type DiscoveryAnswers,
   type PublicConfig,
 } from '@chazon/shared'
-import { prisma } from '../db'
+import { isDatabaseUnavailable, prisma, type Prisma } from '../db'
 import { env } from '../env'
+import { dispatchBackground } from '../lib/background'
 import { runtimeStore } from '../lib/runtime-store'
 import {
   AuditError,
@@ -31,12 +33,97 @@ import {
   strictPolicy,
   type AuditDeps,
 } from '../lib/audit-engine/core'
-import { JobStore } from '../lib/audit-engine/jobs/jobStore'
+import { JobStore, type Job } from '../lib/audit-engine/jobs/jobStore'
 import { parseClientReport } from '../lib/audit-engine/reportSchema'
 
 const ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const JOB_TTL_MS = 30 * 60_000
+const PRUNE_INTERVAL_MS = 5 * 60_000
 
-export const auditJobStore = new JobStore(30 * 60_000)
+export const auditJobStore = new JobStore(JOB_TTL_MS)
+
+const persistChain = new Map<string, Promise<void>>()
+let lastPruneAt = 0
+
+function queueJobPersist(id: string, task: () => Promise<void>, final = false): Promise<void> {
+  const prev = persistChain.get(id) ?? Promise.resolve()
+  const next = prev
+    .catch(() => {})
+    .then(task)
+    .catch((err) => {
+      if (!isDatabaseUnavailable(err)) {
+        console.error(`[audit ${id}] failed to persist job:`, err instanceof Error ? err.message : err)
+      }
+    })
+    .finally(() => {
+      if (final && persistChain.get(id) === next) persistChain.delete(id)
+    })
+  persistChain.set(id, next)
+  return next
+}
+
+function persistJob(job: Job, final = false): Promise<void> {
+  if (!env.DATABASE_URL) return Promise.resolve()
+  return queueJobPersist(
+    job.status.id,
+    async () => {
+      if (!final && job.status.state !== 'running') return
+      const { report, ...statusOnly } = job.status
+      const expiresAt = new Date(Date.now() + JOB_TTL_MS)
+      await prisma.auditJob.upsert({
+        where: { id: job.status.id },
+        create: {
+          id: job.status.id,
+          status: statusOnly as unknown as Prisma.InputJsonValue,
+          ...(report ? { report: report as unknown as Prisma.InputJsonValue } : {}),
+          expiresAt,
+        },
+        update: {
+          status: statusOnly as unknown as Prisma.InputJsonValue,
+          ...(report ? { report: report as unknown as Prisma.InputJsonValue } : {}),
+          expiresAt,
+        },
+      })
+    },
+    final
+  )
+}
+
+async function loadJobStatus(id: string): Promise<AuditJobStatus | null> {
+  const mem = auditJobStore.get(id)
+  if (mem) return mem.status
+  if (!env.DATABASE_URL) return null
+  try {
+    const row = await prisma.auditJob.findUnique({ where: { id } })
+    if (!row || row.expiresAt <= new Date()) return null
+    const status = row.status as unknown as AuditJobStatus
+    if (row.report && !status.report) {
+      return { ...status, report: row.report as unknown as AuditReport }
+    }
+    return status
+  } catch (err) {
+    if (isDatabaseUnavailable(err)) return null
+    throw err
+  }
+}
+
+async function pruneExpiredAuditJobs(): Promise<void> {
+  if (!env.DATABASE_URL) return
+  const now = Date.now()
+  if (now - lastPruneAt < PRUNE_INTERVAL_MS) return
+  lastPruneAt = now
+  try {
+    await prisma.auditJob.deleteMany({ where: { expiresAt: { lt: new Date(now) } } })
+  } catch {
+    // Best-effort cleanup
+  }
+}
+
+const wrap =
+  (fn: (req: Request, res: Response) => Promise<void> | void) =>
+  (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res)).catch(next)
+  }
 
 const auditDeps: AuditDeps = {
   fetcher: createSafeFetcher({
@@ -182,19 +269,24 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
   const job = auditJobStore.create(planSteps(request, opts))
   const id = job.status.id
   runtimeStore.recordJobStart(id, request.url, request.strategy)
+  await persistJob(job, false)
 
   const run = runAudit(
     id,
     request,
     runDeps,
-    (key, state, detail) => auditJobStore.updateStep(job, key, state, detail),
+    (key, state, detail) => {
+      auditJobStore.updateStep(job, key, state, detail)
+      void persistJob(job, false)
+    },
     job.controller.signal
   )
 
-  run
+  const backgroundWork = run
     .then(async (report) => {
       auditJobStore.complete(job, report)
       const summary = runtimeStore.recordJobComplete(id, report)
+      await persistJob(job, true)
       try {
         await prisma.auditScan.upsert({
           where: { reference: summary.reference },
@@ -239,8 +331,9 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
       } catch {
         // DB unavailable — scan remains synced in runtimeStore for live Admin visibility
       }
+      await pruneExpiredAuditJobs()
     })
-    .catch((err: unknown) => {
+    .catch(async (err: unknown) => {
       if (err instanceof AuditError) {
         auditJobStore.fail(job, err.code, err.message)
         runtimeStore.recordJobFail(id, err.message)
@@ -249,84 +342,121 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
         auditJobStore.fail(job, 'INTERNAL_ERROR', 'The audit failed unexpectedly. Please try again.')
         runtimeStore.recordJobFail(id, 'The audit failed unexpectedly.')
       }
+      await persistJob(job, true)
     })
 
+  await dispatchBackground(backgroundWork)
   res.status(202).json({ id, status: job.status })
 }
 
-auditJobsRouter.post('/', startLimiter, (req, res) => handleLaunch(req, res))
-auditJobsRouter.post('/jobs', startLimiter, (req, res) => handleLaunch(req, res))
-auditJobsRouter.post('/audits', startLimiter, (req, res) => handleLaunch(req, res))
+auditJobsRouter.post('/', startLimiter, wrap((req, res) => handleLaunch(req, res)))
+auditJobsRouter.post('/jobs', startLimiter, wrap((req, res) => handleLaunch(req, res)))
+auditJobsRouter.post('/audits', startLimiter, wrap((req, res) => handleLaunch(req, res)))
 
 // --- Competitor Gap Observer ------------------------------------------------
 const observeSchema = z.object({ url: z.string().trim().min(1, 'Please enter a website URL.').max(2048) }).strict()
-auditJobsRouter.post('/competitors/observe', startLimiter, async (req, res) => {
-  const parsed = observeSchema.safeParse(req.body ?? {})
-  if (!parsed.success) return sendError(res, 400, 'VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid URL.')
-  req.body = {
-    url: parsed.data.url,
-    strategy: 'mobile',
-    categories: ['seo', 'journey', 'crawl'],
-    crawlLimit: 3,
-    checkLinks: false,
-  }
-  return handleLaunch(req, res, { skipLighthouse: true })
-})
+auditJobsRouter.post(
+  '/competitors/observe',
+  startLimiter,
+  wrap(async (req, res) => {
+    const parsed = observeSchema.safeParse(req.body ?? {})
+    if (!parsed.success) return void sendError(res, 400, 'VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid URL.')
+    req.body = {
+      url: parsed.data.url,
+      strategy: 'mobile',
+      categories: ['seo', 'journey', 'crawl'],
+      crawlLimit: 3,
+      checkLinks: false,
+    }
+    await handleLaunch(req, res, { skipLighthouse: true })
+  })
+)
 
 // --- Job Polling & Report Endpoints -----------------------------------------
-const handleStatus = (req: Request, res: Response) => {
-  const job = auditJobStore.get(String(req.params.id))
-  if (!job) {
-    return sendError(
+const handleStatus = wrap(async (req: Request, res: Response) => {
+  const status = await loadJobStatus(String(req.params.id))
+  if (!status) {
+    return void sendError(
       res,
       404,
       'NOT_FOUND',
-      'Audit session not found or expired. Scan sessions are preserved in memory for 30 minutes. Please run a new scan.'
+      'Audit session not found or expired. Please run a new scan.'
     )
   }
-  res.json({ id: job.status.id, status: job.status })
-}
+  res.json({ id: status.id, status })
+})
 
-const handleReport = (req: Request, res: Response) => {
-  const job = auditJobStore.get(String(req.params.id))
-  if (!job) {
-    return sendError(
+const handleReport = wrap(async (req: Request, res: Response) => {
+  const status = await loadJobStatus(String(req.params.id))
+  if (!status) {
+    return void sendError(
       res,
       404,
       'NOT_FOUND',
       'Audit not found or expired. Please start a new scan.'
     )
   }
-  if (job.status.state !== 'completed') {
-    return sendError(res, 409, 'NOT_READY', 'The audit is still running. Please poll status until complete.')
+  if (status.state !== 'completed') {
+    return void sendError(res, 409, 'NOT_READY', 'The audit is still running. Please poll status until complete.')
   }
-  const report = job.status.report
-  if (!report) return sendError(res, 404, 'NOT_FOUND', 'Report data could not be retrieved.')
-  res.json({ id: job.status.id, report })
-}
+  const report = status.report
+  if (!report) return void sendError(res, 404, 'NOT_FOUND', 'Report data could not be retrieved.')
+  res.json({ id: status.id, report })
+})
 
-const handleHtml = (req: Request, res: Response) => {
-  const job = auditJobStore.get(String(req.params.id))
-  if (!job || job.status.state !== 'completed') {
-    return sendError(res, 404, 'NOT_FOUND', 'Completed audit report not found.')
+const handleHtml = wrap(async (req: Request, res: Response) => {
+  const status = await loadJobStatus(String(req.params.id))
+  if (!status || status.state !== 'completed') {
+    return void sendError(res, 404, 'NOT_FOUND', 'Completed audit report not found.')
   }
-  const report = job.status.report
-  if (!report) return sendError(res, 404, 'NOT_FOUND', 'Report data not found.')
+  const report = status.report
+  if (!report) return void sendError(res, 404, 'NOT_FOUND', 'Report data not found.')
   const html = renderReportHtml(report)
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'none'")
   res.send(html)
-}
+})
 
-const handleCancel = (req: Request, res: Response) => {
-  const job = auditJobStore.get(String(req.params.id))
-  if (!job) return sendError(res, 404, 'NOT_FOUND', 'Audit not found.')
-  if (job.status.state === 'running') {
-    job.controller.abort()
-    auditJobStore.fail(job, 'CANCELLED', 'The audit was cancelled by the user.')
+const handleCancel = wrap(async (req: Request, res: Response) => {
+  const id = String(req.params.id)
+  const job = auditJobStore.get(id)
+  if (job) {
+    if (job.status.state === 'running') {
+      job.controller.abort()
+      auditJobStore.fail(job, 'CANCELLED', 'The audit was cancelled by the user.')
+      await persistJob(job, true)
+    }
+    return void res.json({ ok: true })
+  }
+  const status = await loadJobStatus(id)
+  if (!status) return void sendError(res, 404, 'NOT_FOUND', 'Audit not found.')
+  if (status.state === 'running') {
+    const steps = status.steps.map((s) =>
+      s.state === 'running' ? { ...s, state: 'failed' as const } : s.state === 'pending' ? { ...s, state: 'skipped' as const } : s
+    )
+    const cancelled: AuditJobStatus = {
+      ...status,
+      steps,
+      state: 'failed',
+      message: 'The audit was cancelled by the user.',
+      error: { code: 'CANCELLED', message: 'The audit was cancelled by the user.' },
+    }
+    await queueJobPersist(
+      id,
+      async () => {
+        await prisma.auditJob.update({
+          where: { id },
+          data: {
+            status: cancelled as unknown as Prisma.InputJsonValue,
+            expiresAt: new Date(Date.now() + JOB_TTL_MS),
+          },
+        })
+      },
+      true
+    )
   }
   res.json({ ok: true })
-}
+})
 
 auditJobsRouter.use(['/jobs/:id', '/audits/:id'], readLimiter, (req, res, next) => {
   if (!ID_RE.test(String(req.params.id))) return sendError(res, 404, 'NOT_FOUND', 'Audit not found.')

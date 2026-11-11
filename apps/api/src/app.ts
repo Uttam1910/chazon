@@ -2,7 +2,7 @@ import express, { Router, json } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import { prisma } from './db'
-import { env } from './env'
+import { env, isAllowedOrigin } from './env'
 import { requireAdminOrigin, requireAuth, requireRole } from './lib/auth'
 import { errorHandler, ok } from './lib/http'
 import { auditAnalyzerRouter } from './routes/audit-analyzer'
@@ -54,7 +54,12 @@ export function createApp() {
 
   // Protected Admin API: credentialed CORS from the Admin origin only, JSON bodies, origin check.
   const admin = Router()
-  admin.use(cors({ origin: env.ADMIN_URL || false, credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], maxAge: 600 }))
+  admin.use(cors({
+    origin: (origin, cb) => cb(null, origin ? isAllowedOrigin(origin, env.ADMIN_URL) : false),
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    maxAge: 600,
+  }))
   admin.use(json({ limit: '1mb' }))
   admin.use(requireAdminOrigin)
   admin.use('/auth', authRouter)

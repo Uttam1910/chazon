@@ -2,7 +2,8 @@ import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } fr
 import { promisify } from 'node:util'
 import type { NextFunction, Request, Response } from 'express'
 import { isDatabaseUnavailable, prisma, type AdminRole } from '../db'
-import { env } from '../env'
+import { env, isAllowedOrigin } from '../env'
+import { dispatchBackground } from './background'
 import { ApiError } from './http'
 
 const scrypt = promisify(scryptCallback) as (password: string, salt: Buffer, keylen: number, options: { N: number; r: number; p: number }) => Promise<Buffer>
@@ -96,6 +97,7 @@ export async function createSession(res: Response, req: Request, userId: string)
     data: { id: sessionId(token), userId, expiresAt: new Date(Date.now() + ttlMs), userAgent: req.get('user-agent')?.slice(0, 300), ip: req.ip },
   })
   res.cookie(SESSION_COOKIE, token, { ...cookieOptions, maxAge: ttlMs })
+  void dispatchBackground(prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } }))
 }
 export async function destroySession(req: Request, res: Response) {
   const token = readCookie(req, SESSION_COOKIE)
@@ -165,7 +167,7 @@ export const requireRole = (...roles: AdminRole[]) => (req: Request, _res: Respo
 export function requireAdminOrigin(req: Request, _res: Response, next: NextFunction) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next()
   const origin = req.get('origin')
-  if (origin && origin !== env.ADMIN_URL) throw new ApiError(403, 'FORBIDDEN', 'Request origin not allowed.')
+  if (origin && !isAllowedOrigin(origin, env.ADMIN_URL)) throw new ApiError(403, 'FORBIDDEN', 'Request origin not allowed.')
   if (!origin && req.get('sec-fetch-site') === 'cross-site') throw new ApiError(403, 'FORBIDDEN', 'Request origin not allowed.')
   next()
 }

@@ -2,6 +2,8 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { env } from './env'
 import { Prisma, PrismaClient } from './generated/prisma/client'
 
+export type { Prisma }
+
 /** Raised for any query when no database is configured (DATABASE_URL unset). */
 export class DatabaseUnavailableError extends Error {
   constructor() { super('DATABASE_URL is not set.') }

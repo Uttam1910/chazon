@@ -1,8 +1,10 @@
 const metaEnv = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {} as Record<string, string | undefined>
 
 // Chazon API origin. In development it defaults to the local API started by `npm run dev`; in production set
-// VITE_API_URL to enable CMS content and online enquiries. With no API, the site renders its built-in content.
+// VITE_API_URL (or VITE_SAME_ORIGIN_API=true when hosted under the same origin) to enable CMS content and enquiries.
 const apiUrl = (metaEnv.VITE_API_URL || (metaEnv.DEV ? 'http://localhost:5000' : '')).replace(/\/$/, '')
+const sameOriginApi = metaEnv.VITE_SAME_ORIGIN_API === 'true'
+export const apiConfigured = Boolean(apiUrl || sameOriginApi)
 
 /** Demo mode (VITE_DEMO_MODE=true): published content comes from built-in sample data; enquiries are not sent. */
 export const demoMode = metaEnv.VITE_DEMO_MODE === 'true'
@@ -14,7 +16,7 @@ export const config = {
   phone: metaEnv.VITE_PHONE || '',
   whatsapp: metaEnv.VITE_WHATSAPP_NUMBER || '919820000000',
   // An explicit endpoint wins; otherwise enquiries go to the Chazon API when one is configured.
-  enquiryEndpoint: metaEnv.VITE_ENQUIRY_ENDPOINT || (apiUrl ? `${apiUrl}/api/public/enquiries` : ''),
+  enquiryEndpoint: metaEnv.VITE_ENQUIRY_ENDPOINT || (apiConfigured ? `${apiUrl}/api/public/enquiries` : ''),
   instagram: metaEnv.VITE_INSTAGRAM_URL || '',
   linkedin: metaEnv.VITE_LINKEDIN_URL || '',
   facebook: metaEnv.VITE_FACEBOOK_URL || '',

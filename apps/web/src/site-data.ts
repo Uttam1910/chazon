@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import { PILLARS, type PublicCaseStudySummary, type PublicInsightSummary, type PublicSeo, type PublicSettings, type PublicSite } from '@chazon/shared'
-import { buildChannels, config, type Channels } from './config'
+import { apiConfigured, buildChannels, config, type Channels } from './config'
 import { industries as staticIndustries, pillars as staticPillars, testimonials as staticTestimonials, type Pillar, type PillarService } from './content'
 
 // Website content: rendered immediately from the built-in copy in content.ts, then replaced by what the
@@ -54,7 +54,7 @@ export function compose(site?: PublicSite): SiteData {
 export const SiteContext = createContext<SiteData>(compose())
 
 export async function fetchPublic<T>(path: string, signal?: AbortSignal): Promise<T> {
-  if (!config.apiUrl) throw new Error('API not configured')
+  if (!apiConfigured) throw new Error('API not configured')
   const response = await fetch(`${config.apiUrl}/api/public${path}`, { signal })
   if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status })
   return (await response.json()).data as T

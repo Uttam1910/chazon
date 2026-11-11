@@ -6,7 +6,7 @@ import {
   type PublicInsight,
 } from '@chazon/shared'
 import { Markdown } from '@chazon/shared/markdown'
-import { config, demoMode } from '../config'
+import { apiConfigured, config, demoMode } from '../config'
 import { formatDate } from '../format'
 import { Link } from '../router'
 import {
@@ -36,7 +36,7 @@ function useContent<T>(path: string) {
   useEffect(() => {
     const controller = new AbortController()
     setState({ status: 'loading' })
-    if (demoMode || !config.apiUrl) {
+    if (demoMode || !apiConfigured) {
       void import('../demo-site').then(({ demoContent }) => {
         const result = demoContent(path)
         setState(

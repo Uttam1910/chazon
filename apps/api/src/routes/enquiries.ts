@@ -4,8 +4,9 @@ import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
 import { LEAD_STATUSES, LEAD_STATUS_LABELS } from '@chazon/shared'
 import { isDatabaseUnavailable, prisma, type Prisma } from '../db'
-import { env } from '../env'
+import { env, isAllowedOrigin } from '../env'
 import { generateReference } from '../lib/audit-engine'
+import { dispatchBackground } from '../lib/background'
 import { notifySubmission, type Submission } from '../lib/email'
 import { ApiError, listQuery, notFound, ok, optionalText, paged, parse, requiredText } from '../lib/http'
 import { runtimeStore, type RuntimeLead } from '../lib/runtime-store'
@@ -15,7 +16,11 @@ export const publicEnquiriesRouter = Router()
 // Protected router for admin enquiry management
 export const adminEnquiriesRouter = Router()
 
-const formCors = cors({ origin: env.PUBLIC_SITE_URL || false, methods: ['POST', 'OPTIONS'], maxAge: 600 })
+const formCors = cors({
+  origin: (origin, cb) => cb(null, origin ? isAllowedOrigin(origin, env.PUBLIC_SITE_URL) : false),
+  methods: ['POST', 'OPTIONS'],
+  maxAge: 600,
+})
 
 const enquiryLimiter = rateLimit({
   windowMs: 10 * 60_000,
@@ -95,7 +100,7 @@ async function linkAuditReference(auditRef: string | null | undefined, leadId: s
 publicEnquiriesRouter.options('/', formCors)
 publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimiter, async (req, res) => {
   const origin = req.get('origin')
-  if (origin && env.PUBLIC_SITE_URL && origin !== env.PUBLIC_SITE_URL) {
+  if (origin && env.PUBLIC_SITE_URL && !isAllowedOrigin(origin, env.PUBLIC_SITE_URL)) {
     throw new ApiError(403, 'FORBIDDEN', 'Origin not allowed.')
   }
 
@@ -205,7 +210,7 @@ publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimite
       message: body.contact.message || body.business.description,
     }
 
-    void notifySubmission(submission)
+    await dispatchBackground(notifySubmission(submission))
 
     return ok(
       res,
@@ -284,7 +289,7 @@ publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimite
       if (!isDatabaseUnavailable(err)) throw err
       auditId = runtimeStore.createGrowthAudit({ ...common, requirements: body.message }, auditMsg).id
     }
-    void notifySubmission({ kind: 'audit', id: auditId, ...common, service: body.service, message: body.message })
+    await dispatchBackground(notifySubmission({ kind: 'audit', id: auditId, ...common, service: body.service, message: body.message }))
     return ok(res, { received: true, reference, whatsAppHref: buildWhatsAppHref(body.business, reference, body.service || 'Digital Growth Audit') }, 201)
   }
 
@@ -313,7 +318,7 @@ publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimite
     ).id
     if (body.auditRef) runtimeStore.linkLeadToAuditScan(body.auditRef, leadId, reference)
   }
-  void notifySubmission({ kind: 'lead', id: leadId, ...common, service: body.service, message: body.message })
+  await dispatchBackground(notifySubmission({ kind: 'lead', id: leadId, ...common, service: body.service, message: body.message }))
   return ok(res, { received: true, reference, whatsAppHref: buildWhatsAppHref(body.business, reference, body.service || 'Growth Partnership') }, 201)
 })
 

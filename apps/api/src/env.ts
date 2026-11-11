@@ -12,8 +12,27 @@ const auditEnv = fileURLToPath(new URL('../../../audit/website-audit-tool/.env',
 if (existsSync(auditEnv)) process.loadEnvFile(auditEnv)
 
 const isProduction = process.env.NODE_ENV === 'production'
+const isVercel = Boolean(process.env.VERCEL)
+const toOrigin = (host?: string) => (host ? (host.startsWith('http') ? host : `https://${host}`).replace(/\/$/, '') : '')
+const vercelOrigins = new Set(
+  [
+    toOrigin(process.env.VERCEL_PROJECT_PRODUCTION_URL),
+    toOrigin(process.env.VERCEL_BRANCH_URL),
+    toOrigin(process.env.VERCEL_URL),
+  ].filter(Boolean),
+)
+const vercelDefaultOrigin =
+  toOrigin(process.env.VERCEL_PROJECT_PRODUCTION_URL) ||
+  toOrigin(process.env.VERCEL_BRANCH_URL) ||
+  toOrigin(process.env.VERCEL_URL)
+
 const optional = z.string().trim().optional().transform(v => v || undefined)
-const origin = (fallback: string) => z.string().trim().optional().transform(v => (v || (isProduction ? '' : fallback)).replace(/\/$/, ''))
+const origin = (fallback: string) =>
+  z
+    .string()
+    .trim()
+    .optional()
+    .transform(v => (v || vercelDefaultOrigin || (isProduction ? '' : fallback)).replace(/\/$/, ''))
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -33,7 +52,7 @@ const schema = z.object({
   ADMIN_EMAIL: z.string().trim().toLowerCase().optional().transform(v => v || undefined).pipe(z.email('ADMIN_EMAIL must be a valid email address').optional()),
   ADMIN_PASSWORD: z.string().optional().transform(v => v || undefined).pipe(z.string().min(12, 'ADMIN_PASSWORD must be at least 12 characters').max(200).optional()),
   ADMIN_NAME: z.string().trim().max(100).optional().transform(v => v || 'Chazon Admin'),
-  TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+  TRUST_PROXY: z.coerce.number().int().min(0).default(isVercel ? 1 : 0),
   // Website Audit Engine settings
   PAGESPEED_API_KEY: optional,
   MAX_CONCURRENT_AUDITS: z.coerce.number().int().positive().default(2),
@@ -62,3 +81,10 @@ if (isProduction) {
   }
 }
 export const emailConfigured = !!(env.RESEND_API_KEY && env.RESEND_FROM_EMAIL)
+
+/** Checks a browser Origin against configured origins and active Vercel deployment origins. */
+export function isAllowedOrigin(reqOrigin: string | undefined, ...explicit: Array<string | undefined>) {
+  if (!reqOrigin) return true
+  if (explicit.some(candidate => Boolean(candidate) && reqOrigin === candidate)) return true
+  return isVercel && vercelOrigins.has(reqOrigin)
+}

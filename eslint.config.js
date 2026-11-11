@@ -11,5 +11,5 @@ export default tseslint.config(
   { files: ['packages/**/*.{ts,tsx}'], rules: { 'react-refresh/only-export-components': 'off' } },
   // Build-time prerender entry: never loaded by the dev server.
   { files: ['apps/web/src/entry-server.tsx'], rules: { 'react-refresh/only-export-components': 'off' } },
-  { files: ['apps/web/scripts/**/*.mjs', 'scripts/**/*.mjs'], languageOptions: { globals: globals.node } },
+  { files: ['apps/web/scripts/**/*.mjs', 'scripts/**/*.mjs', 'api/**/*.mjs'], languageOptions: { globals: globals.node } },
 )
