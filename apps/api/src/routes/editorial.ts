@@ -1,9 +1,10 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { CONTENT_STATUSES, INSIGHT_CATEGORIES } from '@chazon/shared'
-import { prisma, type Prisma } from '../db'
+import { isDatabaseUnavailable, prisma, type Prisma } from '../db'
 import { publishDate, uniqueSlug } from '../lib/content'
 import { listQuery, notFound, ok, optionalText, paged, parse, requiredText, slug, urlOrPath } from '../lib/http'
+import { runtimeStore } from '../lib/runtime-store'
 
 // Editorial content with a Draft → Published → Archived lifecycle: Case Studies and Insights.
 
@@ -42,11 +43,16 @@ caseStudiesRouter.get('/', async (req, res) => {
     ...(status ? { status } : {}),
     ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { industry: { contains: q, mode: 'insensitive' } }, { summary: { contains: q, mode: 'insensitive' } }] } : {}),
   }
-  const [items, total] = await Promise.all([
-    prisma.caseStudy.findMany({ where, orderBy: [{ updatedAt: 'desc' }], skip: (page - 1) * pageSize, take: pageSize, select: { id: true, title: true, slug: true, industry: true, status: true, publishedAt: true, updatedAt: true, coverImage: true } }),
-    prisma.caseStudy.count({ where }),
-  ])
-  paged(res, items, total, page, pageSize)
+  try {
+    const [items, total] = await Promise.all([
+      prisma.caseStudy.findMany({ where, orderBy: [{ updatedAt: 'desc' }], skip: (page - 1) * pageSize, take: pageSize, select: { id: true, title: true, slug: true, industry: true, status: true, publishedAt: true, updatedAt: true, coverImage: true } }),
+      prisma.caseStudy.count({ where }),
+    ])
+    paged(res, items, total, page, pageSize)
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err
+    paged(res, [], 0, page, pageSize)
+  }
 })
 caseStudiesRouter.get('/:id', async (req, res) => {
   const item = await prisma.caseStudy.findUnique({ where: { id: req.params.id } })
@@ -62,6 +68,7 @@ caseStudiesRouter.post('/', async (req, res) => {
       publishedAt: publishDate(data.status, publishedAt, null) ?? null,
     },
   })
+  runtimeStore.invalidateDashboard()
   ok(res, item, 201)
 })
 caseStudiesRouter.patch('/:id', async (req, res) => {
@@ -69,10 +76,12 @@ caseStudiesRouter.patch('/:id', async (req, res) => {
   const existing = await prisma.caseStudy.findUnique({ where: { id: req.params.id }, select: { publishedAt: true } })
   if (!existing) throw notFound('Case study')
   const item = await prisma.caseStudy.update({ where: { id: req.params.id }, data: { ...data, publishedAt: publishDate(data.status, publishedAt, existing.publishedAt) } })
+  runtimeStore.invalidateDashboard()
   ok(res, item)
 })
 caseStudiesRouter.delete('/:id', async (req, res) => {
   await prisma.caseStudy.delete({ where: { id: req.params.id } })
+  runtimeStore.invalidateDashboard()
   ok(res, { deleted: true })
 })
 
@@ -101,11 +110,16 @@ insightsRouter.get('/', async (req, res) => {
     ...(category ? { category } : {}),
     ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { excerpt: { contains: q, mode: 'insensitive' } }, { tags: { has: q } }] } : {}),
   }
-  const [items, total] = await Promise.all([
-    prisma.insight.findMany({ where, orderBy: [{ updatedAt: 'desc' }], skip: (page - 1) * pageSize, take: pageSize, select: { id: true, title: true, slug: true, category: true, status: true, authorName: true, publishedAt: true, updatedAt: true, featuredImage: true } }),
-    prisma.insight.count({ where }),
-  ])
-  paged(res, items, total, page, pageSize)
+  try {
+    const [items, total] = await Promise.all([
+      prisma.insight.findMany({ where, orderBy: [{ updatedAt: 'desc' }], skip: (page - 1) * pageSize, take: pageSize, select: { id: true, title: true, slug: true, category: true, status: true, authorName: true, publishedAt: true, updatedAt: true, featuredImage: true } }),
+      prisma.insight.count({ where }),
+    ])
+    paged(res, items, total, page, pageSize)
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err
+    paged(res, [], 0, page, pageSize)
+  }
 })
 insightsRouter.get('/:id', async (req, res) => {
   const item = await prisma.insight.findUnique({ where: { id: req.params.id } })
@@ -122,15 +136,19 @@ insightsRouter.post('/', async (req, res) => {
       publishedAt: publishDate(data.status, publishedAt, null) ?? null,
     },
   })
+  runtimeStore.invalidateDashboard()
   ok(res, item, 201)
 })
 insightsRouter.patch('/:id', async (req, res) => {
   const { publishedAt, ...data } = parse(insightUpdate, req.body)
   const existing = await prisma.insight.findUnique({ where: { id: req.params.id }, select: { publishedAt: true } })
   if (!existing) throw notFound('Insight')
-  ok(res, await prisma.insight.update({ where: { id: req.params.id }, data: { ...data, publishedAt: publishDate(data.status, publishedAt, existing.publishedAt) } }))
+  const saved = await prisma.insight.update({ where: { id: req.params.id }, data: { ...data, publishedAt: publishDate(data.status, publishedAt, existing.publishedAt) } })
+  runtimeStore.invalidateDashboard()
+  ok(res, saved)
 })
 insightsRouter.delete('/:id', async (req, res) => {
   await prisma.insight.delete({ where: { id: req.params.id } })
+  runtimeStore.invalidateDashboard()
   ok(res, { deleted: true })
 })

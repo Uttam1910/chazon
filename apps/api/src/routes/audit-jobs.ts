@@ -17,7 +17,9 @@ import {
   type DiscoveryAnswers,
   type PublicConfig,
 } from '@chazon/shared'
+import { prisma } from '../db'
 import { env } from '../env'
+import { runtimeStore } from '../lib/runtime-store'
 import {
   AuditError,
   createPageSpeedClient,
@@ -179,6 +181,7 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
 
   const job = auditJobStore.create(planSteps(request, opts))
   const id = job.status.id
+  runtimeStore.recordJobStart(id, request.url, request.strategy)
 
   const run = runAudit(
     id,
@@ -189,15 +192,62 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
   )
 
   run
-    .then((report) => {
+    .then(async (report) => {
       auditJobStore.complete(job, report)
+      const summary = runtimeStore.recordJobComplete(id, report)
+      try {
+        await prisma.auditScan.upsert({
+          where: { reference: summary.reference },
+          update: {
+            url: summary.url,
+            normalizedUrl: summary.normalizedUrl,
+            overallScore: summary.overallScore,
+            performanceScore: summary.performanceScore,
+            seoScore: summary.seoScore,
+            mobileScore: summary.mobileScore,
+            conversionScore: summary.conversionScore,
+            metrics: {
+              strategy: summary.strategy,
+              pagesInspected: summary.pagesInspected,
+              durationMs: summary.durationMs,
+              accessibilityScore: summary.accessibilityScore,
+              bestPracticesScore: summary.bestPracticesScore,
+              headline: summary.headline,
+            },
+            issues: summary.topIssues as unknown as object,
+          },
+          create: {
+            reference: summary.reference,
+            url: summary.url,
+            normalizedUrl: summary.normalizedUrl,
+            overallScore: summary.overallScore,
+            performanceScore: summary.performanceScore,
+            seoScore: summary.seoScore,
+            mobileScore: summary.mobileScore,
+            conversionScore: summary.conversionScore,
+            metrics: {
+              strategy: summary.strategy,
+              pagesInspected: summary.pagesInspected,
+              durationMs: summary.durationMs,
+              accessibilityScore: summary.accessibilityScore,
+              bestPracticesScore: summary.bestPracticesScore,
+              headline: summary.headline,
+            },
+            issues: summary.topIssues as unknown as object,
+          },
+        })
+      } catch {
+        // DB unavailable — scan remains synced in runtimeStore for live Admin visibility
+      }
     })
     .catch((err: unknown) => {
       if (err instanceof AuditError) {
         auditJobStore.fail(job, err.code, err.message)
+        runtimeStore.recordJobFail(id, err.message)
       } else {
         console.error(`[audit ${id}] unexpected error`, err instanceof Error ? err.stack : err)
         auditJobStore.fail(job, 'INTERNAL_ERROR', 'The audit failed unexpectedly. Please try again.')
+        runtimeStore.recordJobFail(id, 'The audit failed unexpectedly.')
       }
     })
 

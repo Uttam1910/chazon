@@ -8988,10 +8988,15 @@ button.nav-link.has-dropdown.is-active::after {
   gap: 16px;
 }
 
+.req {
+  display: inline;
+  color: #D84502;
+  margin-left: 3px;
+  font-weight: 700;
+}
+
 .smart-label {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
+  display: block;
   font-family: var(--font-sans);
   font-size: 0.84375rem;
   font-weight: 600;
@@ -9000,8 +9005,27 @@ button.nav-link.has-dropdown.is-active::after {
 }
 
 .smart-label .req {
+  display: inline;
   color: #D84502;
-  margin-left: 2px;
+  margin-left: 3px;
+  font-weight: 700;
+}
+
+.smart-label > .smart-input,
+.smart-label > .smart-select,
+.smart-label > .smart-textarea,
+.smart-label > .custom-dropdown-container {
+  display: block;
+  margin-top: 7px;
+}
+
+.field-error-msg {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78125rem;
+  font-weight: 500;
+  color: #DC2626;
+  line-height: 1.35;
 }
 
 .smart-input,
@@ -9228,7 +9252,8 @@ select.smart-select {
   box-shadow: 0 0 0 3px rgba(216, 69, 2, 0.12);
 }
 
-.smart-input.is-invalid {
+.smart-input.is-invalid,
+.smart-textarea.is-invalid {
   border-color: #DC2626;
   background: #FEF2F2;
 }

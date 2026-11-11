@@ -1,19 +1,33 @@
 import { slugify, type PublicSeo } from '@chazon/shared'
-import { prisma } from '../db'
+import { isDatabaseUnavailable, prisma } from '../db'
 import { env } from '../env'
+import { runtimeStore } from './runtime-store'
 
 /** Uploaded media is stored as /uploads/… paths; public responses expose absolute URLs. */
 export const absolute = (url: string | null | undefined) => (url && url.startsWith('/uploads/') && env.API_URL ? env.API_URL + url : url ?? null)
 export const absoluteMarkdown = (source: string) => (env.API_URL ? source.replace(/\]\(\/uploads\//g, `](${env.API_URL}/uploads/`) : source)
 
 export async function getSettings() {
-  return prisma.websiteSettings.upsert({ where: { id: 'default' }, update: {}, create: { id: 'default' } })
+  try {
+    return await prisma.websiteSettings.upsert({ where: { id: 'default' }, update: {}, create: { id: 'default' } })
+  } catch (err) {
+    if (isDatabaseUnavailable(err)) return runtimeStore.settings
+    throw err
+  }
 }
 
 export async function getSeo(): Promise<Record<string, PublicSeo>> {
-  const rows = await prisma.seoSetting.findMany()
-  return Object.fromEntries(rows.map(({ page, title, description, canonicalUrl, ogTitle, ogDescription, ogImage, noindex, nofollow }) =>
-    [page, { title, description, canonicalUrl, ogTitle, ogDescription, ogImage: absolute(ogImage), noindex, nofollow }]))
+  try {
+    const rows = await prisma.seoSetting.findMany()
+    return Object.fromEntries(rows.map(({ page, title, description, canonicalUrl, ogTitle, ogDescription, ogImage, noindex, nofollow }) =>
+      [page, { title, description, canonicalUrl, ogTitle, ogDescription, ogImage: absolute(ogImage), noindex, nofollow }]))
+  } catch (err) {
+    if (isDatabaseUnavailable(err)) {
+      return Object.fromEntries(runtimeStore.seo.map(({ page, title, description, canonicalUrl, ogTitle, ogDescription, ogImage, noindex, nofollow }) =>
+        [page, { title, description, canonicalUrl, ogTitle, ogDescription, ogImage: absolute(ogImage), noindex, nofollow }]))
+    }
+    throw err
+  }
 }
 
 /** Returns `base`, or `base-2`, `base-3`… — the first slug `exists` says is free. */

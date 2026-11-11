@@ -263,6 +263,71 @@ export function SmartEnquiryForm({
     }
   }
 
+  const submitEnquiryPayload = async (
+    payload: Record<string, unknown>,
+    meta: { form: 'quick_message' | 'interactive_scope'; name: string; errorKeyMap: Record<string, string> },
+  ) => {
+    setBusy(true)
+    const endpoint = config.enquiryEndpoint || `${config.apiUrl || ''}/api/public/enquiries`
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (res.ok) {
+        const json = await res.json().catch(() => ({})) as { data?: { reference?: string; whatsAppHref?: string }; reference?: string; whatsAppHref?: string }
+        const data = json.data ?? json
+        const ref = data.reference || `CHZ-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+        setSuccessData({
+          reference: ref,
+          name: meta.name,
+          whatsAppHref: data.whatsAppHref,
+        })
+        setIsSuccess(true)
+        track('form_submit_success', { form: meta.form, reference: ref })
+        if (onComplete) onComplete(ref)
+        return
+      }
+
+      const errJson = await res.json().catch(() => ({})) as { error?: { message?: string; details?: Record<string, string> } }
+      const details = errJson.error?.details
+      const mappedErrors: Record<string, string> = {}
+      const unmappedMessages: string[] = []
+
+      if (details) {
+        for (const [key, detailMsg] of Object.entries(details)) {
+          const targetKey = meta.errorKeyMap[key]
+          if (targetKey) mappedErrors[targetKey] = detailMsg
+          else unmappedMessages.push(detailMsg)
+        }
+      }
+
+      if (Object.keys(mappedErrors).length > 0) {
+        setFieldErrors(mappedErrors)
+      }
+
+      const msg =
+        unmappedMessages[0] ||
+        errJson.error?.message ||
+        'Submission failed. Please check the fields and try again.'
+      setErrorMessage(msg)
+    } catch {
+      if (demoMode) {
+        const ref = `CHZ-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+        setSuccessData({ reference: ref, name: meta.name })
+        setIsSuccess(true)
+        if (onComplete) onComplete(ref)
+      } else {
+        setErrorMessage('We could not reach the server. Please check your connection or contact us via WhatsApp.')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // -------------------------------------------------------------
   // Quick Message Submit Handler
   // -------------------------------------------------------------
@@ -287,57 +352,25 @@ export function SmartEnquiryForm({
     }
 
     setFieldErrors({})
-    setBusy(true)
-
-    const endpoint = `${config.apiUrl || ''}/api/public/enquiries`
+    const serviceCategoryTag = quickService.match(/\(([^)]+)\)$/)?.[1]
     const payload = {
       name: quickName.trim(),
       email: quickEmail.trim(),
       phone: quickPhone.trim() || undefined,
       business: quickBusiness.trim() || 'Not specified',
       service: quickService,
-      category: normalizeCategory(quickService) || 'BUILD',
+      category: normalizeCategory(serviceCategoryTag || quickService) || 'BUILD',
       message: quickMessage.trim(),
       auditRef: effectiveAuditRef,
       form_started: started.current,
       source_detail: sourceDetail(),
     }
 
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        const ref = data.reference || `CHZ-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
-        setSuccessData({
-          reference: ref,
-          name: quickName.trim(),
-          whatsAppHref: data.whatsAppHref,
-        })
-        setIsSuccess(true)
-        track('form_submit_success', { form: 'quick_message', reference: ref })
-        if (onComplete) onComplete(ref)
-      } else {
-        const errJson = await res.json().catch(() => ({}))
-        const msg = errJson.error?.message || 'Submission failed. Please check the fields and try again.'
-        setErrorMessage(msg)
-      }
-    } catch {
-      if (demoMode) {
-        const ref = `CHZ-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
-        setSuccessData({ reference: ref, name: quickName.trim() })
-        setIsSuccess(true)
-        if (onComplete) onComplete(ref)
-      } else {
-        setErrorMessage('We could not reach the server. Please check your connection or contact us via WhatsApp.')
-      }
-    } finally {
-      setBusy(false)
-    }
+    await submitEnquiryPayload(payload, {
+      form: 'quick_message',
+      name: quickName.trim(),
+      errorKeyMap: { name: 'quickName', email: 'quickEmail', message: 'quickMessage' },
+    })
   }
 
   // -------------------------------------------------------------
@@ -363,7 +396,6 @@ export function SmartEnquiryForm({
     }
 
     setFieldErrors({})
-    setBusy(true)
 
     // Assemble category-specific answers
     const dynamicAnswers: Record<string, unknown> = {}
@@ -403,7 +435,6 @@ export function SmartEnquiryForm({
       }
     }
 
-    const endpoint = `${config.apiUrl || ''}/api/public/enquiries`
     const payload = {
       category: selectedCategory,
       goals: [selectedCategory],
@@ -428,41 +459,15 @@ export function SmartEnquiryForm({
       source_detail: sourceDetail(),
     }
 
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        const ref = data.reference || `CHZ-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
-        setSuccessData({
-          reference: ref,
-          name: plannerName.trim(),
-          whatsAppHref: data.whatsAppHref,
-        })
-        setIsSuccess(true)
-        track('form_submit_success', { form: 'interactive_scope', reference: ref })
-        if (onComplete) onComplete(ref)
-      } else {
-        const errJson = await res.json().catch(() => ({}))
-        const msg = errJson.error?.message || 'Submission failed. Please check the fields and try again.'
-        setErrorMessage(msg)
-      }
-    } catch {
-      if (demoMode) {
-        const ref = `CHZ-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
-        setSuccessData({ reference: ref, name: plannerName.trim() })
-        setIsSuccess(true)
-        if (onComplete) onComplete(ref)
-      } else {
-        setErrorMessage('We could not reach the server. Please check your connection or contact us via WhatsApp.')
-      }
-    } finally {
-      setBusy(false)
-    }
+    await submitEnquiryPayload(payload, {
+      form: 'interactive_scope',
+      name: plannerName.trim(),
+      errorKeyMap: {
+        'contact.name': 'plannerName',
+        'contact.email': 'plannerEmail',
+        'contact.phone': 'plannerPhone',
+      },
+    })
   }
 
   // Active Category Meta
@@ -472,7 +477,8 @@ export function SmartEnquiryForm({
   // SUCCESS SCREEN
   // -------------------------------------------------------------
   if (isSuccess && successData) {
-    const defaultWa = `https://wa.me/919876543210?text=${encodeURIComponent(
+    const waDigits = config.whatsapp.replace(/\D/g, '') || '919820000000'
+    const defaultWa = `https://wa.me/${waDigits}?text=${encodeURIComponent(
       `Hi Chazon team, I just submitted an enquiry (Ref: ${successData.reference}). Looking forward to discussing our project.`
     )}`
 

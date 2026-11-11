@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Archive, ArchiveRestore, ArrowLeft, ExternalLink, Mail, Pencil, Phone, Plus, Trash2 } from 'lucide-react'
 import { AUDIT_STATUSES, AUDIT_STATUS_LABELS, type AuditStatus } from '@chazon/shared'
 import { api, errorMessage, fieldErrors, qs, useApi } from '../api'
@@ -10,7 +10,7 @@ import { EmptyState, ErrorState, LoadingRows } from '../ui/States'
 import { Timeline } from './Leads'
 import { FilterSelect, SearchBox, Toolbar } from './list'
 import { useAuth } from '../auth-context'
-import { formatDate, isEqual, useUnsavedChanges } from '../ui/utils'
+import { formatDate, isEqual, timeAgo, useUnsavedChanges } from '../ui/utils'
 import { useConfirm } from '../ui/confirm'
 import { useToast } from '../ui/toast-context'
 import { useListParams } from './list-utils'
@@ -21,11 +21,186 @@ type Audit = {
   activities?: { id: string; type: string; message: string; createdAt: string; actor: { name: string } | null }[]
 }
 
+type WebsiteScan = {
+  id: string
+  reference: string
+  url: string
+  normalizedUrl: string
+  strategy: 'mobile' | 'desktop'
+  state: 'running' | 'completed' | 'failed'
+  overallScore: number
+  performanceScore: number
+  seoScore: number
+  mobileScore: number
+  conversionScore: number
+  pagesInspected: number
+  durationMs: number | null
+  headline: string | null
+  topIssues: { title: string; severity: string; category: string }[]
+  leadId: string | null
+  leadReference: string | null
+  createdAt: string
+}
+
 const statusOptions = [{ value: '', label: 'All statuses' }, ...AUDIT_STATUSES.map(s => ({ value: s, label: AUDIT_STATUS_LABELS[s] }))]
 const viewOptions = [{ value: 'active', label: 'Active' }, { value: 'archived', label: 'Archived' }, { value: 'all', label: 'All' }]
 const sortOptions = [{ value: 'newest', label: 'Newest first' }, { value: 'oldest', label: 'Oldest first' }, { value: 'name', label: 'Name A–Z' }, { value: 'business', label: 'Business A–Z' }, { value: 'status', label: 'Status' }]
 
+function scoreTone(score: number) {
+  if (score >= 75) return 'green'
+  if (score >= 50) return 'amber'
+  return 'orange'
+}
+
 export function Audits() {
+  const [params, setParams] = useSearchParams()
+  const activeTab = params.get('tab') === 'scans' ? 'scans' : 'requests'
+  const setTab = (tab: 'scans' | 'requests') => {
+    const next = new URLSearchParams(params)
+    next.set('tab', tab)
+    next.delete('page')
+    setParams(next)
+  }
+
+  return (
+    <>
+      <div className="seg" role="tablist" aria-label="Audit views" style={{ marginBottom: 14 }}>
+        <button type="button" role="tab" aria-selected={activeTab === 'scans'} onClick={() => setTab('scans')}>
+          Instant Website Scans
+        </button>
+        <button type="button" role="tab" aria-selected={activeTab === 'requests'} onClick={() => setTab('requests')}>
+          Growth Audit Requests
+        </button>
+      </div>
+      {activeTab === 'scans' ? <WebsiteScansView /> : <GrowthAuditRequestsView />}
+    </>
+  )
+}
+
+function WebsiteScansView() {
+  const { values, page, set } = useListParams({ q: '' })
+  const { data, meta, error, loading, reload } = useApi<WebsiteScan[]>(`/audits/scans${qs({ q: values.q, page })}`)
+  const [selected, setSelected] = useState<WebsiteScan | null>(null)
+
+  return (
+    <>
+      <PageHeader
+        title="Website Audit Scans"
+        description="Real-time diagnostic scans executed from the website’s Hero quick-audit, Homepage scanner, and /website-audit tool."
+        actions={
+          <button type="button" className="btn" onClick={() => reload(true)} disabled={loading}>
+            {loading ? 'Refreshing…' : 'Refresh scans'}
+          </button>
+        }
+      />
+      <Toolbar>
+        <SearchBox value={values.q} onChange={v => set('q', v)} placeholder="Search domain, URL, or scan reference…" />
+      </Toolbar>
+      {error ? (
+        <ErrorState message={error.message} onRetry={() => reload(true)} />
+      ) : loading && !data ? (
+        <LoadingRows />
+      ) : !data?.length ? (
+        <EmptyState
+          title={values.q ? 'No scans match your search' : 'No live website scans recorded yet'}
+          message={values.q ? 'Try a different domain or clear the search box.' : 'Scans started by website visitors will stream here automatically with PageSpeed, SEO, Mobile UX, and Conversion telemetry.'}
+        />
+      ) : (
+        <div className={`table-wrap ${loading ? 'is-loading' : ''}`}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Website / Domain</th>
+                <th>Overall</th>
+                <th>Perf · SEO · Mobile · Conv</th>
+                <th>Conversion Status</th>
+                <th>Scanned</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map(scan => (
+                <tr key={scan.id} className="clickable" onClick={() => setSelected(scan)}>
+                  <td data-label="Website / Domain">
+                    <strong>{scan.normalizedUrl || scan.url}</strong>
+                    <small>
+                      {scan.strategy === 'desktop' ? 'Desktop' : 'Mobile'} · {scan.pagesInspected || 1}p
+                      {scan.durationMs ? ` · ${(scan.durationMs / 1000).toFixed(1)}s` : ''}
+                    </small>
+                  </td>
+                  <td data-label="Overall">
+                    {scan.state === 'running' ? (
+                      <Badge label="Running…" tone="blue" />
+                    ) : scan.state === 'failed' ? (
+                      <Badge label="Failed" tone="grey" />
+                    ) : (
+                      <Badge label={`${scan.overallScore}/100`} tone={scoreTone(scan.overallScore)} />
+                    )}
+                  </td>
+                  <td data-label="Pillars">
+                    <span className="mono small">
+                      {scan.state === 'completed'
+                        ? `${scan.performanceScore} · ${scan.seoScore} · ${scan.mobileScore} · ${scan.conversionScore}`
+                        : '—'}
+                    </span>
+                  </td>
+                  <td data-label="Conversion">
+                    {scan.leadId ? (
+                      <Link className="link" to={`/leads/${scan.leadId}`} onClick={e => e.stopPropagation()}>
+                        Lead {scan.leadReference || 'Linked'} <ExternalLink size={12} />
+                      </Link>
+                    ) : (
+                      <span className="muted small">Scan only</span>
+                    )}
+                  </td>
+                  <td data-label="Scanned">
+                    <span>{timeAgo(scan.createdAt)}</span>
+                    <small>{formatDate(scan.createdAt)}</small>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <Pagination meta={meta} onPage={p => set('page', p)} />
+
+      <Modal open={!!selected} onClose={() => setSelected(null)} title={selected ? `Scan: ${selected.normalizedUrl || selected.url}` : 'Scan details'} size="lg">
+        {selected && (
+          <div className="stack">
+            <dl className="details">
+              <div><dt>Target URL</dt><dd><a href={selected.url} target="_blank" rel="noopener noreferrer">{selected.url} <ExternalLink size={12} /></a></dd></div>
+              <div><dt>Scan Reference</dt><dd className="mono">{selected.reference}</dd></div>
+              <div><dt>Strategy & Crawl</dt><dd>{selected.strategy} · {selected.pagesInspected} pages inspected</dd></div>
+              <div><dt>Duration</dt><dd>{selected.durationMs ? `${(selected.durationMs / 1000).toFixed(1)} seconds` : '—'}</dd></div>
+            </dl>
+            <div className="audit-score-strip">
+              <div className="audit-mini-score"><strong style={{ color: 'var(--orange-text)' }}>{selected.overallScore}</strong><small>Overall</small></div>
+              <div className="audit-mini-score"><strong>{selected.performanceScore}</strong><small>Performance</small></div>
+              <div className="audit-mini-score"><strong>{selected.seoScore}</strong><small>Technical SEO</small></div>
+              <div className="audit-mini-score"><strong>{selected.mobileScore}</strong><small>Mobile UX</small></div>
+              <div className="audit-mini-score"><strong>{selected.conversionScore}</strong><small>Conversion</small></div>
+            </div>
+            {selected.headline && <p className="small">{selected.headline}</p>}
+            {selected.topIssues?.length > 0 && (
+              <div>
+                <p className="section-subhead">Top Detected Findings</p>
+                <div className="tag-list">
+                  {selected.topIssues.map((issue, idx) => (
+                    <span key={idx} className={`tag-chip ${issue.severity === 'critical' || issue.severity === 'high' ? 'accent' : ''}`}>
+                      [{issue.severity.toUpperCase()}] {issue.title}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+    </>
+  )
+}
+
+function GrowthAuditRequestsView() {
   const { values, page, set } = useListParams({ q: '', status: '', view: 'active', sort: 'newest' })
   const { data, meta, error, loading, reload } = useApi<Audit[]>(`/audits${qs({ ...values, page })}`)
   const [adding, setAdding] = useState(false)

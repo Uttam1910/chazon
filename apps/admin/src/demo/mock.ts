@@ -166,9 +166,39 @@ export async function demoRequest(path: string, method: string, body: unknown): 
       const services = Object.entries(count(leads.filter(l => l.service), 'service')).map(([label, n]) => ({ label, count: n })).sort((a, b) => b.count - a.count).slice(0, 6)
       const sources = Object.entries(count(leads.map(l => ({ s: l.sourceDetail || (l.source === 'Website' ? 'Website (direct / unknown)' : l.source) })), 's')).map(([label, n]) => ({ label, count: n })).sort((a, b) => b.count - a.count).slice(0, 6)
       return ok({
-        leads: { total: leads.length, new: byStatus.NEW ?? 0, qualified: byStatus.QUALIFIED ?? 0, converted: byStatus.WON ?? 0, last30Days: leads.filter(l => Date.parse(l.createdAt) >= since).length, byStatus },
+        storageMode: 'memory',
+        generatedAt: now(),
+        leads: {
+          total: leads.length,
+          new: byStatus.NEW ?? 0,
+          qualified: byStatus.QUALIFIED ?? 0,
+          converted: byStatus.WON ?? 0,
+          last30Days: leads.filter(l => Date.parse(l.createdAt) >= since).length,
+          withAuditCount: 0,
+          byStatus,
+          byCategory: ['BUILD', 'GROW', 'CONVERT', 'AUTOMATE', 'E-COMMERCE', 'AI'].map(label => ({ label, count: 0 })),
+        },
         audits: { total: audits.length, new: audits.filter(a => a.status === 'NEW').length, last30Days: audits.filter(a => Date.parse(a.createdAt) >= since).length, byStatus: count(audits, 'status') },
-        content: { publishedCaseStudies: store.caseStudies.filter(c => c.status === 'PUBLISHED').length, publishedInsights: store.insights.filter(i => i.status === 'PUBLISHED').length },
+        websiteScans: {
+          total: 0,
+          running: 0,
+          last30Days: 0,
+          convertedToLeads: 0,
+          avgOverallScore: 0,
+          avgPerformanceScore: 0,
+          avgSeoScore: 0,
+          avgMobileScore: 0,
+          avgConversionScore: 0,
+          recentScans: [],
+        },
+        content: {
+          publishedServices: store.services.filter(s => s.published && !s.archivedAt).length,
+          totalServices: store.services.filter(s => !s.archivedAt).length,
+          publishedCaseStudies: store.caseStudies.filter(c => c.status === 'PUBLISHED').length,
+          publishedInsights: store.insights.filter(i => i.status === 'PUBLISHED').length,
+          publishedIndustries: store.industries.filter(i => i.published).length,
+          publishedTestimonials: store.testimonials.filter(t => t.published).length,
+        },
         recentLeads: [...leads].sort(sorters.newest).slice(0, 6),
         recentAudits: [...audits].sort(sorters.newest).slice(0, 6),
         topServices: services,
@@ -178,6 +208,7 @@ export async function demoRequest(path: string, method: string, body: unknown): 
 
     case 'leads':
     case 'audits': {
+      if (resource === 'audits' && id === 'scans') return paginate([], q)
       const list = resource === 'leads' ? store.leads : store.audits
       const labels: Record<string, string> = resource === 'leads' ? LEAD_STATUS_LABELS : AUDIT_STATUS_LABELS
       const what = resource === 'leads' ? 'Lead' : 'Audit request'
@@ -190,7 +221,7 @@ export async function demoRequest(path: string, method: string, body: unknown): 
           return ok(row)
         }
         const fields = resource === 'leads' ? ['name', 'businessName', 'email', 'phone', 'website', 'service', 'message', 'category'] : ['name', 'businessName', 'email', 'phone', 'website', 'requirements', 'category']
-        const rows = list.filter(r => byView(r, q.get('view')) && (!q.get('status') || r.status === q.get('status')) && (!q.get('service') || r.service === q.get('service')) && matches(r, q.get('q'), fields))
+        const rows = list.filter(r => byView(r, q.get('view')) && (!q.get('status') || r.status === q.get('status')) && (!q.get('category') || String(r.category ?? '').toLowerCase() === q.get('category')?.toLowerCase()) && (!q.get('service') || r.service === q.get('service')) && matches(r, q.get('q'), fields))
           .sort(sorters[q.get('sort') ?? 'newest'] ?? sorters.newest)
           .map(r => ({ ...r, _count: { notes: r.notes?.length ?? 0 } }))
         return paginate(rows, q)

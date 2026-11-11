@@ -4,6 +4,7 @@ import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
 import { prisma } from '../db'
 import { analyzeWebsite } from '../lib/audit-engine'
+import { runtimeStore } from '../lib/runtime-store'
 import { ApiError, notFound, ok, parse } from '../lib/http'
 
 export const auditAnalyzerRouter = Router()
@@ -35,6 +36,30 @@ auditAnalyzerRouter.post('/analyze', auditCors, json({ limit: '16kb' }), auditLi
 
   try {
     const result = await analyzeWebsite(url)
+
+    runtimeStore.upsertAuditScan({
+      id: result.id,
+      reference: result.id,
+      url: result.url,
+      normalizedUrl: result.normalizedUrl,
+      strategy: 'mobile',
+      state: 'completed',
+      overallScore: result.overallScore,
+      performanceScore: result.scores.performance,
+      seoScore: result.scores.seo,
+      mobileScore: result.scores.mobile,
+      conversionScore: result.scores.conversion,
+      accessibilityScore: null,
+      bestPracticesScore: null,
+      pagesInspected: 1,
+      durationMs: null,
+      headline: null,
+      topIssues: (result.issues ?? []).slice(0, 6).map(i => ({ title: i.title, severity: i.severity, category: i.category })),
+      leadId: null,
+      leadReference: null,
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+    })
 
     // Save scan result asynchronously if DB is available
     try {

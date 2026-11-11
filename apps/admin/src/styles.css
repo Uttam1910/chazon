@@ -541,3 +541,20 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em}
   margin: 14px 0 6px;
   display: block;
 }
+.button-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.db-banner.info {
+  background: var(--blue-soft, #e8effa);
+  color: var(--blue, #2457a6);
+  border-color: rgb(36 87 166 / 0.2);
+}
+.spin {
+  animation: admin-spin 1s linear infinite;
+}
+@keyframes admin-spin {
+  to { transform: rotate(360deg); }
+}

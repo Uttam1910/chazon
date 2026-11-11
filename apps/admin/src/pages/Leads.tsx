@@ -51,6 +51,7 @@ export type DynamicEnquiryDetails = {
     websiteUrl?: string
     currentUrl?: string
     primaryGoal?: string
+    focus?: string
     currentlyInvests?: string
     currentInvestment?: string
     usesSearchConsole?: string
@@ -64,6 +65,7 @@ export type DynamicEnquiryDetails = {
     targetAction?: string
     conversionProblem?: string
     hasWebsite?: boolean
+    websiteUrl?: string
     currentlyTracking?: string
     trackingStatus?: string
     targetJourney?: string
@@ -72,6 +74,7 @@ export type DynamicEnquiryDetails = {
   automate?: {
     targetProcess?: string
     processesToAutomate?: string[]
+    automations?: string[]
     currentCrm?: string
     usesCrm?: string
     receivesWhatsApp?: boolean
@@ -90,10 +93,12 @@ export type DynamicEnquiryDetails = {
   }
   ai?: {
     primaryUseCase?: string
+    capability?: string
     aiCapabilities?: string[]
     needsChatbot?: boolean
     needsSupportAutomation?: boolean
     customAppDetails?: string
+    details?: string
     description?: string
   }
 }
@@ -129,7 +134,7 @@ export type Lead = {
   website: string | null
   category: string | null
   service: string | null
-  services?: string | null
+  services?: string[] | string | null
   businessStage?: string | null
   targetAudience?: string | null
   businessDescription?: string | null
@@ -175,6 +180,28 @@ const serviceSuggestions = [
   'Other',
 ]
 
+function formatServicesList(lead: Pick<Lead, 'service' | 'services' | 'category'>): string {
+  if (Array.isArray(lead.services) && lead.services.length > 0) return lead.services.join(', ')
+  if (typeof lead.services === 'string' && lead.services.trim()) return lead.services
+  return lead.service || lead.category || '—'
+}
+
+const categoryOptions = [
+  { value: '', label: 'All focus areas' },
+  { value: 'BUILD', label: 'BUILD' },
+  { value: 'GROW', label: 'GROW' },
+  { value: 'CONVERT', label: 'CONVERT' },
+  { value: 'AUTOMATE', label: 'AUTOMATE' },
+  { value: 'E-COMMERCE', label: 'E-COMMERCE' },
+  { value: 'AI', label: 'AI' },
+]
+
+const auditFilterOptions = [
+  { value: '', label: 'All enquiries' },
+  { value: 'true', label: 'With Website Audit' },
+  { value: 'false', label: 'Direct Enquiry only' },
+]
+
 function exportLeadsCsv(leads: Lead[]) {
   if (!leads.length) return
   const headers = [
@@ -200,7 +227,7 @@ function exportLeadsCsv(leads: Lead[]) {
       l.email,
       l.phone,
       l.preferredContact || '',
-      l.services || l.service || '',
+      formatServicesList(l),
       l.budget || '',
       l.timeline || '',
       l.businessStage || '',
@@ -223,12 +250,12 @@ function exportLeadsCsv(leads: Lead[]) {
 }
 
 export function Leads() {
-  const { values, page, set } = useListParams({ q: '', status: '', view: 'active', sort: 'newest', service: '' })
+  const { values, page, set } = useListParams({ q: '', status: '', category: '', hasAudit: '', view: 'active', sort: 'newest', service: '' })
   const { data, meta, error, loading, reload } = useApi<Lead[]>(`/leads${qs({ ...values, page })}`)
   const [adding, setAdding] = useState(false)
   const navigate = useNavigate()
   const toast = useToast()
-  const filtered = values.q || values.status || values.service || values.view !== 'active'
+  const filtered = values.q || values.status || values.category || values.hasAudit || values.service || values.view !== 'active'
 
   const handleExport = () => {
     if (!data || !data.length) {
@@ -259,7 +286,9 @@ export function Leads() {
       />
       <Toolbar>
         <SearchBox value={values.q} onChange={v => set('q', v)} placeholder="Search reference, name, business, email, phone…" />
+        <FilterSelect label="Focus" value={values.category} onChange={v => set('category', v)} options={categoryOptions} />
         <FilterSelect label="Status" value={values.status} onChange={v => set('status', v)} options={statusOptions} />
+        <FilterSelect label="Audit" value={values.hasAudit} onChange={v => set('hasAudit', v)} options={auditFilterOptions} />
         <FilterSelect label="Show" value={values.view} onChange={v => set('view', v)} options={viewOptions} />
         <FilterSelect label="Sort" value={values.sort} onChange={v => set('sort', v)} options={sortOptions} />
         {values.service && (
@@ -313,7 +342,7 @@ export function Leads() {
                     </small>
                   </td>
                   <td data-label="Requirements">
-                    <span>{lead.services || lead.service || '—'}</span>
+                    <span>{formatServicesList(lead)}</span>
                     <small>
                       {lead.budget ? lead.budget : 'Budget: TBD'}
                       {lead.timeline ? ` · ${lead.timeline}` : ''}
@@ -700,13 +729,13 @@ export function LeadDetail() {
                 <>
                   <span className="section-subhead">Build Requirements</span>
                   <dl className="details" style={{ marginBottom: 12 }}>
-                    <div><dt>Project Scope</dt><dd>{dynamic.build.projectType || '—'}</dd></div>
+                    <div><dt>Project Scope</dt><dd>{dynamic.build.projectType || dynamic.build.isNewOrRedesign || '—'}</dd></div>
                     <div><dt>Website Type</dt><dd>{dynamic.build.websiteType || '—'}</dd></div>
+                    <div><dt>Estimated Pages</dt><dd>{dynamic.build.pageCount || dynamic.build.pagesExpected || '—'}</dd></div>
                     <div><dt>Has Domain</dt><dd>{dynamic.build.hasDomain || '—'}</dd></div>
-                    <div><dt>Content Ready</dt><dd>{dynamic.build.contentReady || '—'}</dd></div>
-                    <div><dt>Estimated Pages</dt><dd>{dynamic.build.pagesExpected || '—'}</dd></div>
-                    <div><dt>Payment Gateway</dt><dd>{dynamic.build.needsPayment ? 'Yes' : 'No'}</dd></div>
-                    <div><dt>Custom Features</dt><dd>{dynamic.build.customFeatures || 'None'}</dd></div>
+                    <div><dt>Content Ready</dt><dd>{dynamic.build.contentStatus || dynamic.build.contentReady || '—'}</dd></div>
+                    <div><dt>Payment Gateway</dt><dd>{dynamic.build.needsPayment !== undefined ? (dynamic.build.needsPayment ? 'Yes' : 'No') : '—'}</dd></div>
+                    <div><dt>Requested Features</dt><dd>{dynamic.build.features?.length ? dynamic.build.features.join(', ') : dynamic.build.customFeatures || 'None'}</dd></div>
                     <div><dt>Reference URL</dt><dd>{dynamic.build.referenceUrl || 'None'}</dd></div>
                   </dl>
                 </>
@@ -716,12 +745,11 @@ export function LeadDetail() {
                 <>
                   <span className="section-subhead">Grow & SEO Requirements</span>
                   <dl className="details" style={{ marginBottom: 12 }}>
-                    <div><dt>Has Existing Site</dt><dd>{dynamic.grow.hasWebsite ? 'Yes' : 'No'}</dd></div>
-                    <div><dt>Website URL</dt><dd>{dynamic.grow.currentUrl || '—'}</dd></div>
+                    <div><dt>Website URL</dt><dd>{dynamic.grow.websiteUrl || dynamic.grow.currentUrl || '—'}</dd></div>
                     <div><dt>Primary Goal</dt><dd>{dynamic.grow.primaryGoal || '—'}</dd></div>
-                    <div><dt>Currently Invests in SEO</dt><dd>{dynamic.grow.currentlyInvests || '—'}</dd></div>
-                    <div><dt>Target Markets</dt><dd>{dynamic.grow.targetMarkets || '—'}</dd></div>
-                    <div><dt>Priority Keywords</dt><dd>{dynamic.grow.priorityKeywords || '—'}</dd></div>
+                    <div><dt>Primary Focus</dt><dd>{dynamic.grow.focus || dynamic.grow.targetMarkets || dynamic.grow.targetLocations || '—'}</dd></div>
+                    <div><dt>SEO Investment</dt><dd>{dynamic.grow.currentInvestment || dynamic.grow.currentlyInvests || '—'}</dd></div>
+                    <div><dt>Priority Keywords</dt><dd>{dynamic.grow.targetKeywords || dynamic.grow.priorityKeywords || '—'}</dd></div>
                   </dl>
                 </>
               )}
@@ -730,10 +758,11 @@ export function LeadDetail() {
                 <>
                   <span className="section-subhead">Conversion Requirements</span>
                   <dl className="details" style={{ marginBottom: 12 }}>
-                    <div><dt>Desired Action</dt><dd>{dynamic.convert.desiredAction || '—'}</dd></div>
-                    <div><dt>Conversion Problem</dt><dd>{dynamic.convert.conversionProblem || '—'}</dd></div>
-                    <div><dt>Tracking Installed</dt><dd>{dynamic.convert.currentlyTracking || '—'}</dd></div>
-                    <div><dt>Focal Journey</dt><dd>{dynamic.convert.targetJourney || '—'}</dd></div>
+                    <div><dt>Website URL</dt><dd>{dynamic.convert.websiteUrl || '—'}</dd></div>
+                    <div><dt>Desired Action</dt><dd>{dynamic.convert.targetAction || dynamic.convert.desiredAction || '—'}</dd></div>
+                    <div><dt>Conversion Bottleneck</dt><dd>{dynamic.convert.conversionProblem || '—'}</dd></div>
+                    <div><dt>Tracking Installed</dt><dd>{dynamic.convert.trackingStatus || dynamic.convert.currentlyTracking || '—'}</dd></div>
+                    <div><dt>Focal Journey</dt><dd>{dynamic.convert.journeyToImprove || dynamic.convert.targetJourney || '—'}</dd></div>
                   </dl>
                 </>
               )}
@@ -742,11 +771,11 @@ export function LeadDetail() {
                 <>
                   <span className="section-subhead">Automation Requirements</span>
                   <dl className="details" style={{ marginBottom: 12 }}>
-                    <div><dt>Target Process</dt><dd>{dynamic.automate.targetProcess || '—'}</dd></div>
-                    <div><dt>Current CRM</dt><dd>{dynamic.automate.currentCrm || '—'}</dd></div>
-                    <div><dt>WhatsApp Enquiries</dt><dd>{dynamic.automate.receivesWhatsApp ? 'Yes' : 'No'}</dd></div>
-                    <div><dt>Auto Follow-ups</dt><dd>{dynamic.automate.needsAutoFollowup ? 'Yes' : 'No'}</dd></div>
-                    <div><dt>Manual Workflow</dt><dd>{dynamic.automate.manualWorkflowNotes || '—'}</dd></div>
+                    <div><dt>Target Workflows</dt><dd>{dynamic.automate.automations?.length ? dynamic.automate.automations.join(', ') : dynamic.automate.processesToAutomate?.length ? dynamic.automate.processesToAutomate.join(', ') : dynamic.automate.targetProcess || '—'}</dd></div>
+                    <div><dt>Current CRM / Tools</dt><dd>{dynamic.automate.currentCrm || dynamic.automate.usesCrm || '—'}</dd></div>
+                    <div><dt>WhatsApp Enquiries</dt><dd>{dynamic.automate.whatsAppVolume || (dynamic.automate.receivesWhatsApp !== undefined ? (dynamic.automate.receivesWhatsApp ? 'Yes' : 'No') : '—')}</dd></div>
+                    <div><dt>Auto Follow-ups</dt><dd>{(dynamic.automate.needsAutoFollowup ?? dynamic.automate.needsAutoFollowUp) ? 'Yes' : '—'}</dd></div>
+                    <div><dt>Manual Workflow</dt><dd>{dynamic.automate.manualWorkflowNotes || dynamic.automate.manualWorkflowDescription || '—'}</dd></div>
                   </dl>
                 </>
               )}
@@ -755,11 +784,11 @@ export function LeadDetail() {
                 <>
                   <span className="section-subhead">E-Commerce Requirements</span>
                   <dl className="details" style={{ marginBottom: 12 }}>
-                    <div><dt>Has Store</dt><dd>{dynamic.ecommerce.hasStore ? 'Yes' : 'No'}</dd></div>
+                    <div><dt>Has Store</dt><dd>{dynamic.ecommerce.hasStore !== undefined ? (dynamic.ecommerce.hasStore ? 'Yes' : 'No') : '—'}</dd></div>
                     <div><dt>Platform</dt><dd>{dynamic.ecommerce.platform || '—'}</dd></div>
                     <div><dt>Approx. Products</dt><dd>{dynamic.ecommerce.productCount || '—'}</dd></div>
-                    <div><dt>Payment Gateway</dt><dd>{dynamic.ecommerce.needsPayment ? 'Yes' : 'No'}</dd></div>
-                    <div><dt>Shipping</dt><dd>{dynamic.ecommerce.needsShipping ? 'Yes' : 'No'}</dd></div>
+                    <div><dt>Payment Gateway</dt><dd>{dynamic.ecommerce.needsPayment !== undefined ? (dynamic.ecommerce.needsPayment ? 'Yes' : 'No') : '—'}</dd></div>
+                    <div><dt>Shipping</dt><dd>{dynamic.ecommerce.needsShipping !== undefined ? (dynamic.ecommerce.needsShipping ? 'Yes' : 'No') : '—'}</dd></div>
                   </dl>
                 </>
               )}
@@ -768,10 +797,10 @@ export function LeadDetail() {
                 <>
                   <span className="section-subhead">AI Integration Requirements</span>
                   <dl className="details" style={{ marginBottom: 12 }}>
-                    <div><dt>AI Use Case</dt><dd>{dynamic.ai.primaryUseCase || '—'}</dd></div>
-                    <div><dt>Chatbot Needed</dt><dd>{dynamic.ai.needsChatbot ? 'Yes' : 'No'}</dd></div>
-                    <div><dt>Support Automation</dt><dd>{dynamic.ai.needsSupportAutomation ? 'Yes' : 'No'}</dd></div>
-                    <div><dt>Custom App</dt><dd>{dynamic.ai.customAppDetails || '—'}</dd></div>
+                    <div><dt>AI Capability / Use Case</dt><dd>{dynamic.ai.capability || dynamic.ai.primaryUseCase || dynamic.ai.aiCapabilities?.join(', ') || '—'}</dd></div>
+                    <div><dt>Details / Custom Scope</dt><dd>{dynamic.ai.details || dynamic.ai.customAppDetails || dynamic.ai.description || '—'}</dd></div>
+                    <div><dt>Chatbot Needed</dt><dd>{dynamic.ai.needsChatbot !== undefined ? (dynamic.ai.needsChatbot ? 'Yes' : 'No') : '—'}</dd></div>
+                    <div><dt>Support Automation</dt><dd>{dynamic.ai.needsSupportAutomation !== undefined ? (dynamic.ai.needsSupportAutomation ? 'Yes' : 'No') : '—'}</dd></div>
                   </dl>
                 </>
               )}
@@ -782,7 +811,9 @@ export function LeadDetail() {
           {audit && (
             <Card title="Attached Website Audit">
               <p style={{ margin: '0 0 10px', fontSize: '0.85rem' }}>
-                Scanned URL: <strong>{audit.url || audit.domain}</strong> · Generated {formatDate(audit.scannedAt || lead.createdAt, true)}
+                {audit.url || audit.domain ? <>Scanned URL: <strong>{audit.url || audit.domain}</strong> · </> : null}
+                {lead.auditRef ? <>Audit Ref: <span className="mono">{lead.auditRef}</span> · </> : null}
+                Generated {formatDate(audit.scannedAt || lead.createdAt, true)}
               </p>
               <div className="audit-score-strip">
                 <div className="audit-mini-score">
@@ -790,19 +821,19 @@ export function LeadDetail() {
                   <small>Overall</small>
                 </div>
                 <div className="audit-mini-score">
-                  <strong>{audit.categories?.performance?.score ?? '—'}</strong>
+                  <strong>{audit.categories?.performance?.score ?? audit.scores?.performance ?? '—'}</strong>
                   <small>Performance</small>
                 </div>
                 <div className="audit-mini-score">
-                  <strong>{audit.categories?.seo?.score ?? '—'}</strong>
+                  <strong>{audit.categories?.seo?.score ?? audit.scores?.seo ?? '—'}</strong>
                   <small>SEO</small>
                 </div>
                 <div className="audit-mini-score">
-                  <strong>{audit.categories?.mobile?.score ?? '—'}</strong>
+                  <strong>{audit.categories?.mobile?.score ?? audit.scores?.mobile ?? '—'}</strong>
                   <small>Mobile</small>
                 </div>
                 <div className="audit-mini-score">
-                  <strong>{audit.categories?.conversion?.score ?? '—'}</strong>
+                  <strong>{audit.categories?.conversion?.score ?? audit.scores?.conversion ?? '—'}</strong>
                   <small>Conversion</small>
                 </div>
               </div>
@@ -819,7 +850,7 @@ export function LeadDetail() {
             <dl className="details">
               <div>
                 <dt>Primary Service</dt>
-                <dd>{lead.services || lead.service || '—'}</dd>
+                <dd>{formatServicesList(lead)}</dd>
               </div>
               <div>
                 <dt>Budget Range</dt>

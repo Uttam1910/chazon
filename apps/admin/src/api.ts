@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PageMeta } from '@chazon/shared'
 
 // The API origin. In development it defaults to the local API; in production set VITE_API_URL
@@ -15,9 +15,23 @@ export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details: Record<string, string> = {}) { super(message) }
 }
 
-type Options = { method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; signal?: AbortSignal }
+type CacheEntry = { data: unknown; meta?: PageMeta; ts: number }
+const getCache = new Map<string, CacheEntry>()
+const MAX_CACHE_ENTRIES = 60
 
-export async function request<T>(path: string, { method = 'GET', body, signal }: Options = {}): Promise<{ data: T; meta?: PageMeta }> {
+export function clearApiCache(prefix?: string) {
+  if (!prefix) {
+    getCache.clear()
+    return
+  }
+  for (const k of getCache.keys()) {
+    if (k.startsWith(prefix)) getCache.delete(k)
+  }
+}
+
+type Options = { method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; signal?: AbortSignal; bypassCache?: boolean }
+
+export async function request<T>(path: string, { method = 'GET', body, signal, bypassCache }: Options = {}): Promise<{ data: T; meta?: PageMeta }> {
   if (DEMO_MODE) {
     const { DemoError, demoRequest } = await import('./demo/mock')
     try {
@@ -28,10 +42,14 @@ export async function request<T>(path: string, { method = 'GET', body, signal }:
       throw new ApiError(error.status, error.code, error.message, error.details)
     }
   }
+  const isMutation = method !== 'GET'
+  if (isMutation) clearApiCache()
+
+  const requestPath = bypassCache && method === 'GET' ? `${path}${path.includes('?') ? '&' : '?'}refresh=1` : path
   const isForm = body instanceof FormData
   let response: Response
   try {
-    response = await fetch(`${API_BASE}/api${path}`, {
+    response = await fetch(`${API_BASE}/api${requestPath}`, {
       method, signal, credentials: 'include',
       headers: body !== undefined && !isForm ? { 'Content-Type': 'application/json' } : undefined,
       body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
@@ -45,6 +63,14 @@ export async function request<T>(path: string, { method = 'GET', body, signal }:
     const error = payload?.error ?? {}
     if (response.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event('chazon:unauthorized'))
     throw new ApiError(response.status, error.code ?? 'ERROR', error.message ?? `Request failed (${response.status}).`, error.details)
+  }
+
+  if (method === 'GET' && !path.startsWith('/auth/')) {
+    if (getCache.size >= MAX_CACHE_ENTRIES) {
+      const oldestKey = getCache.keys().next().value
+      if (oldestKey) getCache.delete(oldestKey)
+    }
+    getCache.set(path, { data: payload.data, meta: payload.meta, ts: Date.now() })
   }
   return payload
 }
@@ -64,23 +90,63 @@ export const qs = (params: Record<string, string | number | undefined | null>) =
   return s ? `?${s}` : ''
 }
 
-/** Loads `path` (null = don't load). Keeps previous data while reloading, so lists don't flash. */
+/**
+ * Loads `path` (null = don't load). Hydrates immediately from SWR cache on repeat navigation
+ * while revalidating silently in the background so transitions never flash.
+ */
 export function useApi<T>(path: string | null) {
-  const [state, setState] = useState<{ data?: T; meta?: PageMeta; error?: ApiError; loading: boolean }>({ loading: !!path })
+  const cached = path && !DEMO_MODE ? (getCache.get(path) as { data: T; meta?: PageMeta; ts: number } | undefined) : undefined
+  const [state, setState] = useState<{ data?: T; meta?: PageMeta; error?: ApiError; loading: boolean }>(() =>
+    cached ? { data: cached.data, meta: cached.meta, loading: false } : { loading: !!path }
+  )
   const [version, setVersion] = useState(0)
+  const bypassRef = useRef(false)
+
   useEffect(() => {
     if (!path) return
     const controller = new AbortController()
-    setState(s => ({ ...s, loading: true, error: undefined }))
-    request<T>(path, { signal: controller.signal })
+    const hit = !DEMO_MODE && !bypassRef.current ? (getCache.get(path) as { data: T; meta?: PageMeta; ts: number } | undefined) : undefined
+    const bypass = bypassRef.current
+    bypassRef.current = false
+
+    setState(s => ({
+      data: hit ? hit.data : s.data,
+      meta: hit ? hit.meta : s.meta,
+      loading: !hit,
+      error: undefined,
+    }))
+
+    request<T>(path, { signal: controller.signal, bypassCache: bypass })
       .then(r => setState({ data: r.data, meta: r.meta, loading: false }))
-      .catch(error => { if (error.name !== 'AbortError') setState(s => ({ ...s, error: error instanceof ApiError ? error : new ApiError(0, 'ERROR', String(error)), loading: false })) })
+      .catch(error => {
+        if (error.name !== 'AbortError') {
+          setState(s => ({
+            data: s.data,
+            meta: s.meta,
+            error: error instanceof ApiError ? error : new ApiError(0, 'ERROR', String(error)),
+            loading: false,
+          }))
+        }
+      })
     return () => controller.abort()
   }, [path, version])
-  const reload = useCallback(() => setVersion(v => v + 1), [])
+
+  const reload = useCallback((force?: unknown) => {
+    if (force === true) {
+      bypassRef.current = true
+      if (path) getCache.delete(path)
+    }
+    setVersion(v => v + 1)
+  }, [path])
+
   const setData = useCallback((update: T | ((current: T | undefined) => T)) => {
-    setState(s => ({ ...s, data: typeof update === 'function' ? (update as (c: T | undefined) => T)(s.data) : update }))
-  }, [])
+    setState(s => {
+      const next = typeof update === 'function' ? (update as (c: T | undefined) => T)(s.data) : update
+      if (path && !DEMO_MODE) getCache.set(path, { data: next, meta: s.meta, ts: Date.now() })
+      return { ...s, data: next }
+    })
+  }, [path])
+
   return { ...state, reload, setData }
 }
 

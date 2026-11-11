@@ -3,11 +3,12 @@ import cors from 'cors'
 import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
 import { ENQUIRY_TYPES, INSIGHT_CATEGORIES, PILLARS, PUBLIC_PAGES, type PublicSite } from '@chazon/shared'
-import { prisma } from '../db'
+import { isDatabaseUnavailable, prisma } from '../db'
 import { env } from '../env'
 import { notifySubmission } from '../lib/email'
 import { ApiError, listQuery, notFound, ok, paged, parse } from '../lib/http'
 import { absolute, absoluteMarkdown, getSeo, getSettings } from '../lib/content'
+import { runtimeStore } from '../lib/runtime-store'
 
 // Endpoints used by the public website. Reads are public and cacheable; the only write is the enquiry form.
 export const publicRouter = Router()
@@ -74,38 +75,63 @@ const summary = <T extends { featuredImage: string | null; publishedAt: Date | n
 const pillarOrder = (p: string) => PILLARS.indexOf(p as (typeof PILLARS)[number])
 
 publicRouter.get('/site', cacheable(60), async (_req, res) => {
-  const [settings, seo, services, industries, testimonials, caseStudies, insights] = await Promise.all([
-    getSettings(),
-    getSeo(),
-    prisma.service.findMany({ where: { published: true, archivedAt: null }, orderBy: [{ order: 'asc' }, { title: 'asc' }], select: { title: true, slug: true, pillar: true, shortDescription: true } }),
-    prisma.industry.findMany({ where: { published: true }, orderBy: [{ order: 'asc' }, { name: 'asc' }], select: { name: true, slug: true, description: true } }),
-    prisma.testimonial.findMany({ where: { published: true }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], select: { name: true, company: true, designation: true, quote: true, photoUrl: true } }),
-    prisma.caseStudy.findMany({ where: { status: 'PUBLISHED' }, orderBy: [{ order: 'asc' }, { publishedAt: 'desc' }], take: 6, select: { title: true, slug: true, industry: true, summary: true, coverImage: true, publishedAt: true } }),
-    prisma.insight.findMany({ where: { status: 'PUBLISHED', publishedAt: { lte: new Date() } }, orderBy: { publishedAt: 'desc' }, take: 6, select: insightSummary }),
-  ])
-  const { id: _id, updatedAt: _updated, ...publicSettings } = settings
-  void _id; void _updated
-  const site: PublicSite = {
-    settings: publicSettings,
-    seo,
-    services: services.sort((a, b) => pillarOrder(a.pillar) - pillarOrder(b.pillar)),
-    industries,
-    testimonials: testimonials.map(t => ({ ...t, photoUrl: absolute(t.photoUrl) })),
-    caseStudies: caseStudies.map(c => ({ ...c, coverImage: absolute(c.coverImage), publishedAt: c.publishedAt?.toISOString() ?? null })),
-    insights: insights.map(summary),
+  try {
+    const [settings, seo, services, industries, testimonials, caseStudies, insights] = await Promise.all([
+      getSettings(),
+      getSeo(),
+      prisma.service.findMany({ where: { published: true, archivedAt: null }, orderBy: [{ order: 'asc' }, { title: 'asc' }], select: { title: true, slug: true, pillar: true, shortDescription: true } }),
+      prisma.industry.findMany({ where: { published: true }, orderBy: [{ order: 'asc' }, { name: 'asc' }], select: { name: true, slug: true, description: true } }),
+      prisma.testimonial.findMany({ where: { published: true }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], select: { name: true, company: true, designation: true, quote: true, photoUrl: true } }),
+      prisma.caseStudy.findMany({ where: { status: 'PUBLISHED' }, orderBy: [{ order: 'asc' }, { publishedAt: 'desc' }], take: 6, select: { title: true, slug: true, industry: true, summary: true, coverImage: true, publishedAt: true } }),
+      prisma.insight.findMany({ where: { status: 'PUBLISHED', publishedAt: { lte: new Date() } }, orderBy: { publishedAt: 'desc' }, take: 6, select: insightSummary }),
+    ])
+    const { id: _id, updatedAt: _updated, ...publicSettings } = settings
+    void _id; void _updated
+    const site: PublicSite = {
+      settings: publicSettings,
+      seo,
+      services: services.sort((a, b) => pillarOrder(a.pillar) - pillarOrder(b.pillar)),
+      industries,
+      testimonials: testimonials.map(t => ({ ...t, photoUrl: absolute(t.photoUrl) })),
+      caseStudies: caseStudies.map(c => ({ ...c, coverImage: absolute(c.coverImage), publishedAt: c.publishedAt?.toISOString() ?? null })),
+      insights: insights.map(summary),
+    }
+    ok(res, site)
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err
+    const [settings, seo] = await Promise.all([getSettings(), getSeo()])
+    const { id: _id, updatedAt: _updated, ...publicSettings } = settings
+    void _id; void _updated
+    const site: PublicSite = {
+      settings: publicSettings,
+      seo,
+      services: runtimeStore.services
+        .filter(s => s.published && !s.archivedAt)
+        .map(({ title, slug, pillar, shortDescription }) => ({ title, slug, pillar, shortDescription }))
+        .sort((a, b) => pillarOrder(a.pillar) - pillarOrder(b.pillar)),
+      industries: runtimeStore.industries.filter(i => i.published).map(({ name, slug, description }) => ({ name, slug, description })),
+      testimonials: [],
+      caseStudies: [],
+      insights: [],
+    }
+    ok(res, site)
   }
-  ok(res, site)
 })
 
 publicRouter.get('/insights', cacheable(60), async (req, res) => {
   const { page, pageSize } = parse(listQuery, req.query)
   const category = z.enum(INSIGHT_CATEGORIES).optional().catch(undefined).parse(req.query.category)
   const where = { status: 'PUBLISHED' as const, publishedAt: { lte: new Date() }, ...(category ? { category } : {}) }
-  const [items, total] = await Promise.all([
-    prisma.insight.findMany({ where, orderBy: { publishedAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize, select: insightSummary }),
-    prisma.insight.count({ where }),
-  ])
-  paged(res, items.map(summary), total, page, pageSize)
+  try {
+    const [items, total] = await Promise.all([
+      prisma.insight.findMany({ where, orderBy: { publishedAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize, select: insightSummary }),
+      prisma.insight.count({ where }),
+    ])
+    paged(res, items.map(summary), total, page, pageSize)
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err
+    paged(res, [], 0, page, pageSize)
+  }
 })
 
 publicRouter.get('/insights/:slug', cacheable(60), async (req, res) => {
@@ -123,8 +149,13 @@ publicRouter.get('/insights/:slug', cacheable(60), async (req, res) => {
 })
 
 publicRouter.get('/case-studies', cacheable(60), async (_req, res) => {
-  const items = await prisma.caseStudy.findMany({ where: { status: 'PUBLISHED' }, orderBy: [{ order: 'asc' }, { publishedAt: 'desc' }], select: { title: true, slug: true, industry: true, summary: true, coverImage: true, publishedAt: true } })
-  ok(res, items.map(c => ({ ...c, coverImage: absolute(c.coverImage), publishedAt: c.publishedAt?.toISOString() ?? null })))
+  try {
+    const items = await prisma.caseStudy.findMany({ where: { status: 'PUBLISHED' }, orderBy: [{ order: 'asc' }, { publishedAt: 'desc' }], select: { title: true, slug: true, industry: true, summary: true, coverImage: true, publishedAt: true } })
+    ok(res, items.map(c => ({ ...c, coverImage: absolute(c.coverImage), publishedAt: c.publishedAt?.toISOString() ?? null })))
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err
+    ok(res, [])
+  }
 })
 
 publicRouter.get('/case-studies/:slug', cacheable(60), async (req, res) => {

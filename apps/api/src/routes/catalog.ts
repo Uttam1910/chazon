@@ -1,9 +1,10 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { PILLARS } from '@chazon/shared'
-import { prisma, type Prisma } from '../db'
+import { isDatabaseUnavailable, prisma, type Prisma } from '../db'
 import { uniqueSlug } from '../lib/content'
 import { notFound, ok, optionalText, parse, requiredText, slug, urlOrPath } from '../lib/http'
+import { runtimeStore } from '../lib/runtime-store'
 
 // Ordered, publishable lists: Services, Industries and Testimonials.
 
@@ -30,16 +31,28 @@ const serviceUpdate = z.object(serviceFields).partial()
 
 servicesRouter.get('/', async (req, res) => {
   const view = z.enum(['active', 'archived', 'all']).catch('active').parse(req.query.view ?? 'active')
-  const items = await prisma.service.findMany({
-    where: view === 'active' ? { archivedAt: null } : view === 'archived' ? { archivedAt: { not: null } } : {},
-    orderBy: [{ pillar: 'asc' }, { order: 'asc' }, { title: 'asc' }],
-  })
-  ok(res, items)
+  try {
+    const items = await prisma.service.findMany({
+      where: view === 'active' ? { archivedAt: null } : view === 'archived' ? { archivedAt: { not: null } } : {},
+      orderBy: [{ pillar: 'asc' }, { order: 'asc' }, { title: 'asc' }],
+    })
+    ok(res, items)
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err
+    ok(res, runtimeStore.services.filter(s => (view === 'active' ? !s.archivedAt : view === 'archived' ? !!s.archivedAt : true)))
+  }
 })
 servicesRouter.get('/:id', async (req, res) => {
-  const item = await prisma.service.findUnique({ where: { id: req.params.id } })
-  if (!item) throw notFound('Service')
-  ok(res, item)
+  try {
+    const item = await prisma.service.findUnique({ where: { id: req.params.id } })
+    if (!item) throw notFound('Service')
+    ok(res, item)
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err
+    const mem = runtimeStore.services.find(s => s.id === req.params.id || s.slug === req.params.id)
+    if (!mem) throw notFound('Service')
+    ok(res, mem)
+  }
 })
 servicesRouter.post('/', async (req, res) => {
   const { archived, slug: requested, ...data } = parse(serviceCreate, req.body)
@@ -70,7 +83,14 @@ const industryFields = { name: requiredText(100, 'Name'), slug: slug.optional(),
 const industryCreate = z.object(industryFields).partial({ published: true })
 const industryUpdate = z.object(industryFields).partial()
 
-industriesRouter.get('/', async (_req, res) => ok(res, await prisma.industry.findMany({ orderBy: [{ order: 'asc' }, { name: 'asc' }] })))
+industriesRouter.get('/', async (_req, res) => {
+  try {
+    ok(res, await prisma.industry.findMany({ orderBy: [{ order: 'asc' }, { name: 'asc' }] }))
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err
+    ok(res, runtimeStore.industries)
+  }
+})
 industriesRouter.post('/', async (req, res) => {
   const { slug: requested, ...data } = parse(industryCreate, req.body)
   const last = await prisma.industry.findFirst({ orderBy: { order: 'desc' }, select: { order: true } })
@@ -101,7 +121,14 @@ const testimonialFields = {
 const testimonialCreate = z.object(testimonialFields).partial({ published: true })
 const testimonialUpdate = z.object(testimonialFields).partial()
 
-testimonialsRouter.get('/', async (_req, res) => ok(res, await prisma.testimonial.findMany({ orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] })))
+testimonialsRouter.get('/', async (_req, res) => {
+  try {
+    ok(res, await prisma.testimonial.findMany({ orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] }))
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err
+    ok(res, runtimeStore.testimonials)
+  }
+})
 testimonialsRouter.post('/', async (req, res) => {
   const data = parse(testimonialCreate, req.body)
   const last = await prisma.testimonial.findFirst({ orderBy: { order: 'desc' }, select: { order: true } })

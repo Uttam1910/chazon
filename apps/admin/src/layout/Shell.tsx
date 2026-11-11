@@ -11,11 +11,18 @@ import { useCurrentTitle } from './title'
 import { useAuth } from '../auth-context'
 import { timeAgo, useDebounced } from '../ui/utils'
 
-type Notifications = { newLeads: number; newAudits: number; items: { id: string; kind: 'lead' | 'audit'; name: string; businessName: string; createdAt: string }[] }
+type Notifications = {
+  storageMode?: 'database' | 'memory'
+  newLeads: number
+  newAudits: number
+  runningScans?: number
+  totalScans?: number
+  items: { id: string; kind: 'lead' | 'audit'; name: string; businessName: string; createdAt: string }[]
+}
 
 const sections: { label: string; items: { to: string; label: string; icon: typeof Bell; badge?: 'leads' | 'audits'; adminOnly?: boolean }[] }[] = [
   { label: 'Overview', items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }] },
-  { label: 'Pipeline', items: [{ to: '/leads', label: 'Leads', icon: UserRound, badge: 'leads' }, { to: '/audits', label: 'Growth Audits', icon: SearchCheck, badge: 'audits' }] },
+  { label: 'Pipeline', items: [{ to: '/leads', label: 'Leads', icon: UserRound, badge: 'leads' }, { to: '/audits', label: 'Audits & Scans', icon: SearchCheck, badge: 'audits' }] },
   {
     label: 'Content', items: [
       { to: '/services', label: 'Services', icon: Layers }, { to: '/case-studies', label: 'Work / Case Studies', icon: Briefcase },
@@ -46,9 +53,14 @@ export function Shell() {
   const location = useLocation()
   const notifications = useApi<Notifications>('/dashboard/notifications')
   const { reload } = notifications
-  // Refresh counts on navigation and every minute.
+  // Refresh counts on navigation, tab focus, and every minute while visible.
   useEffect(() => { reload() }, [location.pathname, reload])
-  useEffect(() => { const t = setInterval(reload, 60_000); return () => clearInterval(t) }, [reload])
+  useEffect(() => {
+    const t = setInterval(() => { if (!document.hidden) reload() }, 60_000)
+    const onVisible = () => { if (!document.hidden) reload() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVisible) }
+  }, [reload])
   useEffect(() => { setDrawer(false) }, [location.pathname])
   useEffect(() => {
     if (!drawer) return
@@ -85,6 +97,10 @@ export function Shell() {
         {notifications.error?.code === 'DATABASE_UNAVAILABLE' && <div className="db-banner" role="status">
           <DatabaseZap size={18} aria-hidden="true"/>
           <p><strong>Database not connected.</strong> You’re signed in, but leads, content and settings can’t load until <code>DATABASE_URL</code> is set in <code>.env</code> and <code>npm run db:migrate</code> has been run.</p>
+        </div>}
+        {notifications.data?.storageMode === 'memory' && <div className="db-banner info" role="status">
+          <DatabaseZap size={18} aria-hidden="true"/>
+          <p><strong>Live Website Sync (Session Memory).</strong> Displaying live website defaults, instant Website Audits, and session enquiries. Add <code>DATABASE_URL</code> to <code>.env</code> when ready to persist permanently in PostgreSQL.</p>
         </div>}
         <Outlet/>
       </main>
@@ -123,6 +139,7 @@ function TopBar({ onMenu, notifications }: { onMenu: () => void; notifications?:
 type SearchResults = {
   leads: { id: string; name: string; businessName: string; status: LeadStatus }[]
   audits: { id: string; name: string; businessName: string; status: AuditStatus }[]
+  scans?: { id: string; reference: string; url: string; normalizedUrl: string; overallScore: number }[]
   insights: { id: string; title: string; status: ContentStatus }[]
   caseStudies: { id: string; title: string; status: ContentStatus }[]
 }
@@ -138,6 +155,7 @@ function GlobalSearch() {
   const go = (to: string) => { setOpen(false); setExpanded(false); setQ(''); navigate(to) }
   const groups: [string, { id: string; label: string; sub?: string; badge: ReactNode; to: string }[]][] = data ? [
     ['Leads', data.leads.map(l => ({ id: l.id, label: l.name, sub: l.businessName, badge: <Badge value={l.status} label={LEAD_STATUS_LABELS[l.status]}/>, to: `/leads/${l.id}` }))],
+    ['Website scans', (data.scans ?? []).map(s => ({ id: s.id, label: s.normalizedUrl || s.url, sub: s.reference, badge: <Badge label={`${s.overallScore}/100`} tone={s.overallScore >= 75 ? 'green' : s.overallScore >= 50 ? 'orange' : 'red'}/>, to: `/audits?tab=scans&q=${encodeURIComponent(s.normalizedUrl || s.url)}` }))],
     ['Growth audits', data.audits.map(a => ({ id: a.id, label: a.name, sub: a.businessName, badge: <Badge value={a.status} label={AUDIT_STATUS_LABELS[a.status]}/>, to: `/audits/${a.id}` }))],
     ['Insights', data.insights.map(i => ({ id: i.id, label: i.title, badge: <Badge value={i.status} label={CONTENT_STATUS_LABELS[i.status]}/>, to: `/insights/${i.id}` }))],
     ['Case studies', data.caseStudies.map(c => ({ id: c.id, label: c.title, badge: <Badge value={c.status} label={CONTENT_STATUS_LABELS[c.status]}/>, to: `/case-studies/${c.id}` }))],

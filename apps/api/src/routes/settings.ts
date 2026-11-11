@@ -1,10 +1,11 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { SEO_PAGES } from '@chazon/shared'
-import { prisma } from '../db'
+import { isDatabaseUnavailable, prisma } from '../db'
 import { requireRole } from '../lib/auth'
 import { getSettings } from '../lib/content'
 import { httpsUrl, ok, optionalText, parse, text, urlOrPath } from '../lib/http'
+import { runtimeStore } from '../lib/runtime-store'
 
 // ---------- Website settings (public, non-secret values only) ----------
 export const settingsRouter = Router()
@@ -27,8 +28,16 @@ const settingsSchema = z.object({
 settingsRouter.get('/', async (_req, res) => ok(res, await getSettings()))
 settingsRouter.put('/', requireRole('ADMIN'), async (req, res) => {
   const data = parse(settingsSchema, req.body)
-  await getSettings()
-  ok(res, await prisma.websiteSettings.update({ where: { id: 'default' }, data }))
+  try {
+    await prisma.websiteSettings.upsert({ where: { id: 'default' }, update: {}, create: { id: 'default' } })
+    const saved = await prisma.websiteSettings.update({ where: { id: 'default' }, data })
+    runtimeStore.invalidateDashboard()
+    ok(res, saved)
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err
+    Object.assign(runtimeStore.settings, data, { updatedAt: new Date() })
+    ok(res, runtimeStore.settings)
+  }
 })
 
 // ---------- SEO ----------
@@ -46,11 +55,23 @@ const seoSchema = z.object({
 }).partial()
 
 seoRouter.get('/', async (_req, res) => {
-  const rows = await prisma.seoSetting.findMany()
-  ok(res, SEO_PAGES.map(page => rows.find(r => r.page === page) ?? { page, title: null, description: null, canonicalUrl: null, ogTitle: null, ogDescription: null, ogImage: null, noindex: false, nofollow: false, updatedAt: null }))
+  try {
+    const rows = await prisma.seoSetting.findMany()
+    ok(res, SEO_PAGES.map(page => rows.find(r => r.page === page) ?? { page, title: null, description: null, canonicalUrl: null, ogTitle: null, ogDescription: null, ogImage: null, noindex: false, nofollow: false, updatedAt: null }))
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err
+    ok(res, runtimeStore.seo)
+  }
 })
 seoRouter.put('/:page', async (req, res) => {
   const page = z.enum(SEO_PAGES).parse(req.params.page)
   const data = parse(seoSchema, req.body)
-  ok(res, await prisma.seoSetting.upsert({ where: { page }, update: data, create: { page, ...data } }))
+  try {
+    ok(res, await prisma.seoSetting.upsert({ where: { page }, update: data, create: { page, ...data } }))
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err
+    const existing = runtimeStore.seo.find(s => s.page === page)
+    if (existing) Object.assign(existing, data, { updatedAt: new Date().toISOString() })
+    ok(res, existing)
+  }
 })
