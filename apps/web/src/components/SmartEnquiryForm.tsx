@@ -22,7 +22,7 @@ import {
   Zap,
 } from 'lucide-react'
 import type { EnquiryCategory } from '@chazon/shared'
-import { config, demoMode, sourceDetail, track } from '../config'
+import { config, demoMode, getEnquiryEndpoints, sourceDetail, track } from '../config'
 import { useRouter } from '../location'
 import { CustomDropdown } from './CustomDropdown'
 
@@ -268,14 +268,26 @@ export function SmartEnquiryForm({
     meta: { form: 'quick_message' | 'interactive_scope'; name: string; errorKeyMap: Record<string, string> },
   ) => {
     setBusy(true)
-    const endpoint = config.enquiryEndpoint || `${config.apiUrl || ''}/api/public/enquiries`
+    const endpoints = getEnquiryEndpoints()
+    let res: Response | null = null
 
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+      for (const endpoint of endpoints) {
+        try {
+          res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          break
+        } catch {
+          res = null
+        }
+      }
+
+      if (!res) {
+        throw new Error('Network error')
+      }
 
       if (res.ok) {
         const json = await res.json().catch(() => ({})) as { data?: { reference?: string; whatsAppHref?: string }; reference?: string; whatsAppHref?: string }

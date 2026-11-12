@@ -4,7 +4,7 @@ import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
 import { LEAD_STATUSES, LEAD_STATUS_LABELS } from '@chazon/shared'
 import { isDatabaseUnavailable, prisma, type Prisma } from '../db'
-import { env, isAllowedOrigin } from '../env'
+import { env, getRequestOrigin, isAllowedOrigin } from '../env'
 import { generateReference } from '../lib/audit-engine'
 import { dispatchBackground } from '../lib/background'
 import { notifySubmission, type Submission } from '../lib/email'
@@ -16,10 +16,15 @@ export const publicEnquiriesRouter = Router()
 // Protected router for admin enquiry management
 export const adminEnquiriesRouter = Router()
 
-const formCors = cors({
-  origin: (origin, cb) => cb(null, origin ? isAllowedOrigin(origin, env.PUBLIC_SITE_URL) : false),
-  methods: ['POST', 'OPTIONS'],
-  maxAge: 600,
+const formCors = cors((req, cb) => {
+  const rawOrigin = req.headers.origin
+  const reqOrigin = Array.isArray(rawOrigin) ? rawOrigin[0] : rawOrigin
+  const allowed = reqOrigin ? isAllowedOrigin(reqOrigin, env.PUBLIC_SITE_URL, getRequestOrigin(req)) : false
+  cb(null, {
+    origin: allowed ? reqOrigin : false,
+    methods: ['POST', 'OPTIONS'],
+    maxAge: 600,
+  })
 })
 
 const enquiryLimiter = rateLimit({
@@ -100,7 +105,7 @@ async function linkAuditReference(auditRef: string | null | undefined, leadId: s
 publicEnquiriesRouter.options('/', formCors)
 publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimiter, async (req, res) => {
   const origin = req.get('origin')
-  if (origin && env.PUBLIC_SITE_URL && !isAllowedOrigin(origin, env.PUBLIC_SITE_URL)) {
+  if (origin && !isAllowedOrigin(origin, env.PUBLIC_SITE_URL, getRequestOrigin(req))) {
     throw new ApiError(403, 'FORBIDDEN', 'Origin not allowed.')
   }
 

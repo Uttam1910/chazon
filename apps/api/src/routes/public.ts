@@ -4,7 +4,7 @@ import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
 import { ENQUIRY_TYPES, INSIGHT_CATEGORIES, PILLARS, PUBLIC_PAGES, type PublicSite } from '@chazon/shared'
 import { isDatabaseUnavailable, prisma } from '../db'
-import { env, isAllowedOrigin } from '../env'
+import { env, getRequestOrigin, isAllowedOrigin } from '../env'
 import { dispatchBackground } from '../lib/background'
 import { notifySubmission } from '../lib/email'
 import { ApiError, listQuery, notFound, ok, paged, parse } from '../lib/http'
@@ -15,10 +15,15 @@ import { runtimeStore } from '../lib/runtime-store'
 export const publicRouter = Router()
 
 const readCors = cors({ origin: '*', methods: ['GET'] })
-const formCors = cors({
-  origin: (origin, cb) => cb(null, origin ? isAllowedOrigin(origin, env.PUBLIC_SITE_URL) : false),
-  methods: ['POST'],
-  maxAge: 600,
+const formCors = cors((req, cb) => {
+  const rawOrigin = req.headers.origin
+  const reqOrigin = Array.isArray(rawOrigin) ? rawOrigin[0] : rawOrigin
+  const allowed = reqOrigin ? isAllowedOrigin(reqOrigin, env.PUBLIC_SITE_URL, getRequestOrigin(req)) : false
+  cb(null, {
+    origin: allowed ? reqOrigin : false,
+    methods: ['POST', 'OPTIONS'],
+    maxAge: 600,
+  })
 })
 // Browsers revalidate on every view (cheap 304s via ETag) so Admin changes show immediately;
 // shared caches / CDNs may hold a copy for `seconds`.
@@ -49,7 +54,7 @@ const enquirySchema = z.object({
 publicRouter.options('/enquiries', formCors)
 publicRouter.post('/enquiries', formCors, json({ limit: '32kb' }), enquiryLimiter, async (req, res) => {
   const origin = req.get('origin')
-  if (origin && env.PUBLIC_SITE_URL && !isAllowedOrigin(origin, env.PUBLIC_SITE_URL)) throw new ApiError(403, 'FORBIDDEN', 'Origin not allowed.')
+  if (origin && !isAllowedOrigin(origin, env.PUBLIC_SITE_URL, getRequestOrigin(req))) throw new ApiError(403, 'FORBIDDEN', 'Origin not allowed.')
   const body = parse(enquirySchema, req.body)
   // Likely automated: the honeypot is filled, the form was submitted implausibly fast, or the message is mostly links.
   // Answer as if accepted so bots learn nothing, but store nothing.

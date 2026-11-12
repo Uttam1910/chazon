@@ -3,7 +3,18 @@ import type { PageMeta } from '@chazon/shared'
 
 // The API origin. In development it defaults to the local API; in production set VITE_API_URL
 // (same site as the Admin, e.g. https://api.example.com for https://admin.example.com) or serve /api from the Admin's origin.
-export const API_BASE = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '')).replace(/\/$/, '')
+const rawApiUrl = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '')).replace(/\/$/, '')
+const runtimeHost = typeof window !== 'undefined' && window.location ? window.location.hostname.toLowerCase() : ''
+const isLoopback = (v: string) => {
+  try {
+    const host = new URL(v).hostname.toLowerCase()
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]'
+  } catch {
+    return false
+  }
+}
+const onLoopbackHost = runtimeHost === 'localhost' || runtimeHost === '127.0.0.1' || runtimeHost === '::1' || runtimeHost === '[::1]'
+export const API_BASE = !import.meta.env.DEV && isLoopback(rawApiUrl) && !onLoopbackHost ? '' : rawApiUrl
 
 /** Demo mode (VITE_DEMO_MODE=true): every request is answered from built-in sample data — no API or database. */
 export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'

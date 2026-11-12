@@ -1,27 +1,98 @@
 const metaEnv = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {} as Record<string, string | undefined>
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
+
+export function isLoopbackHostname(hostname: string | undefined | null): boolean {
+  if (!hostname) return false
+  return LOOPBACK_HOSTS.has(hostname.toLowerCase())
+}
+
+export function isLoopbackUrl(value: string | undefined | null): boolean {
+  if (!value) return false
+  try {
+    return isLoopbackHostname(new URL(value).hostname)
+  } catch {
+    return false
+  }
+}
+
+export function getRuntimeHostname(): string {
+  return typeof window !== 'undefined' && window.location ? window.location.hostname : ''
+}
+
+export function resolveApiUrl(
+  rawApiUrl: string | undefined,
+  options: { isDev?: boolean; runtimeHostname?: string } = {},
+): string {
+  const isDev = options.isDev ?? Boolean(metaEnv.DEV)
+  const runtimeHostname = options.runtimeHostname ?? getRuntimeHostname()
+  const trimmed = (rawApiUrl || '').trim().replace(/\/$/, '')
+
+  if (!trimmed) {
+    return isDev ? 'http://localhost:5000' : ''
+  }
+
+  // Never send visitors on a deployed non-localhost origin to a leaked .env localhost API URL
+  if (!isDev && isLoopbackUrl(trimmed) && !isLoopbackHostname(runtimeHostname)) {
+    return ''
+  }
+
+  return trimmed
+}
+
+export function resolveEnquiryEndpoint(
+  rawEndpoint: string | undefined,
+  resolvedApiUrl: string,
+  allowSameOrigin: boolean,
+  options: { isDev?: boolean; runtimeHostname?: string } = {},
+): string {
+  const isDev = options.isDev ?? Boolean(metaEnv.DEV)
+  const runtimeHostname = options.runtimeHostname ?? getRuntimeHostname()
+  const explicit = (rawEndpoint || '').trim()
+
+  if (explicit && (isDev || !isLoopbackUrl(explicit) || isLoopbackHostname(runtimeHostname))) {
+    return explicit
+  }
+
+  return allowSameOrigin ? `${resolvedApiUrl}/api/public/enquiries` : ''
+}
+
 // Chazon API origin. In development it defaults to the local API started by `npm run dev`; in production set
 // VITE_API_URL (or VITE_SAME_ORIGIN_API=true when hosted under the same origin) to enable CMS content and enquiries.
-const apiUrl = (metaEnv.VITE_API_URL || (metaEnv.DEV ? 'http://localhost:5000' : '')).replace(/\/$/, '')
+const apiUrl = resolveApiUrl(metaEnv.VITE_API_URL)
 const sameOriginApi = metaEnv.VITE_SAME_ORIGIN_API === 'true'
 export const apiConfigured = Boolean(apiUrl || sameOriginApi)
 
 /** Demo mode (VITE_DEMO_MODE=true): published content comes from built-in sample data; enquiries are not sent. */
 export const demoMode = metaEnv.VITE_DEMO_MODE === 'true'
 
+const siteUrlRaw = (metaEnv.VITE_SITE_URL || '').trim().replace(/\/$/, '')
+const siteUrl = !metaEnv.DEV && isLoopbackUrl(siteUrlRaw) ? '' : siteUrlRaw
+
 export const config = {
-  siteUrl: metaEnv.VITE_SITE_URL?.replace(/\/$/, '') || '',
+  siteUrl,
   apiUrl,
   email: metaEnv.VITE_CONTACT_EMAIL || '',
   phone: metaEnv.VITE_PHONE || '',
   whatsapp: metaEnv.VITE_WHATSAPP_NUMBER || '919820000000',
   // An explicit endpoint wins; otherwise enquiries go to the Chazon API when one is configured.
-  enquiryEndpoint: metaEnv.VITE_ENQUIRY_ENDPOINT || (apiConfigured ? `${apiUrl}/api/public/enquiries` : ''),
+  enquiryEndpoint: resolveEnquiryEndpoint(metaEnv.VITE_ENQUIRY_ENDPOINT, apiUrl, apiConfigured),
   instagram: metaEnv.VITE_INSTAGRAM_URL || '',
   linkedin: metaEnv.VITE_LINKEDIN_URL || '',
   facebook: metaEnv.VITE_FACEBOOK_URL || '',
   // Optional scheduling page (e.g. Calendly or Cal.com). Without it, discovery calls are requested through the form.
   bookingUrl: safeHttps(metaEnv.VITE_BOOKING_URL || ''),
+}
+
+export function getEnquiryEndpoints(
+  customConfig: Pick<typeof config, 'apiUrl' | 'enquiryEndpoint'> = config,
+): string[] {
+  const list: string[] = []
+  if (customConfig.enquiryEndpoint) list.push(customConfig.enquiryEndpoint)
+  if (customConfig.apiUrl) list.push(`${customConfig.apiUrl}/api/public/enquiries`)
+  // Always keep relative same-origin endpoint as primary/fallback so Vercel `/api/*` rewrites work seamlessly
+  list.push('/api/public/enquiries')
+  return [...new Set(list)]
 }
 
 function safeHttps(value: string) {

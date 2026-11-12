@@ -18,14 +18,33 @@ const run = (label, args, env) => {
 const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL
 const vercelSiteUrl = vercelHost ? (vercelHost.startsWith('http') ? vercelHost : `https://${vercelHost}`).replace(/\/$/, '') : ''
 
+const isLoopback = value => {
+  if (!value) return false
+  try {
+    const host = new URL(value).hostname.toLowerCase()
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]'
+  } catch {
+    return false
+  }
+}
+
+const resolvedSiteUrl = (!process.env.VITE_SITE_URL || isLoopback(process.env.VITE_SITE_URL)) ? vercelSiteUrl : process.env.VITE_SITE_URL
+const clearLoopbackApi = !process.env.VITE_API_URL || isLoopback(process.env.VITE_API_URL)
+const clearLoopbackEndpoint = !process.env.VITE_ENQUIRY_ENDPOINT || isLoopback(process.env.VITE_ENQUIRY_ENDPOINT)
+
 run('Prisma client', ['run', 'db:generate'])
 run('API', ['run', 'build:api'])
 run('Website', ['run', 'build:web'], {
   VITE_DEMO_MODE: 'false',
   VITE_SAME_ORIGIN_API: 'true',
-  ...(vercelSiteUrl && !process.env.VITE_SITE_URL ? { VITE_SITE_URL: vercelSiteUrl } : {}),
+  ...(clearLoopbackApi ? { VITE_API_URL: '' } : {}),
+  ...(clearLoopbackEndpoint ? { VITE_ENQUIRY_ENDPOINT: '' } : {}),
+  ...(resolvedSiteUrl ? { VITE_SITE_URL: resolvedSiteUrl } : {}),
 })
-run('Admin (served at /admin)', ['run', 'build:admin'], { ADMIN_BASE: '/admin/' })
+run('Admin (served at /admin)', ['run', 'build:admin'], {
+  ADMIN_BASE: '/admin/',
+  ...(clearLoopbackApi ? { VITE_API_URL: '' } : {}),
+})
 
 const target = join(root, 'apps/web/dist/admin')
 if (existsSync(target)) rmSync(target, { recursive: true })

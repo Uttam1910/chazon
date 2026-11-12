@@ -12,9 +12,20 @@ import { loadEnv } from 'vite'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const dist = join(root, 'dist')
 const ssr = join(root, 'dist-ssr')
+const isLoopback = (value) => {
+  if (!value) return false
+  try {
+    const host = new URL(value).hostname.toLowerCase()
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]'
+  } catch {
+    return false
+  }
+}
 const env = loadEnv('production', resolve(root, '../..'), 'VITE_')
-const siteUrl = (env.VITE_SITE_URL || '').replace(/\/$/, '')
-const apiUrl = (env.VITE_API_URL || '').replace(/\/$/, '')
+const rawSiteUrl = (env.VITE_SITE_URL || '').replace(/\/$/, '')
+const rawApiUrl = (env.VITE_API_URL || '').replace(/\/$/, '')
+const siteUrl = isLoopback(rawSiteUrl) ? '' : rawSiteUrl
+const apiUrl = isLoopback(rawApiUrl) ? '' : rawApiUrl
 const fail = message => { console.error(`✖ prerender: ${message}`); process.exit(1) }
 
 const { render, PUBLIC_PAGES } = await import(pathToFileURL(join(ssr, 'entry-server.js')).href)

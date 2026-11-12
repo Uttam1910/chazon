@@ -4,7 +4,7 @@ import type {
   AuditRequest,
   PublicConfig,
 } from '@chazon/shared'
-import { config } from '../config'
+import { config, getRuntimeHostname, isLoopbackHostname } from '../config'
 
 export class AuditApiError extends Error {
   constructor(
@@ -22,8 +22,11 @@ function getCandidateBases(): string[] {
   if (config.apiUrl) {
     list.push(`${config.apiUrl}/api/audit`) // 2. Explicit API URL from environment
   }
-  list.push('http://localhost:5000/api/audit') // 3. Local API default
-  list.push('http://localhost:8787/api') // 4. Standalone audit server port
+  const isLocal = Boolean(import.meta.env.DEV) || isLoopbackHostname(getRuntimeHostname())
+  if (isLocal) {
+    list.push('http://localhost:5000/api/audit') // 3. Local API default
+    list.push('http://localhost:8787/api') // 4. Standalone audit server port
+  }
   return [...new Set(list)]
 }
 
