@@ -198,7 +198,117 @@ export function analyzeAccessibility(pages: PageData[]): FindingDraft[] {
       effort: 'medium',
     });
   }
+  const noMain = pagesWith(pages, (p) => !p.techHealth.hasMainLandmark);
+  if (noMain.length) {
+    findings.push({
+      id: 'a11y.missing-main-landmark',
+      ...common,
+      severity: 'low',
+      confidence: 'high',
+      title: 'Pages missing a semantic <main> landmark',
+      plainSummary: `${plural(noMain.length, 'page')} ${noMain.length === 1 ? 'does' : 'do'} not declare a \`<main>\` element (or \`role="main"\`), making keyboard and screen-reader skip navigation harder.`,
+      observed: `No <main> or role="main" on ${plural(noMain.length, 'page')}`,
+      expected: 'Wrap primary page content in a single `<main>` landmark.',
+      evidence: noMain.slice(0, 5).map((p) => `Missing <main> landmark on ${p.finalUrl}`),
+      affected: noMain.slice(0, 15).map((p) => p.finalUrl),
+      explanation: 'Screen-reader users rely on ARIA/HTML landmarks (`<main>`, `<nav>`, `<header>`, `<footer>`) to jump straight to primary page content.',
+      recommendation: 'Wrap the primary content region of your layout template in `<main>`.',
+      effortRationale: 'Usually a single wrapper change in the shared page layout.',
+      verification: 'Inspect rendered DOM to verify one `<main>` element wraps the primary content.',
+      status: 'confirmed',
+    });
+  }
+
   return findings;
+}
+
+/** HTML-level accessibility checks powering custom scoring when Lighthouse is unavailable. */
+export function accessibilityChecks(pages: PageData[]): CheckResult[] {
+  const c = new CheckList('accessibility');
+  if (pages.length === 0) {
+    c.skip('a11y-lang', 'HTML lang attribute present', 2, 'No HTML pages retrieved.');
+    c.skip('a11y-img-alt', 'Images have alt attributes', 3, 'No HTML pages retrieved.');
+    c.skip('a11y-form-labels', 'Form inputs have accessible labels', 2, 'No HTML pages retrieved.');
+    c.skip('a11y-button-names', 'Buttons have discernible names', 2, 'No HTML pages retrieved.');
+    c.skip('a11y-link-names', 'Links have discernible text', 2, 'No HTML pages retrieved.');
+    c.skip('a11y-headings', 'Heading levels do not skip tiers', 2, 'No HTML pages retrieved.');
+    c.skip('a11y-tabindex', 'No positive tabindex overrides', 1, 'No HTML pages retrieved.');
+    c.skip('a11y-landmark', 'Document contains a <main> landmark', 1, 'No HTML pages retrieved.');
+    c.skip('a11y-zoom', 'Pinch-to-zoom remains enabled', 2, 'No HTML pages retrieved.');
+    return c.items;
+  }
+
+  const n = pages.length;
+  const withLang = pages.filter((p) => Boolean(p.lang && p.lang.trim().length > 0)).length;
+  const langRatio = withLang / n;
+  const langDetail = `${withLang} of ${n} page(s) declare <html lang>.`;
+  if (langRatio === 1) c.pass('a11y-lang', 'HTML lang attribute present', 2, langDetail);
+  else if (langRatio >= 0.5) c.warn('a11y-lang', 'HTML lang attribute present', 2, langDetail, langRatio);
+  else c.fail('a11y-lang', 'HTML lang attribute present', 2, langDetail);
+
+  const totalImgs = pages.reduce((s, p) => s + p.images.total, 0);
+  const missingAlt = pages.reduce((s, p) => s + p.images.missingAltCount, 0);
+  if (totalImgs === 0) {
+    c.skip('a11y-img-alt', 'Images have alt attributes', 3, 'No <img> elements found on inspected pages.');
+  } else {
+    const altRatio = (totalImgs - missingAlt) / totalImgs;
+    const altDetail = `${totalImgs - missingAlt} of ${totalImgs} <img> element(s) include alt attributes.`;
+    if (altRatio >= 0.95) c.pass('a11y-img-alt', 'Images have alt attributes', 3, altDetail);
+    else if (altRatio >= 0.7) c.warn('a11y-img-alt', 'Images have alt attributes', 3, altDetail, altRatio);
+    else c.fail('a11y-img-alt', 'Images have alt attributes', 3, altDetail);
+  }
+
+  const totalFields = pages.reduce((s, p) => s + p.forms.reduce((fs, f) => fs + f.fieldCount, 0), 0);
+  const unlabeledFields = pages.reduce((s, p) => s + p.a11y.unlabeledFields.length, 0);
+  if (totalFields === 0) {
+    c.skip('a11y-form-labels', 'Form inputs have accessible labels', 2, 'No form input fields found on inspected pages.');
+  } else {
+    const labelRatio = Math.max(0, totalFields - unlabeledFields) / totalFields;
+    const labelDetail = `${Math.max(0, totalFields - unlabeledFields)} of ${totalFields} form field(s) have accessible labels.`;
+    if (labelRatio === 1) c.pass('a11y-form-labels', 'Form inputs have accessible labels', 2, labelDetail);
+    else if (labelRatio >= 0.6) c.warn('a11y-form-labels', 'Form inputs have accessible labels', 2, labelDetail, labelRatio);
+    else c.fail('a11y-form-labels', 'Form inputs have accessible labels', 2, labelDetail);
+  }
+
+  const unnamedBtns = pages.reduce((s, p) => s + p.a11y.unnamedButtons.length, 0);
+  c.bool(
+    'a11y-button-names',
+    'Buttons have discernible names',
+    2,
+    unnamedBtns === 0,
+    unnamedBtns === 0 ? 'All inspected buttons have visible text or aria-label.' : `${plural(unnamedBtns, 'button')} missing an accessible name.`,
+  );
+
+  const unnamedLinks = pages.reduce((s, p) => s + p.a11y.unnamedLinks.length, 0);
+  if (unnamedLinks === 0) {
+    c.pass('a11y-link-names', 'Links have discernible text', 2, 'All inspected links have text or aria-label.');
+  } else if (unnamedLinks <= 3) {
+    c.warn('a11y-link-names', 'Links have discernible text', 2, `${plural(unnamedLinks, 'link')} missing discernible text.`, 0.5);
+  } else {
+    c.fail('a11y-link-names', 'Links have discernible text', 2, `${plural(unnamedLinks, 'link')} missing discernible text.`);
+  }
+
+  const headingSkips = pages.reduce((s, p) => s + p.a11y.headingSkips.length, 0);
+  if (headingSkips === 0) {
+    c.pass('a11y-headings', 'Heading levels do not skip tiers', 2, 'No skipped heading levels detected.');
+  } else {
+    c.warn('a11y-headings', 'Heading levels do not skip tiers', 2, `${plural(headingSkips, 'heading level skip')} detected across inspected pages.`, headingSkips > 4 ? 0.3 : 0.6);
+  }
+
+  const posTab = pages.reduce((s, p) => s + p.a11y.positiveTabindex, 0);
+  c.bool('a11y-tabindex', 'No positive tabindex overrides', 1, posTab === 0, posTab === 0 ? 'Natural DOM tab order preserved.' : `${plural(posTab, 'element')} specify positive tabindex.`);
+
+  const withMain = pages.filter((p) => p.techHealth.hasMainLandmark).length;
+  const mainRatio = withMain / n;
+  const mainDetail = `${withMain} of ${n} page(s) include <main> or role="main".`;
+  if (mainRatio === 1) c.pass('a11y-landmark', 'Document contains a <main> landmark', 1, mainDetail);
+  else if (mainRatio >= 0.5) c.warn('a11y-landmark', 'Document contains a <main> landmark', 1, mainDetail, mainRatio);
+  else c.fail('a11y-landmark', 'Document contains a <main> landmark', 1, mainDetail);
+
+  const zoomBlocked = pages.filter((p) => zoomDisabled(p.viewport)).length;
+  c.bool('a11y-zoom', 'Pinch-to-zoom remains enabled', 2, zoomBlocked === 0, zoomBlocked === 0 ? 'Viewport does not block user zoom.' : `${plural(zoomBlocked, 'page')} disable pinch-to-zoom.`);
+
+  return c.items;
 }
 
 /** Mobile & UX custom score checks. */
@@ -208,35 +318,83 @@ export function mobileChecks(start: PageData | null, lh: LighthouseSummary | nul
     const ok = Boolean(start.viewport && /width\s*=\s*device-width/i.test(start.viewport));
     c.bool('viewport', 'Responsive viewport (width=device-width)', 3, ok, start.viewport ? `viewport="${start.viewport}"` : 'No viewport meta tag.');
     c.bool('zoom', 'Pinch-zoom not disabled', 2, !zoomDisabled(start.viewport), start.viewport ?? 'No viewport meta tag (zoom not restricted).');
+
+    const hasMobileContact = Boolean(start.tel.length || start.whatsapp.length || start.contactInHeader || start.contactLinks.length);
+    c.bool(
+      'mobile-contact',
+      'Mobile tap-friendly contact route (tel / WhatsApp / contact link)',
+      1,
+      hasMobileContact,
+      hasMobileContact ? 'Direct mobile-friendly contact route detected on start page.' : 'No tel:, WhatsApp, or clear contact link detected on start page.',
+    );
+
+    const ms = start.responseTimeMs;
+    const speedDetail = `${Math.round(ms)} ms initial fetch (target <= 800 ms for mobile connections)`;
+    if (ms <= 800) c.pass('mobile-speed', 'Mobile initial fetch responsiveness', 2, speedDetail);
+    else if (ms <= 1800) c.warn('mobile-speed', 'Mobile initial fetch responsiveness', 2, speedDetail, 0.5);
+    else c.fail('mobile-speed', 'Mobile initial fetch responsiveness', 2, speedDetail);
+
+    const kb = Math.round(start.bytes / 1024);
+    const sizeDetail = `${kb} KB initial HTML payload${start.truncated ? ' (truncated at cap)' : ''}`;
+    if (!start.truncated && kb <= 150) c.pass('mobile-payload', 'Mobile HTML payload weight', 2, sizeDetail);
+    else if (!start.truncated && kb <= 350) c.warn('mobile-payload', 'Mobile HTML payload weight', 2, sizeDetail, 0.5);
+    else c.fail('mobile-payload', 'Mobile HTML payload weight', 2, sizeDetail);
+
+    if (start.images.total === 0) {
+      c.pass('mobile-media', 'Responsive images and media sizing', 2, 'No large raster <img> elements slowing mobile layout.');
+    } else if (start.techHealth.hasResponsiveMedia && start.techHealth.imagesMissingDimensions === 0) {
+      c.pass('mobile-media', 'Responsive images and media sizing', 2, 'Responsive srcset/picture markup and explicit image dimensions present.');
+    } else if (start.techHealth.hasResponsiveMedia || start.techHealth.imagesMissingDimensions <= 3) {
+      c.warn(
+        'mobile-media',
+        'Responsive images and media sizing',
+        2,
+        `${start.techHealth.hasResponsiveMedia ? 'Responsive media detected' : 'No srcset/<picture> detected'}; ${start.techHealth.imagesMissingDimensions} <img> missing width/height.`,
+        0.55,
+      );
+    } else {
+      c.fail(
+        'mobile-media',
+        'Responsive images and media sizing',
+        2,
+        `No responsive srcset/<picture> and ${start.techHealth.imagesMissingDimensions} of ${start.images.total} <img> tags lack explicit dimensions.`,
+      );
+    }
   } else {
     c.skip('viewport', 'Responsive viewport (width=device-width)', 3, 'Start page HTML not available.');
     c.skip('zoom', 'Pinch-zoom not disabled', 2, 'Start page HTML not available.');
+    c.skip('mobile-contact', 'Mobile tap-friendly contact route', 1, 'Start page HTML not available.');
+    c.skip('mobile-speed', 'Mobile initial fetch responsiveness', 2, 'Start page HTML not available.');
+    c.skip('mobile-payload', 'Mobile HTML payload weight', 2, 'Start page HTML not available.');
+    c.skip('mobile-media', 'Responsive images and media sizing', 2, 'Start page HTML not available.');
   }
 
-  const outcome = (id: string) => lh?.auditOutcomes[id];
-  const lhAudit = (id: string, checkId: string, label: string, weight: number) => {
-    const o = outcome(id);
-    if (!lh) return c.skip(checkId, label, weight, 'Lighthouse did not run.');
-    if (!o || o.score === null || o.mode === 'notApplicable' || o.mode === 'manual') {
-      return c.skip(checkId, label, weight, `Lighthouse audit "${id}" not available in this run.`);
-    }
-    if (o.score >= 0.9) c.pass(checkId, label, weight, `Lighthouse "${id}" passed.`);
-    else c.fail(checkId, label, weight, `Lighthouse "${id}" failed${o.displayValue ? `: ${o.displayValue}` : ''}.`);
-  };
-  lhAudit('target-size', 'tap-targets', 'Touch targets large enough and spaced (Lighthouse)', 2);
+  if (lh) {
+    const outcome = (id: string) => lh.auditOutcomes[id];
+    const lhAudit = (id: string, checkId: string, label: string, weight: number) => {
+      const o = outcome(id);
+      if (!o || o.score === null || o.mode === 'notApplicable' || o.mode === 'manual') {
+        return c.skip(checkId, label, weight, `Lighthouse audit "${id}" not available in this run.`);
+      }
+      if (o.score >= 0.9) c.pass(checkId, label, weight, `Lighthouse "${id}" passed.`);
+      else c.fail(checkId, label, weight, `Lighthouse "${id}" failed${o.displayValue ? `: ${o.displayValue}` : ''}.`);
+    };
+    lhAudit('target-size', 'tap-targets', 'Touch targets large enough and spaced (Lighthouse)', 2);
 
-  const metric = (id: string, checkId: string, label: string, weight: number, good: number, ni: number, fmt: (v: number) => string) => {
-    const m = lh?.metrics.find((x) => x.id === id);
-    if (!m || m.numericValue === null) return c.skip(checkId, label, weight, lh ? `${id} not reported (performance category not run?).` : 'Lighthouse did not run.');
-    const v = m.numericValue;
-    const detail = `Lab ${lh!.strategy}: ${fmt(v)} (good ≤ ${fmt(good)}, needs improvement ≤ ${fmt(ni)})`;
-    if (v <= good) c.pass(checkId, label, weight, detail);
-    else if (v <= ni) c.warn(checkId, label, weight, detail, 0.5);
-    else c.fail(checkId, label, weight, detail);
-  };
-  const ms = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${Math.round(v)} ms`);
-  metric('largest-contentful-paint', 'lcp', 'Largest Contentful Paint (lab)', 2, 2500, 4000, ms);
-  metric('cumulative-layout-shift', 'cls', 'Layout stability - CLS (lab)', 2, 0.1, 0.25, (v) => v.toFixed(2));
-  metric('total-blocking-time', 'tbt', 'Responsiveness - Total Blocking Time (lab)', 1, 200, 600, ms);
+    const metric = (id: string, checkId: string, label: string, weight: number, good: number, ni: number, fmt: (v: number) => string) => {
+      const m = lh.metrics.find((x) => x.id === id);
+      if (!m || m.numericValue === null) return c.skip(checkId, label, weight, `${id} not reported (performance category not run?).`);
+      const v = m.numericValue;
+      const detail = `Lab ${lh.strategy}: ${fmt(v)} (good ≤ ${fmt(good)}, needs improvement ≤ ${fmt(ni)})`;
+      if (v <= good) c.pass(checkId, label, weight, detail);
+      else if (v <= ni) c.warn(checkId, label, weight, detail, 0.5);
+      else c.fail(checkId, label, weight, detail);
+    };
+    const ms = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${Math.round(v)} ms`);
+    metric('largest-contentful-paint', 'lcp', 'Largest Contentful Paint (lab)', 2, 2500, 4000, ms);
+    metric('cumulative-layout-shift', 'cls', 'Layout stability - CLS (lab)', 2, 0.1, 0.25, (v) => v.toFixed(2));
+    metric('total-blocking-time', 'tbt', 'Responsiveness - Total Blocking Time (lab)', 1, 200, 600, ms);
+  }
+
   return c.items;
 }

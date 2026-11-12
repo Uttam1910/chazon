@@ -131,6 +131,7 @@ const auditDeps: AuditDeps = {
   }),
   pagespeed: createPageSpeedClient({
     apiKey: env.PAGESPEED_API_KEY || null,
+    timeoutMs: process.env.VERCEL ? 18_000 : 60_000,
   }),
   policy: strictPolicy,
   userAgentToken: env.AUDIT_USER_AGENT_TOKEN,
@@ -344,6 +345,13 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
       }
       await persistJob(job, true)
     })
+
+  if (process.env.VERCEL && !env.DATABASE_URL) {
+    await backgroundWork
+    const latest = await auditJobStore.get(id)
+    res.status(200).json({ id, status: latest?.status ?? job.status })
+    return
+  }
 
   await dispatchBackground(backgroundWork)
   res.status(202).json({ id, status: job.status })

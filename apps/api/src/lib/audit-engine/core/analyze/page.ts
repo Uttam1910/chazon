@@ -104,6 +104,17 @@ export interface PageData {
   scriptCount: number;
   likelyClientRendered: boolean;
   technologies: TechnologyDetection[];
+  techHealth: {
+    hasDoctype: boolean;
+    hasCharset: boolean;
+    headBlockingScripts: number;
+    stylesheetCount: number;
+    externalScriptCount: number;
+    imagesMissingDimensions: number;
+    unsafeBlankLinks: number;
+    hasMainLandmark: boolean;
+    hasResponsiveMedia: boolean;
+  };
 }
 
 export interface PageInput {
@@ -690,6 +701,33 @@ export function analyzePage(input: PageInput): PageData {
   });
   const scripts = $('script[src]').map((_, el) => $(el).attr('src') ?? '').get().slice(0, 200);
   const stylesheets = $('link[rel~="stylesheet" i][href]').map((_, el) => $(el).attr('href') ?? '').get().slice(0, 100);
+  const headBlockingScripts = $('head script[src]').filter((_, el) => {
+    const s = $(el);
+    return s.attr('async') === undefined && s.attr('defer') === undefined && (s.attr('type') ?? '').toLowerCase() !== 'module';
+  }).length;
+  let imagesMissingDimensions = 0;
+  imgs.each((_, el) => {
+    const img = $(el);
+    if (img.attr('role') === 'presentation' || img.attr('role') === 'none' || img.attr('aria-hidden') === 'true') return;
+    if (!img.attr('width') || !img.attr('height')) imagesMissingDimensions++;
+  });
+  let unsafeBlankLinks = 0;
+  $('a[target="_blank" i][href]').each((_, el) => {
+    const href = ($(el).attr('href') ?? '').trim();
+    if (!/^https?:\/\//i.test(href)) return;
+    const rel = ($(el).attr('rel') ?? '').toLowerCase();
+    if (!rel.includes('noopener') && !rel.includes('noreferrer')) unsafeBlankLinks++;
+  });
+  const hasDoctype = /<!doctype\s+html/i.test(input.html.slice(0, 600));
+  const hasCharset =
+    $('meta[charset], meta[http-equiv="content-type" i]').length > 0 ||
+    /charset=/i.test(input.contentType);
+  const hasMainLandmark = $('main, [role="main"]').length > 0;
+  const hasResponsiveMedia =
+    $('picture, img[srcset], img[sizes]').length > 0 ||
+    $('style')
+      .toArray()
+      .some((el) => $(el).text().includes('@media'));
   const generator = clean($('meta[name="generator" i]').attr('content'), 120);
   const emptyAppRoot = $('#root, #app, #__next, #__nuxt').filter((_, el) => $(el).children().length === 0).length > 0;
   const likelyClientRendered = bodyText.length < 250 && ($('script').length >= 3 || emptyAppRoot);
@@ -756,5 +794,16 @@ export function analyzePage(input: PageInput): PageData {
     scriptCount: $('script').length,
     likelyClientRendered,
     technologies,
+    techHealth: {
+      hasDoctype,
+      hasCharset,
+      headBlockingScripts,
+      stylesheetCount: stylesheets.length,
+      externalScriptCount: scripts.length,
+      imagesMissingDimensions,
+      unsafeBlankLinks,
+      hasMainLandmark,
+      hasResponsiveMedia,
+    },
   };
 }

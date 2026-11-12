@@ -13,11 +13,12 @@ import type {
   StepState,
   TechnologySummary,
 } from '@chazon/shared';
-import { analyzeAccessibility, LIGHTHOUSE_EQUIVALENTS, mobileChecks } from './analyze/accessibility';
+import { accessibilityChecks, analyzeAccessibility, LIGHTHOUSE_EQUIVALENTS, mobileChecks } from './analyze/accessibility';
 import { analyzeJourney, summariseJourney } from './analyze/journey';
 import { checkLinks } from './analyze/links';
 import { analyzePage, type PageData } from './analyze/page';
 import { analyzeSeo } from './analyze/seo';
+import { analyzePerformanceAndPractices } from './analyze/siteHealth';
 import { mergeDetections } from './analyze/tech';
 import { crawlSite } from './crawl/crawler';
 import { fetchRobots, type RobotsResult } from './crawl/robots';
@@ -140,6 +141,12 @@ const EXTRA_EQUIVALENTS: Record<string, string> = {
   'seo.noindex-start': 'is-crawlable',
   'security.no-https': 'is-on-https',
   'security.http-not-redirected': 'redirects-http',
+  'perf.slow-response': 'server-response-time',
+  'perf.large-html': 'total-byte-weight',
+  'perf.no-compression': 'uses-text-compression',
+  'perf.render-blocking-scripts': 'render-blocking-resources',
+  'perf.images-missing-dimensions': 'unsized-images',
+  'bp.unsafe-blank-links': 'external-anchors-use-rel-noopener',
 };
 
 /** Merges a custom finding with its Lighthouse equivalent so the same issue is not listed twice. */
@@ -455,9 +462,17 @@ export async function runAudit(
     custom.push(...seo.findings);
     checks.push(...seo.checks);
   }
+  const siteHealth = analyzePerformanceAndPractices({ pages, http, crawl, lighthouse });
+  if (cats.has('performance')) {
+    custom.push(...siteHealth.findings);
+    checks.push(...siteHealth.checks);
+  } else {
+    custom.push(...siteHealth.findings.filter((f) => f.category === 'best-practices'));
+    checks.push(...siteHealth.checks.filter((c) => c.score === 'bestPractices'));
+  }
   if (cats.has('accessibility')) {
     custom.push(...analyzeAccessibility(pages));
-    checks.push(...mobileChecks(startPage, lighthouse));
+    checks.push(...accessibilityChecks(pages), ...mobileChecks(startPage, lighthouse));
   }
   const journey = cats.has('journey') && pages.length ? summariseJourney(pages, sitemap?.pageUrls ?? []) : null;
   if (cats.has('journey')) {
@@ -524,7 +539,7 @@ export async function runAudit(
     checks,
     lighthouse,
     lighthouseUnavailableReason,
-    ran: { seo: cats.has('seo'), accessibility: cats.has('accessibility'), journey: cats.has('journey') },
+    ran: { performance: cats.has('performance'), seo: cats.has('seo'), accessibility: cats.has('accessibility'), journey: cats.has('journey') },
   });
 
   for (const c of checks) {

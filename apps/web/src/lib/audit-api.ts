@@ -62,7 +62,10 @@ async function tryFetchJson<T>(path: string, init?: RequestInit): Promise<T> {
       if (err instanceof AuditApiError) {
         throw err
       }
-      if (err instanceof DOMException && err.name === 'AbortError') {
+      if (
+        (err instanceof DOMException || err instanceof Error) &&
+        err.name === 'AbortError'
+      ) {
         throw new AuditApiError('CANCELLED', 'The audit scan was cancelled.')
       }
       lastError = err
@@ -136,8 +139,22 @@ export const auditApi = {
   pollUntilComplete: async (
     id: string,
     onProgress: (status: AuditJobStatus) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    initialStatus?: AuditJobStatus
   ): Promise<AuditReport> => {
+    if (initialStatus) {
+      onProgress(initialStatus)
+      if (initialStatus.state === 'completed') {
+        if (initialStatus.report) return initialStatus.report
+        return await auditApi.getReport(id, signal)
+      }
+      if (initialStatus.state === 'failed') {
+        throw new AuditApiError(
+          initialStatus.error?.code || 'AUDIT_FAILED',
+          initialStatus.error?.message || 'Audit job failed'
+        )
+      }
+    }
     let attempts = 0
     while (!signal?.aborted && attempts < 90) {
       attempts++

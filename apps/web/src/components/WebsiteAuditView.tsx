@@ -46,6 +46,22 @@ export function WebsiteAuditView({
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const isMountedRef = useRef(true)
+  const userCancelledRef = useRef(false)
+  const unmountAbortedRef = useRef(new WeakSet<AbortController>())
+
+  useEffect(() => {
+    isMountedRef.current = true
+    const unmountAborted = unmountAbortedRef.current
+    return () => {
+      isMountedRef.current = false
+      if (abortControllerRef.current) {
+        unmountAborted.add(abortControllerRef.current)
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (initialUrl && !report && !scanning) {
@@ -61,6 +77,7 @@ export function WebsiteAuditView({
       return
     }
 
+    userCancelledRef.current = false
     setScanning(true)
     setError(null)
     setJobStatus(null)
@@ -70,7 +87,7 @@ export function WebsiteAuditView({
     abortControllerRef.current = abortController
 
     try {
-      const { id } = await auditApi.start(
+      const { id, status: initialStatus } = await auditApi.start(
         { url: trimmed, strategy: 'mobile', crawlLimit: 10, checkLinks: true },
         abortController.signal
       )
@@ -78,7 +95,8 @@ export function WebsiteAuditView({
       const completedReport = await auditApi.pollUntilComplete(
         id,
         (status) => setJobStatus(status),
-        abortController.signal
+        abortController.signal,
+        initialStatus
       )
 
       setReport(completedReport)
@@ -93,10 +111,17 @@ export function WebsiteAuditView({
         document.getElementById('audit-report-results')?.scrollIntoView({ behavior: 'smooth' })
       }, 150)
     } catch (err: unknown) {
+      if (unmountAbortedRef.current.has(abortController) || !isMountedRef.current) {
+        return
+      }
       setReport(null)
       if (err instanceof AuditApiError) {
         if (err.code === 'CANCELLED') {
-          setError('The audit scan was cancelled.')
+          setError(
+            userCancelledRef.current
+              ? 'The audit scan was cancelled.'
+              : 'The connection to the audit service was interrupted. Please run the audit again.'
+          )
         } else if (err.code === 'DNS_FAILURE') {
           setError(
             `Unable to resolve domain "${trimmed}". Please verify the URL spelling and check that the website is live.`
@@ -129,12 +154,15 @@ export function WebsiteAuditView({
       }
       track('form_error', { form: 'website_audit_tool', reason: String(err) })
     } finally {
-      setScanning(false)
-      abortControllerRef.current = null
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null
+        if (isMountedRef.current) setScanning(false)
+      }
     }
   }
 
   const cancelScan = async () => {
+    userCancelledRef.current = true
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }
@@ -164,16 +192,16 @@ export function WebsiteAuditView({
     })}`
   }
 
-  // Extract authentic scores or fallback preview scores
+  // Extract authentic live scores (sample preview shown only before a live report exists)
   const getScore = (key: string) => report?.scores.find((s) => s.key === key)?.value ?? null
-  const overallVal = report ? getScore('overallHealth') : 82
-  const seoVal = report ? getScore('technicalSeo') ?? 85 : 88
-  const perfVal = report ? getScore('performance') ?? 75 : 76
-  const techVal = report ? getScore('bestPractices') ?? 88 : 90
-  const contentVal = report ? (getScore('accessibility') ?? getScore('mobileUx') ?? 80) : 82
-  const convVal = report ? getScore('conversionReadiness') ?? 70 : 74
+  const overallVal: number | null = report ? getScore('overallHealth') : 82
+  const seoVal: number | null = report ? getScore('technicalSeo') : 88
+  const perfVal: number | null = report ? getScore('performance') : 76
+  const techVal: number | null = report ? getScore('bestPractices') : 90
+  const contentVal: number | null = report ? (getScore('accessibility') ?? getScore('mobileUx')) : 82
+  const convVal: number | null = report ? getScore('conversionReadiness') : 74
 
-  const overallScore = overallVal ?? 82
+  const overallScore = overallVal ?? 0
   const scoreRating = overallScore >= 80 ? 'Good' : overallScore >= 60 ? 'Needs Work' : 'Critical'
   const ratingBadgeClass = overallScore >= 80 ? 'badge-good' : overallScore >= 60 ? 'badge-warning' : 'badge-danger'
   const gaugeColor = overallScore >= 80 ? '#10B981' : overallScore >= 60 ? '#F59E0B' : '#EF4444'
@@ -461,8 +489,8 @@ export function WebsiteAuditView({
                       />
                     </svg>
                     <div className="gauge-content">
-                      <span className="gauge-number">{overallScore}</span>
-                      <span className="gauge-denominator">/100</span>
+                      <span className="gauge-number">{overallVal ?? 'N/A'}</span>
+                      {overallVal !== null && <span className="gauge-denominator">/100</span>}
                     </div>
                   </div>
 
@@ -481,12 +509,12 @@ export function WebsiteAuditView({
                         </span>
                         <span className="bar-title">SEO & Visibility</span>
                       </div>
-                      <span className="bar-percent">{seoVal}%</span>
+                      <span className="bar-percent">{seoVal !== null ? `${seoVal}%` : 'N/A'}</span>
                     </div>
                     <div className="bar-track">
                       <div
                         className="bar-fill bar-fill-green"
-                        style={{ width: `${seoVal}%` }}
+                        style={{ width: `${seoVal ?? 0}%` }}
                       />
                     </div>
                   </div>
@@ -500,12 +528,12 @@ export function WebsiteAuditView({
                         </span>
                         <span className="bar-title">Performance (Speed)</span>
                       </div>
-                      <span className="bar-percent">{perfVal}%</span>
+                      <span className="bar-percent">{perfVal !== null ? `${perfVal}%` : 'N/A'}</span>
                     </div>
                     <div className="bar-track">
                       <div
                         className="bar-fill bar-fill-orange"
-                        style={{ width: `${perfVal}%` }}
+                        style={{ width: `${perfVal ?? 0}%` }}
                       />
                     </div>
                   </div>
@@ -519,12 +547,12 @@ export function WebsiteAuditView({
                         </span>
                         <span className="bar-title">Technical Health</span>
                       </div>
-                      <span className="bar-percent">{techVal}%</span>
+                      <span className="bar-percent">{techVal !== null ? `${techVal}%` : 'N/A'}</span>
                     </div>
                     <div className="bar-track">
                       <div
                         className="bar-fill bar-fill-green"
-                        style={{ width: `${techVal}%` }}
+                        style={{ width: `${techVal ?? 0}%` }}
                       />
                     </div>
                   </div>
@@ -538,12 +566,12 @@ export function WebsiteAuditView({
                         </span>
                         <span className="bar-title">Content Quality</span>
                       </div>
-                      <span className="bar-percent">{contentVal}%</span>
+                      <span className="bar-percent">{contentVal !== null ? `${contentVal}%` : 'N/A'}</span>
                     </div>
                     <div className="bar-track">
                       <div
                         className="bar-fill bar-fill-green"
-                        style={{ width: `${contentVal}%` }}
+                        style={{ width: `${contentVal ?? 0}%` }}
                       />
                     </div>
                   </div>
@@ -557,12 +585,12 @@ export function WebsiteAuditView({
                         </span>
                         <span className="bar-title">Conversion Readiness</span>
                       </div>
-                      <span className="bar-percent">{convVal}%</span>
+                      <span className="bar-percent">{convVal !== null ? `${convVal}%` : 'N/A'}</span>
                     </div>
                     <div className="bar-track">
                       <div
                         className="bar-fill bar-fill-orange"
-                        style={{ width: `${convVal}%` }}
+                        style={{ width: `${convVal ?? 0}%` }}
                       />
                     </div>
                   </div>

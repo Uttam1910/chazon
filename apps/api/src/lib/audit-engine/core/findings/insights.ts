@@ -392,7 +392,7 @@ export function buildSummary(r: ReportCore, opportunities: Opportunity[], discov
     const best = sorted[0];
     const worst = sorted[sorted.length - 1];
     paragraphs.push(
-      `Overall technical health is ${overall}/100 (${b === 'good' ? 'good' : b === 'average' ? 'needs improvement' : 'poor'}).${best && worst && best !== worst ? ` The strongest area is ${SCORE_SHORT[best.key]} (${best.value}); the weakest is ${SCORE_SHORT[worst.key]} (${worst.value}).` : ''} Performance, accessibility and best-practice scores are Google Lighthouse lab scores; the others are this tool’s own checks.`,
+      `Overall technical health is ${overall}/100 (${b === 'good' ? 'good' : b === 'average' ? 'needs improvement' : 'poor'}).${best && worst && best !== worst ? ` The strongest area is ${SCORE_SHORT[best.key]} (${best.value}); the weakest is ${SCORE_SHORT[worst.key]} (${worst.value}).` : ''} Performance and accessibility checks combine Google Lighthouse lab data (when enabled) with direct server/HTML inspections; Technical SEO, Mobile UX and Conversion Readiness are always measured directly from your live pages.`,
     );
   } else {
     paragraphs.push(`Not enough checks could be completed to calculate an overall score${scored.length ? `; the available scores are shown individually (${scored.map((s) => `${SCORE_SHORT[s.key]} ${s.value}`).join(', ')})` : ''}.`);
@@ -419,7 +419,7 @@ export function buildSummary(r: ReportCore, opportunities: Opportunity[], discov
   }
 
   const keyCaveats: string[] = [];
-  if (!r.lighthouse) keyCaveats.push('Lighthouse (speed, accessibility and best-practice scores) was not available, so those areas are not scored.');
+  if (!r.lighthouse) keyCaveats.push('Google Lighthouse (lab Core Web Vitals) did not run, so Performance, Accessibility and Best Practices were scored using this tool’s HTTP header and HTML inspections.');
   if (r.pagesInspected <= 3) keyCaveats.push(`Only ${plural(r.pagesInspected, 'page was', 'pages were')} inspected, so site-wide conclusions are limited.`);
   if (r.findings.some((f) => f.id === 'crawl.client-rendered')) keyCaveats.push('The site builds much of its content with JavaScript, so HTML-based checks may under-report.');
   if (r.findings.some((f) => f.id === 'crawl.start-refused' || f.id === 'crawl.start-unreachable')) keyCaveats.push('The site refused or blocked this tool’s direct requests, so HTML-based checks did not run.');
@@ -438,7 +438,7 @@ export function buildSummary(r: ReportCore, opportunities: Opportunity[], discov
     topOpportunityIds: bestPerService.map((o) => o.id),
     keyCaveats,
     scoreNotes: [
-      'Performance, Accessibility and Best Practices are official Google Lighthouse scores from a single simulated lab run; they vary between runs.',
+      'When Google Lighthouse runs, lab scores reflect a single simulated load; otherwise scores are derived deterministically from HTTP response timing, security headers and HTML DOM checks.',
       'Technical SEO, Mobile & User Experience and Conversion Readiness are this tool’s own weighted checks. Skipped checks are excluded, never counted as passed.',
       'Overall Technical Website Health is a weighted average of the technical scores and needs at least three of them.',
       'None of the scores are Google rankings, traffic, conversion rates or business results.',

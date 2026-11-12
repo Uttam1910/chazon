@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, type FormEvent } from 'react'
+import { useState, useRef, useEffect, type FormEvent, type ReactNode } from 'react'
 import {
+  AlertTriangle,
   ArrowRight,
   BarChart3,
   Check,
@@ -11,6 +12,7 @@ import {
   Globe,
   Info,
   Link2,
+  MinusCircle,
   RotateCcw,
   Search,
   Share2,
@@ -18,12 +20,23 @@ import {
   Smartphone,
   Target,
   UserCheck,
+  XCircle,
   Zap,
 } from 'lucide-react'
-import type { AuditJobStatus, AuditReport } from '@chazon/shared'
+import type { AuditJobStatus, AuditReport, ScoreKey } from '@chazon/shared'
+import {
+  AUDIT_TAB_META,
+  AUDIT_TAB_ORDER,
+  getActionableFindingsForTab,
+  getChecksForTab,
+  getFindingsForTab,
+  getReportScoreValue,
+  type AuditTabKey,
+} from '../lib/audit-report-tabs'
 import { auditApi, AuditApiError } from '../lib/audit-api'
 import { getBusinessFriendlyTitle } from '../lib/findingExplanations'
 import { track } from '../config'
+import { useRouter } from '../location'
 import { Link } from '../router'
 import { breadcrumbSchema, usePageMeta } from '../seo'
 import { PageShell } from '../components/Layout'
@@ -45,34 +58,67 @@ export function WebsiteAudit() {
   const [report, setReport] = useState<AuditReport | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [shareToast, setShareToast] = useState(false)
-  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('all')
+  const [activeCategoryTab, setActiveCategoryTab] = useState<AuditTabKey>('all')
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null)
 
+  const selectCategoryTab = (tab: AuditTabKey) => {
+    setActiveCategoryTab(tab)
+    setExpandedFindingId(null)
+  }
+
+  const { search } = useRouter()
   const abortControllerRef = useRef<AbortController | null>(null)
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const autoStartedRef = useRef(false)
+  const lastAutoSearchRef = useRef<string | null>(null)
   const isScanningRef = useRef(false)
+  const isMountedRef = useRef(true)
+  const userCancelledRef = useRef(false)
+  const unmountAbortedRef = useRef(new WeakSet<AbortController>())
+  const startAuditRef = useRef<(e?: FormEvent, targetUrl?: string) => Promise<void>>(async () => {})
 
-  // Clean up timer on unmount & auto-start if URL param present (guarded against React StrictMode duplicate calls)
+  // Clean up timers and in-flight requests on actual unmount
   useEffect(() => {
-    if (typeof window !== 'undefined' && !autoStartedRef.current) {
-      const params = new URLSearchParams(window.location.search)
-      const queryUrl = params.get('url')
-      if (queryUrl) {
-        autoStartedRef.current = true
-        let trimmed = queryUrl.trim()
-        if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
-          trimmed = `https://${trimmed}`
-        }
-        setUrl(trimmed)
-        handleStartAudit(undefined, trimmed)
+    isMountedRef.current = true
+    const unmountAborted = unmountAbortedRef.current
+    return () => {
+      isMountedRef.current = false
+      isScanningRef.current = false
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current)
+        progressTimerRef.current = null
+      }
+      if (abortControllerRef.current) {
+        unmountAborted.add(abortControllerRef.current)
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
       }
     }
-    return () => {
-      if (progressTimerRef.current) clearInterval(progressTimerRef.current)
-      if (abortControllerRef.current) abortControllerRef.current.abort()
-    }
   }, [])
+
+  // Auto-start when arriving with ?url=...; deferred by a tick so React StrictMode
+  // double-invocation cancels the pending timer cleanly before aborting a live fetch.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(search || window.location.search)
+    const queryUrl = params.get('url')?.trim()
+    if (!queryUrl || lastAutoSearchRef.current === queryUrl) return
+
+    let trimmed = queryUrl
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      trimmed = `https://${trimmed}`
+    }
+    setUrl(trimmed)
+
+    const timer = window.setTimeout(() => {
+      if (!isMountedRef.current) return
+      lastAutoSearchRef.current = queryUrl
+      void startAuditRef.current(undefined, trimmed)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [search])
 
   // Start Real Audit
   const handleStartAudit = async (e?: FormEvent, targetUrl?: string) => {
@@ -90,6 +136,7 @@ export function WebsiteAudit() {
       setUrl(trimmed)
     }
 
+    userCancelledRef.current = false
     isScanningRef.current = true
     setScanning(true)
     setError(null)
@@ -112,7 +159,7 @@ export function WebsiteAudit() {
     abortControllerRef.current = abortController
 
     try {
-      const { id } = await auditApi.start(
+      const { id, status: initialStatus } = await auditApi.start(
         { url: trimmed, strategy: 'mobile', crawlLimit: 10, checkLinks: true },
         abortController.signal
       )
@@ -130,7 +177,8 @@ export function WebsiteAudit() {
             setProgressPercent(computedPercent)
           }
         },
-        abortController.signal
+        abortController.signal,
+        initialStatus
       )
 
       if (progressTimerRef.current) clearInterval(progressTimerRef.current)
@@ -141,11 +189,18 @@ export function WebsiteAudit() {
         url: completedReport.finalUrl || completedReport.inputUrl,
       })
     } catch (err: unknown) {
+      if (unmountAbortedRef.current.has(abortController) || !isMountedRef.current) {
+        return
+      }
       if (progressTimerRef.current) clearInterval(progressTimerRef.current)
       setReport(null)
       if (err instanceof AuditApiError) {
         if (err.code === 'CANCELLED') {
-          setError('The audit scan was cancelled.')
+          setError(
+            userCancelledRef.current
+              ? 'The audit scan was cancelled.'
+              : 'The connection to the audit service was interrupted. Please run the audit again.'
+          )
         } else if (err.code === 'DNS_FAILURE') {
           setError(
             `Unable to resolve domain "${trimmed}". Please verify the URL spelling and check that the website is online.`
@@ -178,15 +233,22 @@ export function WebsiteAudit() {
       }
       track('form_error', { form: 'website_audit', error: String(err) })
     } finally {
-      isScanningRef.current = false
-      setScanning(false)
-      abortControllerRef.current = null
-      if (progressTimerRef.current) clearInterval(progressTimerRef.current)
+      if (abortControllerRef.current === abortController) {
+        isScanningRef.current = false
+        abortControllerRef.current = null
+        if (isMountedRef.current) setScanning(false)
+        if (progressTimerRef.current) {
+          clearInterval(progressTimerRef.current)
+          progressTimerRef.current = null
+        }
+      }
     }
   }
+  startAuditRef.current = handleStartAudit
 
   // Cancel Scan
   const handleCancelScan = async () => {
+    userCancelledRef.current = true
     isScanningRef.current = false
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -195,7 +257,10 @@ export function WebsiteAudit() {
       await auditApi.cancel(jobStatus.id).catch(() => {})
     }
     setScanning(false)
-    if (progressTimerRef.current) clearInterval(progressTimerRef.current)
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current)
+      progressTimerRef.current = null
+    }
   }
 
   // Reset to State A
@@ -255,11 +320,8 @@ export function WebsiteAudit() {
   }
 
   // Scores
-  const getScoreValue = (key: string): number => {
-    if (!report) return 82
-    const scoreObj = report.scores.find((s) => s.key === key)
-    return scoreObj?.value ?? 80
-  }
+  const getScoreResult = (key: ScoreKey) => report?.scores.find((s) => s.key === key) ?? null
+  const getScoreValue = (key: ScoreKey): number | null => getReportScoreValue(report, key)
 
   const overallScore = getScoreValue('overallHealth')
   const perfScore = getScoreValue('performance')
@@ -268,25 +330,80 @@ export function WebsiteAudit() {
   const bestPracticeScore = getScoreValue('bestPractices')
   const mobileScore = getScoreValue('mobileUx')
 
-  const scoreRating = overallScore >= 80 ? 'Good' : overallScore >= 60 ? 'Needs Work' : 'Critical'
+  const scoreRating =
+    overallScore === null ? 'Unavailable' : overallScore >= 80 ? 'Good' : overallScore >= 60 ? 'Needs Work' : 'Critical'
   const ratingBadgeClass =
-    overallScore >= 80 ? 'badge-good' : overallScore >= 60 ? 'badge-warning' : 'badge-danger'
-  const gaugeColor = overallScore >= 80 ? '#10B981' : overallScore >= 60 ? '#F59E0B' : '#EF4444'
+    overallScore === null || overallScore < 60
+      ? 'badge-danger'
+      : overallScore >= 80
+        ? 'badge-good'
+        : 'badge-warning'
+  const gaugeColor =
+    overallScore === null ? '#9CA3AF' : overallScore >= 80 ? '#10B981' : overallScore >= 60 ? '#F59E0B' : '#EF4444'
+  const gaugeScoreValue = overallScore ?? 0
 
-  // Findings
+  // Findings & Checks per Tab
   const allFindings = report?.findings || []
-  const positiveHighlights = [
-    perfScore >= 80 && `Great performance score (${perfScore}/100)`,
-    seoScore >= 80 && `SEO foundation is well optimised (${seoScore}/100)`,
-    mobileScore >= 80 && `Mobile user experience is strong (${mobileScore}/100)`,
-    bestPracticeScore >= 80 && `Modern best practices verified (${bestPracticeScore}/100)`,
-    accessScore < 80 && `Accessibility can be improved (${accessScore}/100)`,
-    perfScore < 80 && `Performance bottlenecks detected (${perfScore}/100)`,
-  ].filter(Boolean) as string[]
+  const allChecks = report?.checks || []
 
-  const actionableFindings = allFindings
-    .filter((f) => f.severity === 'critical' || f.severity === 'high' || f.severity === 'medium')
-    .slice(0, 6)
+  const activeTabMeta = AUDIT_TAB_META[activeCategoryTab]
+  const activeTabScoreObj = getScoreResult(activeTabMeta.scoreKey)
+  const activeTabScore = activeTabScoreObj?.value ?? null
+  const activeTabChecks = getChecksForTab(allChecks, activeCategoryTab)
+  const actionableFindings = getActionableFindingsForTab(allFindings, activeCategoryTab)
+
+  const overviewInsights: { tone: 'good' | 'warn' | 'info'; text: string }[] = []
+  const scoreInsightRules: {
+    score: number | null
+    good: (n: number) => string
+    warn: (n: number) => string
+  }[] = [
+    { score: perfScore, good: (n) => `Strong speed & delivery performance (${n}/100)`, warn: (n) => `Performance bottlenecks detected (${n}/100)` },
+    { score: seoScore, good: (n) => `SEO foundation is well optimised (${n}/100)`, warn: (n) => `Technical SEO improvements needed (${n}/100)` },
+    { score: accessScore, good: (n) => `Accessibility checks look solid (${n}/100)`, warn: (n) => `Accessibility barriers detected (${n}/100)` },
+    { score: bestPracticeScore, good: (n) => `Modern security & best practices verified (${n}/100)`, warn: (n) => `Security or browser best-practice headers need hardening (${n}/100)` },
+    { score: mobileScore, good: (n) => `Mobile readiness & viewport hygiene verified (${n}/100)`, warn: (n) => `Mobile readiness needs optimization (${n}/100)` },
+  ]
+  for (const rule of scoreInsightRules) {
+    if (rule.score === null) continue
+    overviewInsights.push({
+      tone: rule.score >= 80 ? 'good' : 'warn',
+      text: rule.score >= 80 ? rule.good(rule.score) : rule.warn(rule.score),
+    })
+  }
+  if (report?.crawl) {
+    const ttfbText =
+      typeof report.http?.responseTimeMs === 'number'
+        ? ` (${Math.round(report.http.responseTimeMs)} ms initial response)`
+        : ''
+    overviewInsights.push({
+      tone: 'info',
+      text: `Crawled ${report.crawl.visited} page${report.crawl.visited === 1 ? '' : 's'}${report.links?.ran ? ` and checked ${report.links.checked} links` : ''}${ttfbText}.`,
+    })
+  }
+  if (report?.lighthouse?.metrics?.length) {
+    const lcp = report.lighthouse.metrics.find((m) => m.id === 'largest-contentful-paint')
+    const cls = report.lighthouse.metrics.find((m) => m.id === 'cumulative-layout-shift')
+    if (lcp || cls) {
+      overviewInsights.push({
+        tone: 'info',
+        text: `Google Lighthouse (${report.lighthouse.strategy}): ${lcp ? `LCP ${lcp.displayValue}` : ''}${lcp && cls ? ' · ' : ''}${cls ? `CLS ${cls.displayValue}` : ''}.`,
+      })
+    }
+  } else if (report?.summary?.keyCaveats?.[0]) {
+    overviewInsights.push({
+      tone: 'info',
+      text: report.summary.keyCaveats[0],
+    })
+  }
+
+  const categoryCards: { tab: AuditTabKey; name: string; score: number | null; icon: ReactNode }[] = [
+    { tab: 'performance', name: 'Performance', score: perfScore, icon: <Gauge size={20} className="acc-icon-orange" /> },
+    { tab: 'seo', name: 'SEO', score: seoScore, icon: <Search size={20} className="acc-icon-orange" /> },
+    { tab: 'accessibility', name: 'Accessibility', score: accessScore, icon: <UserCheck size={20} className="acc-icon-orange" /> },
+    { tab: 'practices', name: 'Best Practices', score: bestPracticeScore, icon: <ShieldCheck size={20} className="acc-icon-orange" /> },
+    { tab: 'mobile', name: 'Mobile Readiness', score: mobileScore, icon: <Smartphone size={20} className="acc-icon-orange" /> },
+  ]
 
   // Step Status Helper
   const defaultSteps = [
@@ -492,12 +609,12 @@ export function WebsiteAudit() {
                         strokeWidth="14"
                         strokeLinecap="round"
                         strokeDasharray={220}
-                        strokeDashoffset={220 * (1 - overallScore / 100)}
+                        strokeDashoffset={220 * (1 - gaugeScoreValue / 100)}
                       />
                     </svg>
                     <div className="arv-overall-score-center">
-                      <span className="arv-score-big">{overallScore}</span>
-                      <span className="arv-score-denom">/100</span>
+                      <span className="arv-score-big">{overallScore ?? 'N/A'}</span>
+                      {overallScore !== null && <span className="arv-score-denom">/100</span>}
                     </div>
                   </div>
 
@@ -505,160 +622,179 @@ export function WebsiteAudit() {
                     {scoreRating}
                   </div>
                   <p className="arv-overall-summary-copy">
-                    {overallScore >= 80
-                      ? 'Your website is performing well with some room for strategic improvement.'
-                      : overallScore >= 60
-                        ? 'Your website has noticeable performance and visibility gaps holding back conversion.'
-                        : 'Critical bottlenecks detected across speed, mobile readiness and search visibility.'}
+                    {overallScore === null
+                      ? 'Could not compute an overall score because the target site blocked or failed HTML retrieval.'
+                      : overallScore >= 80
+                        ? 'Your website is performing well with targeted room for strategic improvement.'
+                        : overallScore >= 60
+                          ? 'Your website has noticeable performance and visibility gaps holding back conversion.'
+                          : 'Critical bottlenecks detected across speed, mobile readiness and search visibility.'}
                   </p>
                 </div>
 
                 {/* Right: 5 Category Score Cards */}
                 <div className="arv-categories-grid">
-                  {/* Category 1: Performance */}
-                  <div className="arv-cat-card">
-                    <div className="acc-head">
-                      <Gauge size={20} className="acc-icon-orange" />
-                    </div>
-                    <div className="acc-name">Performance</div>
-                    <div className="acc-score-wrap">
-                      <span className="acc-val">{perfScore}</span>
-                      <span className="acc-den">/100</span>
-                    </div>
-                  </div>
-
-                  {/* Category 2: SEO */}
-                  <div className="arv-cat-card">
-                    <div className="acc-head">
-                      <Search size={20} className="acc-icon-orange" />
-                    </div>
-                    <div className="acc-name">SEO</div>
-                    <div className="acc-score-wrap">
-                      <span className="acc-val">{seoScore}</span>
-                      <span className="acc-den">/100</span>
-                    </div>
-                  </div>
-
-                  {/* Category 3: Accessibility */}
-                  <div className="arv-cat-card">
-                    <div className="acc-head">
-                      <UserCheck size={20} className="acc-icon-orange" />
-                    </div>
-                    <div className="acc-name">Accessibility</div>
-                    <div className="acc-score-wrap">
-                      <span className="acc-val">{accessScore}</span>
-                      <span className="acc-den">/100</span>
-                    </div>
-                  </div>
-
-                  {/* Category 4: Best Practices */}
-                  <div className="arv-cat-card">
-                    <div className="acc-head">
-                      <ShieldCheck size={20} className="acc-icon-orange" />
-                    </div>
-                    <div className="acc-name">Best Practices</div>
-                    <div className="acc-score-wrap">
-                      <span className="acc-val">{bestPracticeScore}</span>
-                      <span className="acc-den">/100</span>
-                    </div>
-                  </div>
-
-                  {/* Category 5: Mobile Readiness */}
-                  <div className="arv-cat-card">
-                    <div className="acc-head">
-                      <Smartphone size={20} className="acc-icon-orange" />
-                    </div>
-                    <div className="acc-name">Mobile Readiness</div>
-                    <div className="acc-score-wrap">
-                      <span className="acc-val">{mobileScore}</span>
-                      <span className="acc-den">/100</span>
-                    </div>
-                  </div>
+                  {categoryCards.map((card) => (
+                    <button
+                      key={card.tab}
+                      type="button"
+                      className={`arv-cat-card ${activeCategoryTab === card.tab ? 'is-selected' : ''}`}
+                      onClick={() => selectCategoryTab(card.tab)}
+                      aria-pressed={activeCategoryTab === card.tab}
+                    >
+                      <div className="acc-head">{card.icon}</div>
+                      <div className="acc-name">{card.name}</div>
+                      <div className="acc-score-wrap">
+                        <span className="acc-val">{card.score ?? 'N/A'}</span>
+                        {card.score !== null && <span className="acc-den">/100</span>}
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
 
               {/* Tabs Navigation */}
               <div className="arv-tabs-row" role="tablist" aria-label="Audit Report Categories">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeCategoryTab === 'all'}
-                  className={`arv-tab-pill ${activeCategoryTab === 'all' ? 'is-active' : ''}`}
-                  onClick={() => setActiveCategoryTab('all')}
-                >
-                  Overview
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeCategoryTab === 'performance'}
-                  className={`arv-tab-pill ${activeCategoryTab === 'performance' ? 'is-active' : ''}`}
-                  onClick={() => setActiveCategoryTab('performance')}
-                >
-                  Performance
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeCategoryTab === 'seo'}
-                  className={`arv-tab-pill ${activeCategoryTab === 'seo' ? 'is-active' : ''}`}
-                  onClick={() => setActiveCategoryTab('seo')}
-                >
-                  SEO
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeCategoryTab === 'accessibility'}
-                  className={`arv-tab-pill ${activeCategoryTab === 'accessibility' ? 'is-active' : ''}`}
-                  onClick={() => setActiveCategoryTab('accessibility')}
-                >
-                  Accessibility
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeCategoryTab === 'practices'}
-                  className={`arv-tab-pill ${activeCategoryTab === 'practices' ? 'is-active' : ''}`}
-                  onClick={() => setActiveCategoryTab('practices')}
-                >
-                  Best Practices
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeCategoryTab === 'mobile'}
-                  className={`arv-tab-pill ${activeCategoryTab === 'mobile' ? 'is-active' : ''}`}
-                  onClick={() => setActiveCategoryTab('mobile')}
-                >
-                  Mobile
-                </button>
+                {AUDIT_TAB_ORDER.map((tabKey) => {
+                  const meta = AUDIT_TAB_META[tabKey]
+                  const count = getFindingsForTab(allFindings, tabKey).length
+                  return (
+                    <button
+                      key={tabKey}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeCategoryTab === tabKey}
+                      className={`arv-tab-pill ${activeCategoryTab === tabKey ? 'is-active' : ''}`}
+                      onClick={() => selectCategoryTab(tabKey)}
+                    >
+                      <span>{meta.label}</span>
+                      {count > 0 && <span className="arv-tab-count">{count}</span>}
+                    </button>
+                  )
+                })}
               </div>
 
-              {/* Key Insights & Top Recommendations Cards */}
+              {/* Key Insights / Checks & Recommendations Split */}
               <div className="arv-details-split">
-                {/* Left Card: Key Insights */}
+                {/* Left Card: Overview Key Insights or Category Diagnostics */}
                 <div className="arv-insights-card">
-                  <h3 className="arv-card-heading">Key Insights</h3>
-                  <ul className="arv-insights-list">
-                    {positiveHighlights.map((text, idx) => (
-                      <li key={idx} className="arv-insight-item">
-                        <CheckCircle2 size={18} className="aii-check-icon" />
-                        <span>{text}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {activeCategoryTab === 'all' ? (
+                    <>
+                      <h3 className="arv-card-heading">Key Insights</h3>
+                      <ul className="arv-insights-list">
+                        {overviewInsights.map((item, idx) => (
+                          <li key={idx} className="arv-insight-item">
+                            {item.tone === 'good' ? (
+                              <CheckCircle2 size={18} className="aii-check-icon" />
+                            ) : item.tone === 'warn' ? (
+                              <AlertTriangle size={18} className="aii-warn-icon" />
+                            ) : (
+                              <Info size={18} className="aii-info-icon" />
+                            )}
+                            <span>{item.text}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <>
+                      <div className="arv-card-heading-row">
+                        <h3 className="arv-card-heading">{activeTabMeta.label} Diagnostics</h3>
+                        <span className="arv-tab-score-badge">
+                          {activeTabScore !== null ? `${activeTabScore}/100` : 'No data'}
+                        </span>
+                      </div>
+
+                      {activeTabScoreObj?.note && (
+                        <p className="arv-tab-source-note">
+                          <span className="arv-source-chip">
+                            {activeTabScoreObj.kind === 'lighthouse' ? 'Google Lighthouse' : 'HTTP & HTML Checks'}
+                          </span>{' '}
+                          {activeTabScoreObj.note}
+                        </p>
+                      )}
+
+                      {(activeCategoryTab === 'performance' || activeCategoryTab === 'mobile') &&
+                        (report.lighthouse?.metrics?.length ? (
+                          <div className="arv-lab-metrics-grid">
+                            {report.lighthouse.metrics.slice(0, 6).map((m) => (
+                              <div key={m.id} className={`arv-lab-metric is-${m.rating ?? 'neutral'}`}>
+                                <span className="alm-label">{m.label}</span>
+                                <span className="alm-val">{m.displayValue}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="arv-lab-metrics-grid">
+                            <div className="arv-lab-metric is-neutral">
+                              <span className="alm-label">Initial HTML Fetch</span>
+                              <span className="alm-val">
+                                {typeof report.http?.responseTimeMs === 'number'
+                                  ? `${Math.round(report.http.responseTimeMs)} ms`
+                                  : '—'}
+                              </span>
+                            </div>
+                            <div className="arv-lab-metric is-neutral">
+                              <span className="alm-label">Pages Crawled</span>
+                              <span className="alm-val">{report.crawl?.visited ?? 0}</span>
+                            </div>
+                            <div className="arv-lab-metric is-neutral">
+                              <span className="alm-label">HTTPS Security</span>
+                              <span className="alm-val">{report.http?.httpsUsed ? 'Enabled' : 'Not detected'}</span>
+                            </div>
+                          </div>
+                        ))}
+
+                      {activeTabChecks.length > 0 ? (
+                        <ul className="arv-checks-list">
+                          {activeTabChecks.map((chk) => (
+                            <li key={chk.id} className={`arv-check-item status-${chk.status}`}>
+                              <span className="aci-icon" aria-hidden="true">
+                                {chk.status === 'pass' ? (
+                                  <CheckCircle2 size={16} />
+                                ) : chk.status === 'warn' ? (
+                                  <AlertTriangle size={16} />
+                                ) : chk.status === 'fail' ? (
+                                  <XCircle size={16} />
+                                ) : (
+                                  <MinusCircle size={16} />
+                                )}
+                              </span>
+                              <div className="aci-copy">
+                                <span className="aci-label">{chk.label}</span>
+                                <span className="aci-detail">{chk.detail}</span>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="arv-tab-source-note">No detailed check telemetry returned for this category.</p>
+                      )}
+                    </>
+                  )}
                 </div>
 
-                {/* Right Card: Top Recommendations */}
+                {/* Right Card: Filtered Recommendations */}
                 <div className="arv-recs-card">
-                  <h3 className="arv-card-heading">Top Recommendations</h3>
+                  <h3 className="arv-card-heading">
+                    {activeCategoryTab === 'all' ? 'Top Recommendations' : `${activeTabMeta.label} Recommendations`}
+                  </h3>
                   <div className="arv-recs-list">
                     {actionableFindings.length > 0 ? (
                       actionableFindings.map((finding) => {
                         const isExpanded = expandedFindingId === finding.id
                         const friendlyTitle = getBusinessFriendlyTitle(finding) || finding.title
                         const explanationText = finding.plainSummary || finding.explanation || finding.observed || finding.title
+                        const dotClass =
+                          finding.severity === 'critical'
+                            ? 'dot-critical'
+                            : finding.severity === 'high'
+                              ? 'dot-high'
+                              : finding.severity === 'medium'
+                                ? 'dot-medium'
+                                : finding.severity === 'low'
+                                  ? 'dot-low'
+                                  : 'dot-info'
                         return (
                           <div
                             key={finding.id}
@@ -668,16 +804,9 @@ export function WebsiteAudit() {
                             }
                           >
                             <div className="ari-head">
-                              <span
-                                className={`ari-sev-dot ${
-                                  finding.severity === 'critical'
-                                    ? 'dot-critical'
-                                    : finding.severity === 'high'
-                                      ? 'dot-high'
-                                      : 'dot-medium'
-                                }`}
-                              />
+                              <span className={`ari-sev-dot ${dotClass}`} />
                               <span className="ari-title">{friendlyTitle}</span>
+                              <span className={`ari-sev-badge sev-${finding.severity}`}>{finding.severity}</span>
                               <ChevronRight
                                 size={18}
                                 className={`ari-chevron ${isExpanded ? 'rotate-90' : ''}`}
@@ -688,10 +817,27 @@ export function WebsiteAudit() {
                                 <p className="ari-explanation">
                                   {explanationText}
                                 </p>
+                                {finding.observed && (
+                                  <p className="ari-meta-line">
+                                    <strong>Observed:</strong> {finding.observed}
+                                  </p>
+                                )}
+                                {finding.expected && (
+                                  <p className="ari-meta-line">
+                                    <strong>Target:</strong> {finding.expected}
+                                  </p>
+                                )}
                                 {finding.recommendation && (
                                   <div className="ari-fix-box">
                                     <strong>Recommended Action:</strong> {finding.recommendation}
                                   </div>
+                                )}
+                                {finding.evidence && finding.evidence.length > 0 && (
+                                  <ul className="ari-evidence-list">
+                                    {finding.evidence.slice(0, 3).map((ev, eIdx) => (
+                                      <li key={eIdx}>{ev}</li>
+                                    ))}
+                                  </ul>
                                 )}
                               </div>
                             )}
@@ -701,7 +847,11 @@ export function WebsiteAudit() {
                     ) : (
                       <div className="arv-empty-recs">
                         <CheckCircle2 size={24} className="aii-check-icon" />
-                        <p>No critical recommendations. The audited page passed the primary baseline checks!</p>
+                        <p>
+                          {activeCategoryTab === 'all'
+                            ? 'No critical recommendations. The audited page passed the primary baseline checks!'
+                            : `No ${activeTabMeta.label} issues detected — automated checks for this section passed cleanly!`}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -721,7 +871,7 @@ export function WebsiteAudit() {
                   <Link
                     to={`/contact?type=CONVERT&service=audit&url=${encodeURIComponent(
                       report.finalUrl || report.inputUrl
-                    )}&score=${overallScore}&ref=${encodeURIComponent(report.id)}`}
+                    )}&score=${overallScore ?? 'na'}&ref=${encodeURIComponent(report.id)}`}
                     className="button button-primary acb-btn"
                   >
                     Fix These Issues with Chazon <ArrowRight size={16} />

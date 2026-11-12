@@ -112,7 +112,7 @@ export interface ScoreInput {
   checks: CheckResult[];
   lighthouse: LighthouseSummary | null;
   lighthouseUnavailableReason: string;
-  ran: { seo: boolean; accessibility: boolean; journey: boolean };
+  ran: { performance?: boolean; seo: boolean; accessibility: boolean; journey: boolean };
 }
 
 export function computeScores(input: ScoreInput): ScoreResult[] {
@@ -120,15 +120,47 @@ export function computeScores(input: ScoreInput): ScoreResult[] {
   const reason = input.lighthouseUnavailableReason;
   const notRun = (key: ScoreKey, what: string): ScoreResult => ({ key, label: SCORE_LABELS[key], kind: 'custom', value: null, note: `Not enough data: the ${what} category was not selected for this audit.` });
 
+  const resolveScore = (
+    key: 'performance' | 'accessibility' | 'bestPractices',
+    enabled: boolean,
+    what: string,
+    customNote: string,
+  ): ScoreResult => {
+    const lh = lighthouseScore(key, input.lighthouse, reason);
+    if (lh.value !== null) return lh;
+    if (!enabled) return notRun(key, what);
+    const keyChecks = by(key);
+    if (keyChecks.length > 0) {
+      const custom = customScore(key, keyChecks, customNote);
+      if (custom.value !== null) return custom;
+    }
+    return lh;
+  };
+
   const scores: ScoreResult[] = [
-    lighthouseScore('performance', input.lighthouse, reason),
+    resolveScore(
+      'performance',
+      input.ran.performance ?? true,
+      'Performance',
+      'Measured from HTTP response speed, HTML payload weight, response compression, render-blocking scripts, external asset count, cache headers and image dimensions.',
+    ),
     input.ran.seo
       ? customScore('technicalSeo', by('technicalSeo'), 'Covers HTTP status, HTTPS, redirects, titles, descriptions, headings, duplicates, canonical, indexability, robots.txt, sitemap, image alt, structured data, Open Graph, language, viewport and broken links.')
       : notRun('technicalSeo', 'Technical SEO'),
-    lighthouseScore('accessibility', input.lighthouse, reason),
-    lighthouseScore('bestPractices', input.lighthouse, reason),
+    resolveScore(
+      'accessibility',
+      input.ran.accessibility,
+      'Accessibility & Mobile',
+      'Measured from HTML lang attributes, image alt coverage, form labels, button/link accessible names, heading order, tabindex, main landmarks and pinch-zoom settings.',
+    ),
+    resolveScore(
+      'bestPractices',
+      true,
+      'Best Practices',
+      'Measured from HTTPS, mixed-content safety, HSTS, browser security headers (nosniff, framing/CSP, Referrer-Policy), DOCTYPE/charset, safe target="_blank" links and 5xx error checks.',
+    ),
     input.ran.accessibility
-      ? customScore('mobileUx', by('mobileUx'), 'Covers viewport, zoom, Lighthouse touch-target audit and lab LCP/CLS/TBT against Core Web Vitals thresholds.')
+      ? customScore('mobileUx', by('mobileUx'), 'Covers responsive viewport, pinch-zoom, mobile contact routes, mobile fetch responsiveness, payload compactness, responsive media and (when available) Lighthouse tap-targets and Core Web Vitals.')
       : notRun('mobileUx', 'Accessibility & Mobile'),
     input.ran.journey
       ? customScore('conversionReadiness', by('conversionReadiness'), 'Measures whether common next steps (contact routes, calls to action, forms, cart path) are detectable - not conversion rate or business performance.')
