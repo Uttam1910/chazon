@@ -317,8 +317,10 @@ em, .serif-italic-accent {
    ========================================================================== */
 
 .header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 1010;
   background: rgba(250, 248, 245, 0.94);
   backdrop-filter: blur(12px);
@@ -326,6 +328,10 @@ em, .serif-italic-accent {
   border-bottom: var(--border-hairline);
   height: var(--header-h);
   transition: background 0.2s var(--ease);
+}
+
+.header ~ main {
+  padding-top: var(--header-h);
 }
 .header-inner {
   display: flex;
@@ -449,7 +455,7 @@ button.nav-link.has-dropdown.is-active::after {
 
 .services-dropdown-panel {
   position: absolute;
-  top: calc(var(--header-h) + 30px);
+  top: calc(var(--header-h) + 12px);
   left: 50%;
   transform: translateX(-50%);
   width: min(1420px, calc(100vw - 48px));
@@ -6255,12 +6261,12 @@ button.nav-link.has-dropdown.is-active::after {
   background-color: var(--bg);
 }
 .audit-promo-card-wrapper {
-  background: #FAF6F0;
+  background: radial-gradient(ellipse at 0% 100%, #ffe7d8 0%, transparent 55%), #fffcf9;
   border: 1px solid rgba(36, 24, 19, 0.08);
-  border-radius: 20px;
-  padding: clamp(28px, 4vw, 44px);
+  border-radius: 28px;
+  padding: clamp(24px, 4vw, 56px);
   display: grid;
-  grid-template-columns: 0.75fr 1.25fr;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   gap: clamp(28px, 4.5vw, 56px);
   align-items: center;
   position: relative;
@@ -6268,9 +6274,9 @@ button.nav-link.has-dropdown.is-active::after {
 .audit-score-preview-card {
   background: #FFFFFF;
   border: 1px solid rgba(36, 24, 19, 0.08);
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 10px 24px -6px rgba(36, 24, 19, 0.06);
+  border-radius: 22px;
+  padding: clamp(18px, 2.5vw, 30px);
+  box-shadow: 0 24px 60px -24px rgba(90, 45, 20, 0.22);
   text-align: center;
 }
 .aspc-header-title {
@@ -6283,9 +6289,9 @@ button.nav-link.has-dropdown.is-active::after {
 }
 .aspc-circle-gauge {
   position: relative;
-  width: 100px;
-  height: 100px;
-  margin: 0 auto 18px auto;
+  width: 138px;
+  height: 138px;
+  margin: 24px auto;
 }
 .gauge-svg {
   width: 100%;
@@ -6344,7 +6350,24 @@ button.nav-link.has-dropdown.is-active::after {
 
 .audit-promo-content {
   position: relative;
+  min-width: 0;
 }
+.audit-preview-caption { margin: -4px 0 20px; text-align: left; color: var(--fg-muted); font-size: 0.75rem; }
+.audit-benefits { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-bottom: 28px; }
+.audit-benefits span { display: inline-flex; align-items: center; gap: 7px; font-size: 0.8125rem; font-weight: 600; color: #5a4e47; }
+.audit-benefits svg { color: #d84502; }
+.audit-url-label { display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 10px; }
+.audit-form-meta { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; }
+.audit-form-meta span { display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; color: #547064; }
+.audit-samples { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 20px; font-size: 0.6875rem; color: var(--fg-muted); }
+.audit-samples button { border: 0; background: transparent; padding: 3px 0; color: #746b65; text-decoration: underline; text-underline-offset: 3px; }
+.audit-samples button:hover { color: #d84502; }
+.audit-score-preview-card .aspc-checklist { padding: 16px 0 0; margin: 0; border-top: 1px solid #f0ebe6; list-style: none; }
+.audit-interactive-section .audit-input-wrap { min-width: 0; }
+.audit-interactive-section .audit-quick-form { align-items: stretch; }
+.audit-interactive-section .audit-url-input { height: 52px; border-radius: 12px; }
+.audit-interactive-section .audit-submit-btn { border-radius: 12px; min-height: 52px; }
+.audit-interactive-section .audit-url-input:focus-visible { outline: 2px solid #d84502; outline-offset: 3px; }
 .audit-eyebrow-orange {
   display: inline-block;
   font-family: var(--font-sans);
@@ -6357,10 +6380,10 @@ button.nav-link.has-dropdown.is-active::after {
 }
 .audit-promo-heading {
   font-family: var(--font-sans);
-  font-size: clamp(1.75rem, 2.7vw, 2.25rem);
+  font-size: clamp(2rem, 3.2vw, 3rem);
   font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  line-height: 1.08;
+  letter-spacing: -0.045em;
   color: #241813;
   margin-bottom: 12px;
 }

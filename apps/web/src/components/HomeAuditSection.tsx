@@ -80,7 +80,7 @@ export function HomeAuditSection() {
           {/* Left: Interactive Score Preview Card */}
           <div className="audit-score-preview-card" role="region" aria-label="Sample Audit Diagnostic Preview">
             <div className="aspc-header-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-              <span className="aspc-header-title" style={{ margin: 0 }}>Interactive Diagnostic</span>
+              <span className="aspc-header-title" style={{ margin: 0 }}>Website health preview</span>
               <span
                 style={{
                   fontSize: '0.6875rem',
@@ -96,6 +96,8 @@ export function HomeAuditSection() {
                 {current.status}
               </span>
             </div>
+
+            <p className="audit-preview-caption">Sample report ? Explore the results below</p>
 
             {/* Pillar Selector Tabs */}
             <div
@@ -114,6 +116,7 @@ export function HomeAuditSection() {
                   key={p.id}
                   type="button"
                   onClick={() => setActivePillar(p.id)}
+                  aria-pressed={activePillar === p.id}
                   style={{
                     border: 'none',
                     background: activePillar === p.id ? '#FFFFFF' : 'transparent',
@@ -215,79 +218,51 @@ export function HomeAuditSection() {
 
           {/* Right: Copy & Form */}
           <div className="audit-promo-content">
-            <span className="audit-eyebrow-orange">INSTANT DIAGNOSTIC TOOL</span>
+            <span className="audit-eyebrow-orange">YOUR NEXT GROWTH OPPORTUNITY</span>
             <h2 id="audit-promo-title" className="audit-promo-heading">
-              Is Your Website Helping Your Business Grow, or Leaking Customers?
+              A healthier website. A stronger business.
             </h2>
             <p className="audit-promo-desc">
-              Over 68% of business websites lose high-value inbound customers due to slow mobile loading, missing schema markup, or friction at checkout. Run a free instant scan to diagnose your site in 30 seconds.
+              Find what slows your website down and what to improve next. Get a clear picture of your speed, search visibility and customer experience with a free website scan.
             </p>
 
             <div className="audit-form-container">
-              {/* Handwritten Note Annotation with Curved Arrow */}
-              <div className="audit-handwritten-note" aria-hidden="true">
-                <span>Free 30-sec real-time scan.</span>
-                <svg
-                  className="handwritten-arrow-svg"
-                  width="44"
-                  height="34"
-                  viewBox="0 0 44 34"
-                  fill="none"
-                >
-                  <path
-                    d="M38 4C28 2 12 10 10 24M10 24L4 18M10 24L16 20"
-                    stroke="#D84502"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+              <div className="audit-benefits" aria-label="What your scan covers">
+                <span><Zap size={16} /> Performance</span>
+                <span><Search size={16} /> Search visibility</span>
+                <span><ShieldCheck size={16} /> Best practices</span>
               </div>
-
+              <label className="audit-url-label" htmlFor="home-audit-url">Start with your website address</label>
               <form onSubmit={handleSubmit} className="audit-quick-form" role="search" aria-label="Quick Website Audit Form">
                 <div className="audit-input-wrap">
                   <Globe size={18} className="audit-input-icon" aria-hidden="true" />
                   <input
+                    id="home-audit-url"
                     type="text"
+                    autoCapitalize="none"
+                    spellCheck={false}
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="Enter your website URL (e.g. yourbusiness.com)"
+                    placeholder="yourbusiness.com"
                     className="audit-url-input"
                     aria-label="Website URL to audit"
                     required
                   />
                 </div>
                 <button type="submit" className="audit-submit-btn">
-                  Analyse My Website <ArrowRight size={16} />
+                  Scan my website <ArrowRight size={16} />
                 </button>
               </form>
 
-              {/* Sample Domain Suggestion Chips */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', fontSize: '0.8125rem', color: '#64748B', flexWrap: 'wrap' }}>
-                <span>Try sample:</span>
+              <div className="audit-form-meta">
+                <span><Check size={15} /> Free scan</span>
+                <span><Check size={15} /> No sign-up needed</span>
+              </div>
+              <div className="audit-samples">
+                <span>Try an example:</span>
                 {SAMPLE_DOMAINS.map((sample) => (
-                  <button
-                    key={sample}
-                    type="button"
-                    onClick={() => handleSampleClick(sample)}
-                    style={{
-                      border: '1px solid rgba(36, 24, 19, 0.12)',
-                      background: '#FFFFFF',
-                      color: '#D84502',
-                      borderRadius: '999px',
-                      padding: '2px 10px',
-                      fontSize: '0.75rem',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    {sample}
-                  </button>
+                  <button key={sample} type="button" onClick={() => handleSampleClick(sample)}>{sample}</button>
                 ))}
-                <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#10B981', fontWeight: 600 }}>
-                  ✓ 100% Free · No Registration Needed
-                </span>
               </div>
             </div>
           </div>
