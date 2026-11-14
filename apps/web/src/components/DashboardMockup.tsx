@@ -24,8 +24,8 @@ export function DashboardMockup() {
           <Sparkles size={16} />
         </div>
         <div className="hfap-text">
-          <strong>Website Growth Diagnostic</strong>
-          <small>Check Speed, SEO & Conversion Leaks ↗</small>
+          <strong>Website Health Scanner</strong>
+          <small>Check performance, SEO & speed ↗</small>
         </div>
         <div className="hfap-score-tag">
           <span>82</span>

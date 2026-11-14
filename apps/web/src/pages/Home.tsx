@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react'
 import {
   ArrowRight,
   BarChart2,
-  Coins,
+  Activity,
+  FileText,
+  Target,
+  Zap,
   Globe,
   Users,
 } from 'lucide-react'
@@ -15,6 +18,7 @@ import { BusinessProblemSection } from '../components/BusinessProblemSection'
 import { DashboardMockup } from '../components/DashboardMockup'
 import { GrowthFramework } from '../components/GrowthFramework'
 import { HomeAuditSection } from '../components/HomeAuditSection'
+import { HeroGrowthPicker } from '../components/HeroGrowthPicker'
 import { IndustriesShowcase } from '../components/IndustriesShowcase'
 import { PageShell } from '../components/Layout'
 import { ProcessTimeline } from '../components/ProcessTimeline'
@@ -91,15 +95,10 @@ export function Home() {
   return (
     <PageShell>
       {/* 2. HERO SECTION */}
-      <section className="hero-redesigned surface-cream" id="hero" aria-labelledby="hero-title">
+      <section className="hero-redesigned hero-health surface-cream" id="hero" aria-labelledby="hero-title">
         <div className="container hero-redesigned-grid">
           {/* Left Column: Value Prop */}
           <div className="hero-copy-column">
-            <div className="hero-pill-badge">
-              <span className="hpb-dot" aria-hidden="true" />
-              <span>Digital Growth Partner for Businesses</span>
-            </div>
-
             <h1 id="hero-title" className="hero-main-heading">
               Don’t just build a<br />
               digital presence.<br />
@@ -107,11 +106,16 @@ export function Home() {
             </h1>
 
             <p className="hero-subhead-lead">
-              We help businesses attract the right audience, convert opportunities into customers, and build sustainable digital growth through strategy, technology and marketing.
+              We help businesses attract the right audience, convert<br className="hero-reference-break" /> opportunities into customers, and build sustainable digital growth<br className="hero-reference-break" /> through strategy, technology and marketing.
             </p>
 
             {/* Above-the-fold Interactive Website Audit Box */}
             <div className="hero-audit-box">
+              <div className="health-scanner-heading">
+                <span className="health-scanner-symbol"><Activity size={30} /></span>
+                <div><h2>Website Health Scanner <span>Free</span></h2>
+                <p>Check your website's performance, SEO, speed and key issues in seconds.</p></div>
+              </div>
               <form onSubmit={handleHeroAuditSubmit} className="hero-audit-form" role="search" aria-label="Instant Website Audit">
                 <div className="hero-audit-input-wrap">
                   <Globe size={18} className="hero-audit-icon" aria-hidden="true" />
@@ -126,47 +130,14 @@ export function Home() {
                   />
                 </div>
                 <button type="submit" className="hero-audit-submit-btn">
-                  Audit Website <ArrowRight size={16} />
+                  Scan My Website <ArrowRight size={20} />
                 </button>
               </form>
 
               <div className="hero-audit-perks">
-                <span className="hap-item">⚡ 30-sec diagnostic</span>
-                <span className="hap-dot">•</span>
-                <span className="hap-item">Find SEO & Speed leaks</span>
-                <span className="hap-dot">•</span>
-                <span className="hap-item hap-free">100% Free · No signup</span>
-              </div>
-            </div>
-
-            <div className="hero-btn-row">
-              <Link to="/services" className="button button-outline hero-secondary-btn">
-                Explore Our Services <ArrowRight size={16} />
-              </Link>
-              <Link to="/contact" className="button button-ghost hero-ghost-btn">
-                Let’s Discuss Your Growth
-              </Link>
-            </div>
-
-            {/* Trust highlights with orange icons */}
-            <div className="hero-trust-bullets">
-              <div className="htb-item">
-                <span className="htb-icon-badge" aria-hidden="true">
-                  <BarChart2 size={16} />
-                </span>
-                <span>More Visibility</span>
-              </div>
-              <div className="htb-item">
-                <span className="htb-icon-badge" aria-hidden="true">
-                  <Users size={16} />
-                </span>
-                <span>More Customers</span>
-              </div>
-              <div className="htb-item">
-                <span className="htb-icon-badge" aria-hidden="true">
-                  <Coins size={16} />
-                </span>
-                <span>More Revenue</span>
+                <span><Zap size={22} /> Get a quick health score</span>
+                <span><FileText size={22} /> See key issues &amp; fixes</span>
+                <span><BarChart2 size={22} /> Simple, actionable report</span>
               </div>
             </div>
           </div>
@@ -175,6 +146,12 @@ export function Home() {
           <div className="hero-visual-column">
             <DashboardMockup />
           </div>
+          <div className="hero-trust-bullets">
+            <div className="htb-item"><Users /><span>More Visibility</span></div>
+            <div className="htb-item"><Target /><span>More Customers</span></div>
+            <div className="htb-item"><BarChart2 /><span>More Revenue</span></div>
+          </div>
+          <HeroGrowthPicker />
         </div>
       </section>
 

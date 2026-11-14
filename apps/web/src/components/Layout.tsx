@@ -2,18 +2,26 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowRight,
   ChevronDown,
+  CircleDollarSign,
   Facebook,
+  FileText,
   Filter,
   Instagram,
   Laptop,
   Layers,
   Linkedin,
   Mail,
+  MapPin,
   Megaphone,
   Menu,
+  MousePointer2,
   Phone,
+  Search,
+  Share2,
   TrendingUp,
+  Users,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 import { track, type Channel } from '../config'
 import { useRouter } from '../location'
@@ -176,152 +184,56 @@ export const SERVICE_CATEGORIES = [
 
 type ServiceCategoryId = (typeof SERVICE_CATEGORIES)[number]['id']
 
-/** Visual graphic for the center column of the mega-menu */
+const marketServiceIcons: Record<string, LucideIcon> = {
+  'Digital Marketing': Megaphone,
+  'Pay-Per-Click Advertising': MousePointer2,
+  'Search Engine Optimisation (SEO)': Search,
+  'Google Ads': CircleDollarSign,
+  'Content Marketing': FileText,
+  'Affiliate & Influencer Marketing': Users,
+  'Social Media Marketing': Share2,
+  'Local SEO & Search Authority': MapPin,
+}
+
+/** Decorative growth illustration shown beside the service links. */
 function MegaMenuVisual({ category }: { category: ServiceCategoryId }) {
-  if (category === 'build') {
-    return (
-      <div className="mm-visual-card mm-visual-build">
-        <div className="mm-browser-mockup">
-          <div className="mm-browser-header">
-            <div className="mm-browser-dots">
-              <span className="dot red" />
-              <span className="dot yellow" />
-              <span className="dot green" />
-            </div>
-            <span className="mm-browser-url">chazon.digital/platform</span>
-          </div>
-          <div className="mm-browser-screen">
-            <div className="mm-screen-mountain-bg" />
-            <div className="mm-screen-content">
-              <span className="mm-screen-tag">Chazon Architecture</span>
-              <strong className="mm-screen-heading">Build Your Digital Presence</strong>
-              <p className="mm-screen-sub">Fast, responsive & commercial</p>
-            </div>
-          </div>
-        </div>
-        <div className="mm-floating-phone">
-          <div className="mm-phone-notch" />
-          <div className="mm-phone-card">
-            <span className="mm-phone-img-box">🛋️</span>
-            <span className="mm-phone-title">Modern Living</span>
-            <span className="mm-phone-price">₹14,500</span>
-            <span className="mm-phone-btn">Add to Cart</span>
-          </div>
-        </div>
-        <div className="mm-floating-badge">
-          <span className="mm-fb-icon">↗</span>
-          <div>
-            <strong>+74%</strong>
-            <small>Traffic Growth</small>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (category === 'market') {
-    return (
-      <div className="mm-visual-card mm-visual-market">
-        <div className="mm-market-mockup">
-          <div className="mm-search-bar-sim">
-            <span className="mm-search-sim-icon">🔍</span>
-            <span>google.com/search?q=revenue+growth</span>
-          </div>
-          <div className="mm-search-result-pill">
-            <span className="mm-rank-badge">#1 Google Ranking</span>
-            <strong>Chazon Digital Ventures</strong>
-            <small>Integrated organic visibility & commercial intent</small>
-          </div>
-          <div className="mm-bars-preview">
-            <div className="mm-bar" style={{ height: '35%' }} />
-            <div className="mm-bar" style={{ height: '55%' }} />
-            <div className="mm-bar" style={{ height: '75%' }} />
-            <div className="mm-bar accent" style={{ height: '100%' }} />
-          </div>
-        </div>
-        <div className="mm-floating-badge">
-          <span className="mm-fb-icon">↗</span>
-          <div>
-            <strong>+68%</strong>
-            <small>Organic Reach</small>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (category === 'convert') {
-    return (
-      <div className="mm-visual-card mm-visual-convert">
-        <div className="mm-convert-mockup">
-          <div className="mm-wireframe-head">
-            <span className="mm-wf-line title" />
-            <span className="mm-wf-line sub" />
-          </div>
-          <div className="mm-wf-cta-pill">Request Strategic Proposal →</div>
-          <div className="mm-wf-trust-row">
-            <span className="mm-wf-pill">✓ Sub-600ms Speed</span>
-            <span className="mm-wf-pill">✓ Friction-Free UX</span>
-          </div>
-        </div>
-        <div className="mm-floating-badge">
-          <span className="mm-fb-icon">🎯</span>
-          <div>
-            <strong>+42%</strong>
-            <small>Conversion Rate</small>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (category === 'automate') {
-    return (
-      <div className="mm-visual-card mm-visual-automate">
-        <div className="mm-automate-mockup">
-          <div className="mm-wa-bubble">
-            <span className="mm-wa-head">WhatsApp Business API</span>
-            <p>“New website enquiry received. Welcome sequence launched.”</p>
-          </div>
-          <div className="mm-crm-bubble">
-            <span className="mm-crm-head">HubSpot CRM Sync</span>
-            <p>Lead tagged, assigned & notification dispatched.</p>
-          </div>
-        </div>
-        <div className="mm-floating-badge">
-          <span className="mm-fb-icon">⚡</span>
-          <div>
-            <strong>24/7</strong>
-            <small>Automated Pipeline</small>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // optimise
   return (
-    <div className="mm-visual-card mm-visual-optimise">
-      <div className="mm-optimise-mockup">
-        <div className="mm-score-dial-wrap">
-          <div className="mm-score-circle">
-            <span className="mm-score-number">92</span>
-            <span className="mm-score-max">/100</span>
-          </div>
-          <span className="mm-score-status">Optimal Performance</span>
-        </div>
-        <div className="mm-score-metrics-list">
-          <span className="mm-metric-item">✓ SEO: 96/100</span>
-          <span className="mm-metric-item">✓ Core Vitals: 0.4s</span>
-        </div>
-      </div>
-      <div className="mm-floating-badge">
-        <span className="mm-fb-icon">📈</span>
-        <div>
-          <strong>Sub-600ms</strong>
-          <small>Continuous ROI Loop</small>
-        </div>
-      </div>
+    <div className={`mm-visual-container mm-visual-${category}`}>
+      <div className="mm-visual-ambient-glow" />
+      <svg className="mm-illustration-svg" viewBox="0 0 320 280" role="img" aria-label="Business growth chart">
+        <defs>
+          <linearGradient id="growth-panel" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stopColor="#ffb25f" />
+            <stop offset="100%" stopColor="#ff6a00" />
+          </linearGradient>
+          <filter id="growth-shadow" x="-20%" y="-20%" width="140%" height="150%">
+            <feDropShadow dx="0" dy="10" stdDeviation="9" floodColor="#9b4a1a" floodOpacity=".16" />
+          </filter>
+        </defs>
+        <circle cx="160" cy="142" r="120" fill="#fff3eb" />
+        <g filter="url(#growth-shadow)">
+          <rect x="43" y="58" width="230" height="164" rx="18" fill="#fff" />
+          <path d="M43 76a18 18 0 0 1 18-18h194a18 18 0 0 1 18 18v23H43z" fill="url(#growth-panel)" />
+          <circle cx="62" cy="77" r="4" fill="#fff" />
+          <circle cx="76" cy="77" r="4" fill="#fff" opacity=".8" />
+          <circle cx="90" cy="77" r="4" fill="#fff" opacity=".65" />
+          <rect x="59" y="116" width="74" height="12" rx="6" fill="#ffede4" />
+          <rect x="59" y="138" width="48" height="9" rx="4.5" fill="#fff1e9" />
+          <rect x="66" y="187" width="24" height="15" rx="4" fill="#ffb363" />
+          <rect x="99" y="173" width="26" height="29" rx="4" fill="#ff9340" />
+          <rect x="135" y="158" width="28" height="44" rx="4" fill="#ff8124" />
+          <rect x="173" y="139" width="30" height="63" rx="4" fill="#ff7414" />
+          <rect x="213" y="120" width="31" height="82" rx="4" fill="#f35a08" />
+          <path d="M68 174c31-5 53-18 77-37 23-19 42-31 70-36" fill="none" stroke="#f15a0a" strokeWidth="4" strokeLinecap="round" />
+          <path d="m205 91 13 9-11 11" fill="none" stroke="#f15a0a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+        <circle cx="229" cy="94" r="31" fill="#ff9d47" opacity=".18" />
+        <circle cx="229" cy="94" r="23" fill="url(#growth-panel)" />
+        <circle cx="229" cy="94" r="15" fill="#fff" />
+        <circle cx="229" cy="94" r="9" fill="#ff7918" />
+        <circle cx="229" cy="94" r="4" fill="#fff" />
+        <path d="m241 80 20-20m-10 0h10v10" fill="none" stroke="#f15a0a" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
     </div>
   )
 }
@@ -501,6 +413,9 @@ export function Header({
 
   const currentCategoryData =
     SERVICE_CATEGORIES.find((c) => c.id === activeCategory) || SERVICE_CATEGORIES[0]
+  const titleWords = currentCategoryData.title.split(' ')
+  const titlePrefix = titleWords.slice(0, -1).join(' ')
+  const titleAccent = titleWords[titleWords.length - 1]
 
   return (
     <>
@@ -553,125 +468,86 @@ export function Header({
                   onMouseEnter={handleMouseEnter}
                   onMouseLeave={handleMouseLeave}
                 >
-                  {/* Top Row: 5 Horizontal Category Tabs */}
-                  <div className="mm-tabs-row" role="tablist" aria-label="Service Categories">
+                  <div className="mm-sidebar" role="tablist" aria-label="Service Categories">
                     {SERVICE_CATEGORIES.map((cat) => {
                       const Icon = cat.icon
                       const isActive = activeCategory === cat.id
                       return (
-                        <Link
+                        <button
                           key={cat.id}
-                          to={`/services?category=${cat.id}#services-grid`}
                           role="tab"
                           aria-selected={isActive}
-                          className={`mm-tab-btn ${isActive ? 'is-active' : ''}`}
+                          type="button"
+                          className={`mm-sidebar-item ${isActive ? 'is-active' : ''}`}
                           onMouseEnter={() => setActiveCategory(cat.id)}
                           onFocus={() => setActiveCategory(cat.id)}
-                          onClick={() => {
-                            setActiveCategory(cat.id)
-                            setServicesOpen(false)
-                          }}
+                          onClick={() => setActiveCategory(cat.id)}
                         >
-                          <span className="mm-tab-icon">
-                            <Icon size={18} />
+                          <span className="mm-sidebar-icon-wrap">
+                            <Icon size={22} aria-hidden="true" />
                           </span>
-                          <div className="mm-tab-text">
-                            <strong className="mm-tab-label">{cat.label}</strong>
-                            <span className="mm-tab-subtitle">{cat.subtitle}</span>
-                          </div>
-                        </Link>
+                          <span className="mm-sidebar-text">
+                            <strong className="mm-sidebar-title">{cat.label}</strong>
+                            <span className="mm-sidebar-sub">{cat.subtitle}</span>
+                          </span>
+                          {isActive && (
+                            <ArrowRight
+                              className="mm-sidebar-chevron"
+                              size={18}
+                              aria-hidden="true"
+                            />
+                          )}
+                        </button>
                       )
                     })}
                   </div>
 
-                  {/* Middle Area: Interactive Category Content Grid */}
-                  <div className="mm-content-grid" key={currentCategoryData.id}>
-                    {/* Left Column: Heading, Description, Primary CTA */}
-                    <div className="mm-left-col">
-                      <span className="mm-eyebrow">{currentCategoryData.eyebrow}</span>
-                      <Link
-                        to={`/services?category=${currentCategoryData.id}#services-grid`}
-                        className="mm-title-link"
-                        onClick={() => setServicesOpen(false)}
-                      >
-                        <h3 className="mm-title">{currentCategoryData.title}</h3>
-                      </Link>
-                      <p className="mm-desc">{currentCategoryData.description}</p>
-                      <Link
-                        to={currentCategoryData.primaryCta.to}
-                        className="button button-primary mm-cta-btn"
-                        onClick={() => setServicesOpen(false)}
-                      >
-                        <span>{currentCategoryData.primaryCta.label}</span>
-                        <ArrowRight size={14} />
-                      </Link>
+                  <div className="mm-center-content" key={currentCategoryData.id}>
+                    <div className="mm-eyebrow-pill-wrap">
+                      <span className="mm-eyebrow-pill">
+                        {currentCategoryData.label} Services
+                      </span>
                     </div>
-
-                    {/* Center Column: Visual Graphic Mockup */}
-                    <div className="mm-center-col" aria-hidden="true">
-                      <MegaMenuVisual category={currentCategoryData.id} />
-                    </div>
-
-                    {/* Right Column: Explore Services Grid */}
-                    <div className="mm-right-col">
-                      <span className="mm-list-eyebrow">{currentCategoryData.exploreHeading}</span>
-                      <div className="mm-services-columns">
-                        <div className="mm-service-col">
-                          {currentCategoryData.services.slice(0, 4).map((item, idx) => (
-                            <Link
-                              key={idx}
-                              to={item.to}
-                              className="mm-service-link"
-                              onClick={() => setServicesOpen(false)}
-                            >
-                              <span className="mm-link-label">{item.label}</span>
-                              <ArrowRight size={13} className="mm-link-arrow" />
-                            </Link>
-                          ))}
-                        </div>
-                        <div className="mm-service-col">
-                          {currentCategoryData.services.slice(4, 8).map((item, idx) => (
-                            <Link
-                              key={idx + 4}
-                              to={item.to}
-                              className="mm-service-link"
-                              onClick={() => setServicesOpen(false)}
-                            >
-                              <span className="mm-link-label">{item.label}</span>
-                              <ArrowRight size={13} className="mm-link-arrow" />
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
+                    <h3 className="mm-main-heading">
+                      {titlePrefix} <span className="mm-title-accent">{titleAccent}</span>
+                    </h3>
+                    <p className="mm-desc-lead">{currentCategoryData.description}</p>
+                    <div className="mm-services-2col-grid">
+                      {currentCategoryData.services.map((item) => {
+                        const Icon = marketServiceIcons[item.label] || currentCategoryData.icon
+                        return (
+                          <Link
+                            key={item.to + item.label}
+                            to={item.to}
+                            className="mm-service-card"
+                            onClick={() => setServicesOpen(false)}
+                          >
+                            <span className="mm-sc-icon-wrap">
+                              <Icon size={18} aria-hidden="true" />
+                            </span>
+                            <span className="mm-sc-label">{item.label}</span>
+                            <ArrowRight
+                              size={18}
+                              className="mm-sc-arrow"
+                              aria-hidden="true"
+                            />
+                          </Link>
+                        )
+                      })}
                     </div>
                   </div>
 
-                  {/* Bottom Row: Related Services & View All Link */}
-                  <div className="mm-footer-bar">
-                    <div className="mm-footer-related">
-                      <Layers size={16} className="mm-related-icon" />
-                      <span className="mm-related-label">Related Services:</span>
-                      <div className="mm-related-pills">
-                        {currentCategoryData.related.map((rel, idx) => (
-                          <Link
-                            key={idx}
-                            to={rel.to}
-                            className="mm-related-pill"
-                            onClick={() => setServicesOpen(false)}
-                          >
-                            {rel.label}
-                          </Link>
-                        ))}
-                      </div>
+                  <div className="mm-right-action-col">
+                    <div className="mm-right-visual-wrap" aria-hidden="true">
+                      <MegaMenuVisual category={currentCategoryData.id} />
                     </div>
-
                     <Link
-                      to="/services"
-                      className="mm-view-all-link"
+                      to={currentCategoryData.primaryCta.to}
+                      className="mm-explore-cta-btn"
                       onClick={() => setServicesOpen(false)}
                     >
-                      <span>View All Services</span>
-                      <ArrowRight size={15} />
+                      Explore {currentCategoryData.label} Services
+                      <ArrowRight size={17} aria-hidden="true" />
                     </Link>
                   </div>
                 </div>
@@ -689,7 +565,7 @@ export function Header({
               to="/website-audit"
               className={`nav-link ${path.startsWith('/website-audit') || path.startsWith('/growth-audit') ? 'is-active' : ''}`}
             >
-              Website Audit
+              Website Health Scanner
             </Link>
 
             <Link
@@ -767,7 +643,7 @@ export function Header({
                 onClick={() => setMobileServicesOpen((v) => !v)}
               >
                 <span>Services</span>
-                <ChevronDown
+                <ArrowRight
                   size={18}
                   className={`mobile-accordion-caret ${mobileServicesOpen ? 'is-open' : ''}`}
                 />
@@ -870,7 +746,7 @@ export function Header({
                 className={`mobile-nav-item ${path.startsWith('/website-audit') || path.startsWith('/growth-audit') ? 'is-active' : ''}`}
                 onClick={() => setMobileOpen(false)}
               >
-                <span>Website Audit</span>
+                <span>Website Health Scanner</span>
                 <ArrowRight size={16} className="mobile-nav-arrow" />
               </Link>
             </li>
