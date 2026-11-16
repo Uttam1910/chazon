@@ -10293,6 +10293,415 @@ select.smart-select {
 }
 
 /* --------------------------------------------------------------------------
+   Audit Session & Device History
+   -------------------------------------------------------------------------- */
+.audit-history-section {
+  max-width: 860px;
+  margin: 36px auto 0 auto;
+  background: #FFFFFF;
+  border: 1px solid rgba(36, 24, 19, 0.08);
+  border-radius: 24px;
+  padding: clamp(20px, 3.5vw, 32px);
+  box-shadow: 0 12px 32px -8px rgba(36, 24, 19, 0.06);
+}
+
+.ahist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(36, 24, 19, 0.06);
+  flex-wrap: wrap;
+}
+
+.ahist-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ahist-icon-badge {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: #FFECE2;
+  color: #D84502;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ahist-title {
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #241813;
+  margin: 0;
+}
+
+.ahist-subtitle {
+  font-size: 0.8125rem;
+  color: #786C65;
+  margin: 2px 0 0 0;
+}
+
+.ahist-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: transparent;
+  color: #B91C1C;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ahist-clear-btn:hover {
+  background: #FEF2F2;
+  border-color: #EF4444;
+}
+
+.audit-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.ahist-card {
+  background: #FDFCF9;
+  border: 1px solid rgba(36, 24, 19, 0.08);
+  border-radius: 16px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 4px 12px rgba(36, 24, 19, 0.03);
+  text-align: left;
+}
+
+.ahist-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px -6px rgba(36, 24, 19, 0.1);
+  border-color: rgba(216, 69, 2, 0.35);
+  background: #FFFFFF;
+}
+
+.ahist-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ahist-domain-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ahist-globe-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(36, 24, 19, 0.05);
+  color: #786C65;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ahist-domain-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ahist-domain-name {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #241813;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ahist-time-stamp {
+  font-size: 0.6875rem;
+  color: #786C65;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 1px;
+}
+
+.ahist-score-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-family: var(--font-sans);
+  flex-shrink: 0;
+}
+
+.ahist-score-val {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ahist-score-suffix {
+  font-size: 0.625rem;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.ahist-score-chip.chip-green {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.ahist-score-chip.chip-amber {
+  background: #FFFBEB;
+  color: #B45309;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.ahist-score-chip.chip-red {
+  background: #FEF2F2;
+  color: #B91C1C;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.ahist-score-chip.chip-gray {
+  background: #F3F4F6;
+  color: #6B7280;
+  border: 1px solid rgba(156, 163, 175, 0.3);
+}
+
+.ahist-metrics-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ahist-mchip {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #5A4E47;
+  background: rgba(36, 24, 19, 0.05);
+  padding: 3px 7px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ahist-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(36, 24, 19, 0.06);
+  padding-top: 10px;
+  margin-top: auto;
+}
+
+.ahist-view-cta {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #D84502;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: gap 0.2s ease;
+}
+
+.ahist-card:hover .ahist-view-cta {
+  gap: 6px;
+}
+
+.ahist-secondary-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ahist-action-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(36, 24, 19, 0.12);
+  background: #FFFFFF;
+  color: #5A4E47;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ahist-action-icon-btn:hover {
+  background: #FFECE2;
+  color: #D84502;
+  border-color: rgba(216, 69, 2, 0.3);
+}
+
+.ahist-action-icon-btn.delete-btn:hover {
+  background: #FEF2F2;
+  color: #EF4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* State C Session History Switcher Drawer */
+.arv-history-btn.is-active {
+  background: #FFECE2;
+  color: #D84502;
+  border-color: rgba(216, 69, 2, 0.4);
+}
+
+.arv-history-drawer {
+  background: #FFFFFF;
+  border: 1px solid rgba(216, 69, 2, 0.18);
+  border-radius: 16px;
+  padding: 14px 18px;
+  margin: -14px 0 26px 0;
+  box-shadow: 0 10px 28px -6px rgba(36, 24, 19, 0.08);
+  animation: slideDownFade 0.25s ease-out;
+}
+
+.ahd-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ahd-drawer-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #241813;
+}
+
+.ahd-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #786C65;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ahd-close-btn:hover {
+  color: #241813;
+  background: rgba(36, 24, 19, 0.05);
+}
+
+.ahd-drawer-grid {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ahd-item-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(36, 24, 19, 0.12);
+  background: #FDFCF9;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #241813;
+  transition: all 0.2s ease;
+}
+
+.ahd-item-pill:hover {
+  border-color: #D84502;
+  background: #FFFFFF;
+  transform: translateY(-1px);
+}
+
+.ahd-item-pill.is-current {
+  border-color: #D84502;
+  background: #FFECE2;
+  color: #D84502;
+  font-weight: 700;
+}
+
+.ahd-current-tag {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #D84502;
+  color: #FFFFFF;
+  padding: 1px 6px;
+  border-radius: 9999px;
+}
+
+.ahd-score {
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+
+.ahd-score.score-green {
+  background: #ECFDF5;
+  color: #047857;
+}
+
+.ahd-score.score-amber {
+  background: #FFFBEB;
+  color: #B45309;
+}
+
+.ahd-score.score-red {
+  background: #FEF2F2;
+  color: #B91C1C;
+}
+
+.ahd-score.score-gray {
+  background: #F3F4F6;
+  color: #6B7280;
+}
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --------------------------------------------------------------------------
    STATE B: SCANNING / LOADING VIEW
    -------------------------------------------------------------------------- */
 
@@ -11090,6 +11499,34 @@ select.smart-select {
   .arv-conversion-banner {
     flex-direction: column;
     text-align: center;
+  }
+
+  .audit-history-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ahist-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .ahist-clear-btn {
+    align-self: flex-start;
+  }
+
+  .arv-history-drawer {
+    margin-top: 10px;
+  }
+
+  .ahd-drawer-grid {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ahd-item-pill {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .acb-btn {

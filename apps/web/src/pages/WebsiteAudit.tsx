@@ -6,10 +6,12 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  Clock,
   Download,
   ExternalLink,
   Gauge,
   Globe,
+  History,
   Info,
   Link2,
   MinusCircle,
@@ -19,6 +21,7 @@ import {
   ShieldCheck,
   Smartphone,
   Target,
+  Trash2,
   UserCheck,
   XCircle,
   Zap,
@@ -60,6 +63,36 @@ const auditFaqs: [string, string][] = [
   ],
 ]
 
+const STORAGE_KEY_SESSION = 'chazon_audit_session_history_v1'
+const STORAGE_KEY_DEVICE = 'chazon_audit_device_history_v1'
+
+export interface AuditHistoryEntry {
+  id: string
+  url: string
+  displayDomain: string
+  timestamp: number
+  overallScore: number | null
+  scores: {
+    performance: number | null
+    seo: number | null
+    accessibility: number | null
+    practices: number | null
+    mobile: number | null
+  }
+  report?: AuditReport
+}
+
+function formatAuditTime(timestamp: number): string {
+  const diffSec = Math.floor((Date.now() - timestamp) / 1000)
+  if (diffSec < 45) return 'Just now'
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `${diffHr}h ago`
+  const d = new Date(timestamp)
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
 export function WebsiteAudit() {
   usePageMeta({
     title: 'Free Website Health Scanner: Core Web Vitals & SEO Diagnostic | Chazon Digital',
@@ -87,6 +120,8 @@ export function WebsiteAudit() {
   const [shareToast, setShareToast] = useState(false)
   const [activeCategoryTab, setActiveCategoryTab] = useState<AuditTabKey>('all')
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null)
+  const [history, setHistory] = useState<AuditHistoryEntry[]>([])
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false)
 
   const selectCategoryTab = (tab: AuditTabKey) => {
     setActiveCategoryTab(tab)
@@ -119,6 +154,24 @@ export function WebsiteAudit() {
         abortControllerRef.current.abort()
         abortControllerRef.current = null
       }
+    }
+  }, [])
+
+  // Load session & device audit history on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const rawSession = window.sessionStorage.getItem(STORAGE_KEY_SESSION)
+      const rawDevice = window.localStorage.getItem(STORAGE_KEY_DEVICE)
+      const raw = rawSession || rawDevice
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          setHistory(parsed)
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load audit history from storage:', err)
     }
   }, [])
 
@@ -215,6 +268,66 @@ export function WebsiteAudit() {
         form: 'website_audit',
         url: completedReport.finalUrl || completedReport.inputUrl,
       })
+
+      // Add to session & device history
+      let domain = 'yourwebsite.com'
+      try {
+        domain = new URL(completedReport.finalUrl || completedReport.inputUrl).hostname.replace(/^www\./, '')
+      } catch {
+        domain = (completedReport.finalUrl || completedReport.inputUrl).replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+      }
+
+      const overall = getReportScoreValue(completedReport, 'overallHealth')
+      const perf = getReportScoreValue(completedReport, 'performance')
+      const seo = getReportScoreValue(completedReport, 'technicalSeo')
+      const access = getReportScoreValue(completedReport, 'accessibility')
+      const practices = getReportScoreValue(completedReport, 'bestPractices')
+      const mobile = getReportScoreValue(completedReport, 'mobileUx')
+
+      const newEntry: AuditHistoryEntry = {
+        id: completedReport.id,
+        url: completedReport.finalUrl || completedReport.inputUrl,
+        displayDomain: domain,
+        timestamp: Date.now(),
+        overallScore: overall,
+        scores: {
+          performance: perf,
+          seo: seo,
+          accessibility: access,
+          practices: practices,
+          mobile: mobile,
+        },
+        report: completedReport,
+      }
+
+      setHistory((prev) => {
+        const filtered = prev.filter((item) => item.id !== newEntry.id && item.url !== newEntry.url)
+        const updated = [newEntry, ...filtered].slice(0, 8)
+        if (typeof window !== 'undefined') {
+          try {
+            const serialized = JSON.stringify(updated)
+            window.sessionStorage.setItem(STORAGE_KEY_SESSION, serialized)
+            window.localStorage.setItem(STORAGE_KEY_DEVICE, serialized)
+          } catch {
+            const slim = updated.map((entry) => ({
+              id: entry.id,
+              url: entry.url,
+              displayDomain: entry.displayDomain,
+              timestamp: entry.timestamp,
+              overallScore: entry.overallScore,
+              scores: entry.scores,
+            }))
+            try {
+              window.sessionStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(slim))
+              window.localStorage.setItem(STORAGE_KEY_DEVICE, JSON.stringify(slim))
+            } catch (storageErr) {
+              // Ignore storage quota limits in private browsing
+              void storageErr
+            }
+          }
+        }
+        return updated
+      })
     } catch (err: unknown) {
       if (unmountAbortedRef.current.has(abortController) || !isMountedRef.current) {
         return
@@ -298,6 +411,89 @@ export function WebsiteAudit() {
     setJobStatus(null)
     setUrl('')
     setProgressPercent(15)
+    setShowHistoryDrawer(false)
+  }
+
+  // Load a report from history (instant from memory/cache or fallback via API)
+  const handleSelectHistoryReport = async (item: AuditHistoryEntry) => {
+    if (item.report) {
+      setReport(item.report)
+      setUrl(item.url)
+      setError(null)
+      setScanning(false)
+      setShowHistoryDrawer(false)
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+      return
+    }
+
+    try {
+      setScanning(true)
+      setProgressPercent(35)
+      const fetched = await auditApi.getReport(item.id)
+      setReport(fetched)
+      setUrl(item.url)
+      setError(null)
+      setShowHistoryDrawer(false)
+      setHistory((prev) => {
+        const updated = prev.map((h) => (h.id === item.id ? { ...h, report: fetched } : h))
+        if (typeof window !== 'undefined') {
+          try {
+            window.sessionStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(updated))
+            window.localStorage.setItem(STORAGE_KEY_DEVICE, JSON.stringify(updated))
+          } catch (storageErr) {
+            // Ignore storage write errors
+            void storageErr
+          }
+        }
+        return updated
+      })
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+    } catch {
+      setError('Unable to load cached audit report from server. Please re-run the audit.')
+      setUrl(item.url)
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const handleRemoveHistoryItem = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setHistory((prev) => {
+      const updated = prev.filter((item) => item.id !== id)
+      if (typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(updated))
+          window.localStorage.setItem(STORAGE_KEY_DEVICE, JSON.stringify(updated))
+        } catch (storageErr) {
+          // Ignore storage write errors
+          void storageErr
+        }
+      }
+      return updated
+    })
+  }
+
+  const handleClearHistory = () => {
+    setHistory([])
+    if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage.removeItem(STORAGE_KEY_SESSION)
+        window.localStorage.removeItem(STORAGE_KEY_DEVICE)
+      } catch (storageErr) {
+        // Ignore storage removal errors
+        void storageErr
+      }
+    }
+  }
+
+  const handleRescanHistory = (itemUrl: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setUrl(itemUrl)
+    void handleStartAudit(undefined, itemUrl)
   }
 
   // Share Functionality
@@ -583,6 +779,16 @@ export function WebsiteAudit() {
                 </div>
 
                 <div className="arv-header-right">
+                  {history.length > 1 && (
+                    <button
+                      type="button"
+                      className={`button button-secondary arv-action-btn arv-history-btn ${showHistoryDrawer ? 'is-active' : ''}`}
+                      onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
+                      title="Switch between audits performed in this session"
+                    >
+                      <History size={16} /> Recent Scans ({history.length})
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="button button-secondary arv-action-btn"
@@ -606,6 +812,53 @@ export function WebsiteAudit() {
                   </button>
                 </div>
               </div>
+
+              {/* Session History Quick-Switch Drawer */}
+              {showHistoryDrawer && history.length > 0 && (
+                <div className="arv-history-drawer" role="region" aria-label="Session audit history switcher">
+                  <div className="ahd-drawer-header">
+                    <div className="ahd-drawer-title">
+                      <History size={15} />
+                      <span>Switch to another scan from this session:</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="ahd-close-btn"
+                      onClick={() => setShowHistoryDrawer(false)}
+                      aria-label="Close session history list"
+                    >
+                      ✕ Close
+                    </button>
+                  </div>
+                  <div className="ahd-drawer-grid">
+                    {history.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSelectHistoryReport(item)}
+                        className={`ahd-item-pill ${item.id === report.id ? 'is-current' : ''}`}
+                      >
+                        <Globe size={13} className="ahd-globe" />
+                        <span className="ahd-domain">{item.displayDomain}</span>
+                        <span
+                          className={`ahd-score ${
+                            item.overallScore === null
+                              ? 'score-gray'
+                              : item.overallScore >= 80
+                                ? 'score-green'
+                                : item.overallScore >= 60
+                                  ? 'score-amber'
+                                  : 'score-red'
+                          }`}
+                        >
+                          {item.overallScore ?? '—'}
+                        </span>
+                        {item.id === report.id && <span className="ahd-current-tag">Viewing</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Share Toast */}
               {shareToast && (
@@ -1075,6 +1328,132 @@ export function WebsiteAudit() {
                   </div>
                 </form>
               </div>
+
+              {/* Session / Device Audit History Section */}
+              {history.length > 0 && (
+                <div className="audit-history-section" id="session-audit-history">
+                  <div className="ahist-header">
+                    <div className="ahist-title-wrap">
+                      <div className="ahist-icon-badge" aria-hidden="true">
+                        <History size={18} />
+                      </div>
+                      <div>
+                        <h3 className="ahist-title">Recent Audits in This Session</h3>
+                        <p className="ahist-subtitle">
+                          Saved locally on this device · Click any audit to view its full diagnostic report
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearHistory}
+                      className="ahist-clear-btn"
+                      title="Clear session audit history"
+                    >
+                      <Trash2 size={13} />
+                      <span>Clear History</span>
+                    </button>
+                  </div>
+
+                  <div className="audit-history-grid">
+                    {history.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => handleSelectHistoryReport(item)}
+                        className="ahist-card"
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            void handleSelectHistoryReport(item)
+                          }
+                        }}
+                      >
+                        <div className="ahist-card-top">
+                          <div className="ahist-domain-group">
+                            <div className="ahist-globe-icon" aria-hidden="true">
+                              <Globe size={16} />
+                            </div>
+                            <div className="ahist-domain-info">
+                              <strong className="ahist-domain-name" title={item.url}>
+                                {item.displayDomain}
+                              </strong>
+                              <span className="ahist-time-stamp">
+                                <Clock size={12} />
+                                {formatAuditTime(item.timestamp)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div
+                            className={`ahist-score-chip ${
+                              item.overallScore === null
+                                ? 'chip-gray'
+                                : item.overallScore >= 80
+                                  ? 'chip-green'
+                                  : item.overallScore >= 60
+                                    ? 'chip-amber'
+                                    : 'chip-red'
+                            }`}
+                          >
+                            <span className="ahist-score-val">{item.overallScore ?? '—'}</span>
+                            <span className="ahist-score-suffix">/100</span>
+                          </div>
+                        </div>
+
+                        {/* Category Score Preview */}
+                        <div className="ahist-metrics-chips">
+                          {item.scores.performance !== null && (
+                            <span className="ahist-mchip">
+                              <Gauge size={12} /> Perf {item.scores.performance}
+                            </span>
+                          )}
+                          {item.scores.seo !== null && (
+                            <span className="ahist-mchip">
+                              <Search size={12} /> SEO {item.scores.seo}
+                            </span>
+                          )}
+                          {item.scores.mobile !== null && (
+                            <span className="ahist-mchip">
+                              <Smartphone size={12} /> Mobile {item.scores.mobile}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Card Footer Actions */}
+                        <div className="ahist-card-actions">
+                          <span className="ahist-view-cta">
+                            <span>View Full Report</span>
+                            <ChevronRight size={15} />
+                          </span>
+
+                          <div className="ahist-secondary-actions">
+                            <button
+                              type="button"
+                              onClick={(e) => handleRescanHistory(item.url, e)}
+                              className="ahist-action-icon-btn"
+                              title="Re-run audit for this URL"
+                              aria-label={`Re-run audit for ${item.displayDomain}`}
+                            >
+                              <RotateCcw size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleRemoveHistoryItem(item.id, e)}
+                              className="ahist-action-icon-btn delete-btn"
+                              title="Remove from history"
+                              aria-label={`Remove ${item.displayDomain} from history`}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
