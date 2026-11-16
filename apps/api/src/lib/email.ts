@@ -64,7 +64,7 @@ function notification(s: Submission): Email {
     ['Audit Reference', s.auditRef],
     [s.kind === 'audit' ? 'Audit focus' : 'Message', s.message],
   ]
-  const link = env.ADMIN_URL ? `${env.ADMIN_URL}/${s.kind === 'audit' ? 'audits' : 'leads'}/${s.id}` : ''
+  const link = env.ADMIN_URL ? `${env.ADMIN_URL.replace(/\/$/, '')}/${s.kind === 'audit' ? 'audits' : 'leads'}/${s.id}` : ''
   const recipient =
     env.CHAZON_NOTIFICATION_EMAIL && env.CHAZON_NOTIFICATION_EMAIL !== 'you@yourdomain.com'
       ? env.CHAZON_NOTIFICATION_EMAIL

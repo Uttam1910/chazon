@@ -51,6 +51,18 @@ const origin = (fallback: string) =>
       return (cleaned || vercelDefaultOrigin || (isProduction ? '' : fallback)).replace(/\/$/, '')
     })
 
+const adminOrigin = (fallback: string) =>
+  z
+    .string()
+    .trim()
+    .optional()
+    .transform(v => {
+      const cleaned = cleanEnvVal(v && !(isVercel && isProduction && isLoopbackUrl(v)) ? v : undefined) || ''
+      if (cleaned) return cleaned.replace(/\/$/, '')
+      if (isVercel && vercelDefaultOrigin) return `${vercelDefaultOrigin}/admin`
+      return (vercelDefaultOrigin || (isProduction ? '' : fallback)).replace(/\/$/, '')
+    })
+
 const rawAuthSecret = cleanEnvVal(process.env.AUTH_SECRET)
 if (isVercel && (!rawAuthSecret || rawAuthSecret.length < 32)) {
   console.warn('AUTH_SECRET is missing or under 32 chars; using an ephemeral runtime secret on Vercel.')
@@ -71,7 +83,7 @@ const schema = z.object({
   AUTH_SECRET: authSecretSchema,
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(12),
   PUBLIC_SITE_URL: origin('http://localhost:5173'),
-  ADMIN_URL: origin('http://localhost:5174'),
+  ADMIN_URL: adminOrigin('http://localhost:5174'),
   API_URL: origin('http://localhost:5000'),
   RESEND_API_KEY: optional,
   RESEND_FROM_EMAIL: optional,
