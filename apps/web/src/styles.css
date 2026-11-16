@@ -421,6 +421,139 @@ em, .serif-italic-accent {
   background: var(--accent);
   border-radius: var(--radius-full);
 }
+
+/* Highlighted "Website Health Scanner" in Navbar */
+.nav-scanner-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px 5px 6px;
+  background: linear-gradient(135deg, rgba(237, 71, 0, 0.08) 0%, rgba(255, 115, 36, 0.13) 100%);
+  border: 1px solid rgba(237, 71, 0, 0.28);
+  border-radius: 9999px;
+  color: #1a1a1a;
+  text-decoration: none;
+  white-space: nowrap;
+  position: relative;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(237, 71, 0, 0.06);
+  animation: scanner-nav-glow 3s ease-in-out infinite;
+}
+
+@keyframes scanner-nav-glow {
+  0%, 100% {
+    box-shadow: 0 1px 3px rgba(237, 71, 0, 0.08), 0 0 0 0 rgba(237, 71, 0, 0.2);
+    border-color: rgba(237, 71, 0, 0.28);
+  }
+  50% {
+    box-shadow: 0 4px 14px rgba(237, 71, 0, 0.18), 0 0 0 3px rgba(237, 71, 0, 0.12);
+    border-color: rgba(237, 71, 0, 0.52);
+  }
+}
+
+.nav-scanner-pill:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, rgba(237, 71, 0, 0.14) 0%, rgba(255, 115, 36, 0.22) 100%);
+  border-color: #ed4700;
+  box-shadow: 0 4px 16px rgba(237, 71, 0, 0.24);
+}
+
+.nav-scanner-icon-wrap {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ed4700;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(237, 71, 0, 0.35);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.nav-scanner-pill:hover .nav-scanner-icon-wrap {
+  transform: scale(1.08);
+  background: #d44720;
+}
+
+.nav-scanner-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.nav-scanner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4.5px;
+  padding: 2px 7px 2px 6px;
+  border-radius: 9999px;
+  background: #ecfdf5;
+  border: 1px solid rgba(16, 185, 129, 0.38);
+  color: #047857;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+  line-height: 1.2;
+}
+
+.nav-scanner-beacon {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: nav-beacon-pulse 2s infinite;
+}
+
+@keyframes nav-beacon-pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+/* Active State for Website Health Scanner in Navbar */
+.nav-scanner-pill.is-active {
+  background: #ed4700;
+  border-color: #ed4700;
+  box-shadow: 0 4px 16px rgba(237, 71, 0, 0.35);
+  animation: none;
+}
+
+.nav-scanner-pill.is-active .nav-scanner-icon-wrap {
+  background: #ffffff;
+  color: #ed4700;
+}
+
+.nav-scanner-pill.is-active .nav-scanner-text {
+  color: #ffffff;
+}
+
+.nav-scanner-pill.is-active .nav-scanner-badge {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #ffffff;
+}
+
+.nav-scanner-pill.is-active .nav-scanner-beacon {
+  background: #ffffff;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+}
+
 .dropdown-caret {
   transition: transform 0.2s var(--ease);
 }
@@ -1233,6 +1366,40 @@ button.nav-link.has-dropdown.is-active::after {
 .mobile-nav-item:hover .mobile-nav-arrow,
 .mobile-nav-item.is-active .mobile-nav-arrow {
   color: #D44720;
+}
+
+.mobile-nav-item.mobile-nav-scanner {
+  background: linear-gradient(135deg, rgba(237, 71, 0, 0.08) 0%, rgba(255, 115, 36, 0.14) 100%);
+  border: 1px solid rgba(237, 71, 0, 0.28);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 6px 0;
+  box-shadow: 0 2px 8px rgba(237, 71, 0, 0.08);
+}
+.mobile-nav-scanner-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.mobile-nav-scanner-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #ed4700;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(237, 71, 0, 0.35);
+}
+.mobile-nav-item.mobile-nav-scanner:hover,
+.mobile-nav-item.mobile-nav-scanner.is-active {
+  background: linear-gradient(135deg, rgba(237, 71, 0, 0.14) 0%, rgba(255, 115, 36, 0.22) 100%);
+  border-color: #ed4700;
 }
 .mobile-drawer-cta {
   margin-top: auto;
@@ -4532,11 +4699,22 @@ button.nav-link.has-dropdown.is-active::after {
 
 @media (max-width: 1180px) {
   .nav-desktop {
-    gap: 16px;
+    gap: 14px;
   }
   .nav-link,
   button.nav-link.has-dropdown {
-    font-size: 0.875rem;
+    font-size: 0.84rem;
+  }
+  .nav-scanner-pill {
+    padding: 4px 9px 4px 5px;
+    gap: 5.5px;
+  }
+  .nav-scanner-text {
+    font-size: 0.8125rem;
+  }
+  .nav-scanner-badge {
+    padding: 1.5px 5.5px;
+    font-size: 0.625rem;
   }
 }
 

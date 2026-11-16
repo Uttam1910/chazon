@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import {
-  Bell, Briefcase, Building2, ChevronDown, DatabaseZap, Globe, Image, KeyRound, Layers, LayoutDashboard, LogOut, Menu, Newspaper,
-  Quote, Search, SearchCheck, Settings, ShieldCheck, UserRound, X,
+  Activity, Bell, Briefcase, Building2, ChevronDown, DatabaseZap, Globe, Image, KeyRound, Layers, LayoutDashboard, LogOut, Menu, MessageSquare, Newspaper,
+  Quote, Search, Settings, ShieldCheck, X,
 } from 'lucide-react'
 import { CONTENT_STATUS_LABELS, LEAD_STATUS_LABELS, AUDIT_STATUS_LABELS, type ContentStatus, type LeadStatus, type AuditStatus } from '@chazon/shared'
 import { DEMO_MODE, qs, useApi } from '../api'
@@ -21,16 +21,33 @@ type Notifications = {
 }
 
 const sections: { label: string; items: { to: string; label: string; icon: typeof Bell; badge?: 'leads' | 'audits'; adminOnly?: boolean }[] }[] = [
-  { label: 'Overview', items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }] },
-  { label: 'Pipeline', items: [{ to: '/leads', label: 'Leads', icon: UserRound, badge: 'leads' }, { to: '/audits', label: 'Audits & Scans', icon: SearchCheck, badge: 'audits' }] },
+  { label: 'Overview', items: [{ to: '/', label: 'Growth Dashboard', icon: LayoutDashboard }] },
   {
-    label: 'Content', items: [
-      { to: '/services', label: 'Services', icon: Layers }, { to: '/case-studies', label: 'Work / Case Studies', icon: Briefcase },
-      { to: '/insights', label: 'Insights', icon: Newspaper }, { to: '/industries', label: 'Industries', icon: Building2 },
-      { to: '/testimonials', label: 'Testimonials', icon: Quote }, { to: '/media', label: 'Media', icon: Image },
+    label: 'Pipeline & Inbox',
+    items: [
+      { to: '/leads', label: 'Leads & Messages', icon: MessageSquare, badge: 'leads' },
+      { to: '/audits', label: 'Audits & Health Scans', icon: Activity, badge: 'audits' },
     ],
   },
-  { label: 'Configuration', items: [{ to: '/settings', label: 'Website Settings', icon: Settings }, { to: '/seo', label: 'SEO', icon: Globe }, { to: '/users', label: 'Admin Users', icon: ShieldCheck, adminOnly: true }] },
+  {
+    label: 'Content Catalog',
+    items: [
+      { to: '/services', label: 'Services & Pillars', icon: Layers },
+      { to: '/case-studies', label: 'Work & Case Studies', icon: Briefcase },
+      { to: '/insights', label: 'Insights & Articles', icon: Newspaper },
+      { to: '/industries', label: 'Industries', icon: Building2 },
+      { to: '/testimonials', label: 'Testimonials', icon: Quote },
+      { to: '/media', label: 'Media Library', icon: Image },
+    ],
+  },
+  {
+    label: 'Configuration',
+    items: [
+      { to: '/settings', label: 'Website Settings', icon: Settings },
+      { to: '/seo', label: 'SEO & Metadata', icon: Globe },
+      { to: '/users', label: 'Admin Team', icon: ShieldCheck, adminOnly: true },
+    ],
+  },
 ]
 
 /** Closes a popover when clicking outside it or pressing Escape. */
@@ -74,10 +91,15 @@ export function Shell() {
     <a href="#main" className="skip-link">Skip to content</a>
     <aside className="sidebar" aria-label="Admin navigation">
       <div className="sidebar-brand">
-        <Link to="/" className="brand" aria-label="Chazon Admin">
-          <img src="/images/brand/chazon-logo-mobile.png" alt="Chazon Digital" className="admin-brand-img" height={32} />
+        <Link to="/" className="brand" aria-label="Chazon Business Growth Dashboard">
+          <img src="/images/brand/chazon-logo-desktop.png" alt="Chazon Digital" className="admin-brand-img" height={36} />
         </Link>
         <button className="icon-btn drawer-close" aria-label="Close navigation" onClick={() => setDrawer(false)}><X size={20}/></button>
+      </div>
+      <div className="sidebar-status-tag">
+        <span className="live-dot" />
+        <span className="live-text">Growth Engine</span>
+        <span className="live-env-badge">{DEMO_MODE ? 'Demo' : 'Live'}</span>
       </div>
       <nav>
         {sections.map(section => <div key={section.label} className="nav-section">

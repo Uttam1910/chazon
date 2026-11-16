@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
+  Activity,
   ArrowRight,
   ChevronDown,
   CircleDollarSign,
@@ -563,9 +564,17 @@ export function Header({
 
             <Link
               to="/website-audit"
-              className={`nav-link ${path.startsWith('/website-audit') || path.startsWith('/growth-audit') ? 'is-active' : ''}`}
+              className={`nav-scanner-pill ${path.startsWith('/website-audit') || path.startsWith('/growth-audit') ? 'is-active' : ''}`}
+              title="Website Health Scanner - Free Instant Score & Audit"
             >
-              Website Health Scanner
+              <span className="nav-scanner-icon-wrap" aria-hidden="true">
+                <Activity size={13} className="nav-scanner-icon" />
+              </span>
+              <span className="nav-scanner-text">Website Health Scanner</span>
+              <span className="nav-scanner-badge">
+                <span className="nav-scanner-beacon" aria-hidden="true" />
+                <span>Free Score</span>
+              </span>
             </Link>
 
             <Link
@@ -743,10 +752,19 @@ export function Header({
             <li>
               <Link
                 to="/website-audit"
-                className={`mobile-nav-item ${path.startsWith('/website-audit') || path.startsWith('/growth-audit') ? 'is-active' : ''}`}
+                className={`mobile-nav-item mobile-nav-scanner ${path.startsWith('/website-audit') || path.startsWith('/growth-audit') ? 'is-active' : ''}`}
                 onClick={() => setMobileOpen(false)}
               >
-                <span>Website Health Scanner</span>
+                <span className="mobile-nav-scanner-label">
+                  <span className="mobile-nav-scanner-icon" aria-hidden="true">
+                    <Activity size={15} />
+                  </span>
+                  <span>Website Health Scanner</span>
+                  <span className="nav-scanner-badge">
+                    <span className="nav-scanner-beacon" aria-hidden="true" />
+                    <span>Free Score</span>
+                  </span>
+                </span>
                 <ArrowRight size={16} className="mobile-nav-arrow" />
               </Link>
             </li>
