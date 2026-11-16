@@ -119,20 +119,118 @@ export function withAdminSeo(meta: Meta, ...layers: (Partial<PublicSeo> | undefi
 const orgId = () => absoluteUrl('/#organization')
 
 export function organizationSchema(settings: PublicSettings, sameAs: string[]): Schema[] {
-  if (!config.siteUrl) return []
-  return [{
-    '@context': 'https://schema.org', '@type': 'Organization', '@id': orgId(), name: settings.companyName, url: absoluteUrl('/'),
-    logo: absoluteUrl('/logo-512.png'), slogan: settings.tagline,
-    description: 'Chazon Digital Ventures helps businesses build, optimise and grow their digital revenue channels through strategy, technology, marketing and automation.',
+  const base = absoluteUrl('/')
+  const orgUrl = base || 'https://chazon-sigma.vercel.app/'
+  const org: Schema = {
+    '@context': 'https://schema.org',
+    '@type': ['Organization', 'ProfessionalService'],
+    '@id': orgId(),
+    name: settings.companyName || BRAND,
+    legalName: 'Chazon Digital Ventures',
+    url: orgUrl,
+    logo: absoluteUrl('/logo-512.png'),
+    image: absoluteUrl('/og-image.png'),
+    slogan: settings.tagline || 'Revenue-Led Digital Transformation',
+    description:
+      'Chazon Digital Ventures helps businesses build, optimise and grow their digital revenue channels through strategy, technology, marketing and automation.',
     founder: { '@type': 'Person', name: founder.name },
-    address: { '@type': 'PostalAddress', addressLocality: 'Mumbai', addressRegion: 'Maharashtra', addressCountry: 'IN' },
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: 'Mumbai',
+      addressRegion: 'Maharashtra',
+      addressCountry: 'IN',
+    },
+    geo: {
+      '@type': 'GeoCoordinates',
+      latitude: '19.0760',
+      longitude: '72.8777',
+    },
+    priceRange: '$$',
+    currenciesAccepted: 'INR, USD, EUR, GBP, AED',
+    areaServed: [
+      { '@type': 'Country', name: 'India' },
+      { '@type': 'Country', name: 'United States' },
+      { '@type': 'Country', name: 'United Kingdom' },
+      { '@type': 'Country', name: 'United Arab Emirates' },
+      { '@type': 'AdministrativeArea', name: 'Global' },
+    ],
+    openingHoursSpecification: [
+      {
+        '@type': 'OpeningHoursSpecification',
+        dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+        opens: '09:30',
+        closes: '18:30',
+      },
+    ],
+    knowsAbout: [
+      'Search Engine Optimisation',
+      'Website Engineering',
+      'Digital Marketing Strategy',
+      'Conversion Rate Optimisation',
+      'Business Process Automation',
+      'UI/UX Architecture',
+      'Performance Advertising',
+    ],
     ...(settings.email ? { email: settings.email } : {}),
     ...(settings.phone ? { telephone: settings.phone } : {}),
     ...(sameAs.length ? { sameAs } : {}),
-  }, {
-    '@context': 'https://schema.org', '@type': 'WebSite', '@id': absoluteUrl('/#website'), name: BRAND, url: absoluteUrl('/'),
-    inLanguage: 'en-IN', publisher: { '@id': orgId() },
-  }]
+  }
+
+  const website: Schema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    '@id': absoluteUrl('/#website'),
+    name: BRAND,
+    url: orgUrl,
+    inLanguage: 'en-IN',
+    publisher: { '@id': orgId() },
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: `${orgUrl}services?q={search_term_string}`,
+      },
+      'query-input': 'required name=search_term_string',
+    },
+  }
+
+  return [org, website]
+}
+
+export function webApplicationSchema({
+  name = 'Website Health Scanner & SEO Diagnostic Tool',
+  path = '/website-audit',
+  description = 'Instant 0–100 Website Health Score, Core Web Vitals diagnostic, speed latency indexing, and SEO bottleneck analyzer.',
+}: {
+  name?: string
+  path?: string
+  description?: string
+} = {}): Schema[] {
+  return [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebApplication',
+      name,
+      url: absoluteUrl(path),
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'All',
+      browserRequirements: 'Requires JavaScript. Requires HTML5.',
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'USD',
+      },
+      creator: { '@id': orgId() },
+      description,
+      featureList: [
+        '0-100 Performance Score',
+        'SEO Health Diagnostic',
+        'Mobile Responsiveness Audit',
+        'Conversion Leak Detection',
+        'Core Web Vitals Metric Tracking',
+      ],
+    },
+  ]
 }
 
 /** BreadcrumbList matching the visible breadcrumb trail ([label, path] pairs, starting after Home). */

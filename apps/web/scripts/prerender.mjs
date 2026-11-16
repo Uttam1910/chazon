@@ -24,7 +24,8 @@ const isLoopback = (value) => {
 const env = loadEnv('production', resolve(root, '../..'), 'VITE_')
 const rawSiteUrl = (env.VITE_SITE_URL || '').replace(/\/$/, '')
 const rawApiUrl = (env.VITE_API_URL || '').replace(/\/$/, '')
-const siteUrl = isLoopback(rawSiteUrl) ? '' : rawSiteUrl
+const defaultSiteUrl = 'https://chazon-sigma.vercel.app'
+const siteUrl = (!rawSiteUrl || isLoopback(rawSiteUrl)) ? defaultSiteUrl : rawSiteUrl
 const apiUrl = isLoopback(rawApiUrl) ? '' : rawApiUrl
 const fail = message => { console.error(`✖ prerender: ${message}`); process.exit(1) }
 

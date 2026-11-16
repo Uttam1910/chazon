@@ -66,8 +66,21 @@ export const apiConfigured = Boolean(apiUrl || sameOriginApi)
 /** Demo mode (VITE_DEMO_MODE=true): published content comes from built-in sample data; enquiries are not sent. */
 export const demoMode = metaEnv.VITE_DEMO_MODE === 'true'
 
-const siteUrlRaw = (metaEnv.VITE_SITE_URL || '').trim().replace(/\/$/, '')
-const siteUrl = !metaEnv.DEV && isLoopbackUrl(siteUrlRaw) ? '' : siteUrlRaw
+export const DEFAULT_PRODUCTION_SITE_URL = 'https://chazon-sigma.vercel.app'
+
+export function resolveSiteUrl(): string {
+  const raw = (metaEnv.VITE_SITE_URL || '').trim().replace(/\/$/, '')
+  if (raw && !isLoopbackUrl(raw)) {
+    return raw
+  }
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    const origin = window.location.origin
+    if (!isLoopbackUrl(origin)) return origin.replace(/\/$/, '')
+  }
+  return metaEnv.DEV ? 'http://localhost:5173' : DEFAULT_PRODUCTION_SITE_URL
+}
+
+const siteUrl = resolveSiteUrl()
 
 export const config = {
   siteUrl,

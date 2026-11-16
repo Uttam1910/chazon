@@ -28,7 +28,8 @@ const isLoopback = value => {
   }
 }
 
-const resolvedSiteUrl = (!process.env.VITE_SITE_URL || isLoopback(process.env.VITE_SITE_URL)) ? vercelSiteUrl : process.env.VITE_SITE_URL
+const defaultProductionDomain = 'https://chazon-sigma.vercel.app'
+const resolvedSiteUrl = (!process.env.VITE_SITE_URL || isLoopback(process.env.VITE_SITE_URL)) ? (vercelSiteUrl || defaultProductionDomain) : process.env.VITE_SITE_URL
 const clearLoopbackApi = !process.env.VITE_API_URL || isLoopback(process.env.VITE_API_URL)
 const clearLoopbackEndpoint = !process.env.VITE_ENQUIRY_ENDPOINT || isLoopback(process.env.VITE_ENQUIRY_ENDPOINT)
 

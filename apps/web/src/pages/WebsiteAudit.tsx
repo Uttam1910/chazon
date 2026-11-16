@@ -38,16 +38,43 @@ import { getBusinessFriendlyTitle } from '../lib/findingExplanations'
 import { track } from '../config'
 import { useRouter } from '../location'
 import { Link } from '../router'
-import { breadcrumbSchema, usePageMeta } from '../seo'
+import { breadcrumbSchema, faqSchema, usePageMeta, webApplicationSchema } from '../seo'
 import { PageShell } from '../components/Layout'
+
+const auditFaqs: [string, string][] = [
+  [
+    'How does the free website health scanner work?',
+    'Enter your website URL, and our engine runs automated diagnostics across Core Web Vitals, mobile responsiveness, search engine crawlability, meta tags, and conversion bottlenecks in under 30 seconds.',
+  ],
+  [
+    'Is the website audit really free?',
+    'Yes, the instant diagnostic scan and 0–100 Website Health Score report are completely free with no credit card required.',
+  ],
+  [
+    'What Core Web Vitals and SEO metrics are analyzed?',
+    'The scanner calculates performance speed index, Largest Contentful Paint (LCP), Cumulative Layout Shift (CLS), indexability, heading hierarchies, Open Graph previews, and mobile viewport readiness.',
+  ],
+  [
+    'How do I fix the bottlenecks found in my audit report?',
+    'Each finding in the report includes clear, prioritized developer takeaways and business impact summaries. You can also connect directly with Chazon’s engineering team for hands-on resolution.',
+  ],
+]
 
 export function WebsiteAudit() {
   usePageMeta({
-    title: 'Free Website Audit: Performance & SEO Diagnostic | Chazon Digital',
+    title: 'Free Website Health Scanner: Core Web Vitals & SEO Diagnostic | Chazon Digital',
     description:
-      'Know how your website performs. Get a detailed, instant analysis of your website’s performance, SEO, user experience and growth opportunities.',
+      'Test your website speed, Core Web Vitals and SEO health in 30 seconds. Get an instant 0–100 score with actionable developer and conversion fixes.',
     path: '/website-audit',
-    schema: breadcrumbSchema([['Website Audit', '/website-audit']]),
+    schema: [
+      ...breadcrumbSchema([['Website Audit', '/website-audit']]),
+      ...webApplicationSchema({
+        name: 'Chazon Website Health Scanner',
+        path: '/website-audit',
+        description: 'Instant 0–100 Website Health Score, Core Web Vitals diagnostic, and SEO bottleneck analyzer.',
+      }),
+      ...faqSchema(auditFaqs),
+    ],
   })
 
   // URL & Scanning States
