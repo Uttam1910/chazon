@@ -63,6 +63,7 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(5000),
   // Optional until a database is set up: without it only the .env Admin sign-in works.
   DATABASE_URL: optional,
+  DIRECT_URL: optional,
   AUTH_SECRET: authSecretSchema,
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(12),
   PUBLIC_SITE_URL: origin('http://localhost:5173'),

@@ -1,3 +1,4 @@
+import pg from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { env } from './env'
 import { Prisma, PrismaClient } from './generated/prisma/client'
@@ -17,7 +18,18 @@ function disconnectedClient(): PrismaClient {
   }) as PrismaClient
 }
 
-export const prisma = env.DATABASE_URL ? new PrismaClient({ adapter: new PrismaPg({ connectionString: env.DATABASE_URL }) }) : disconnectedClient()
+const pool = env.DATABASE_URL
+  ? new pg.Pool({
+      connectionString: env.DATABASE_URL,
+      max: 5,
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 10000,
+    })
+  : null
+
+export const prisma = pool
+  ? new PrismaClient({ adapter: new PrismaPg(pool) })
+  : disconnectedClient()
 
 /** True when an error means the database is missing or unreachable (not a problem with the query itself). */
 export function isDatabaseUnavailable(error: unknown): boolean {
@@ -28,7 +40,7 @@ export function isDatabaseUnavailable(error: unknown): boolean {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2021') return true
   const text = `${(error as { code?: string })?.code ?? ''} ${(error as Error)?.message ?? ''}`
   // Raw queries surface the PostgreSQL code: 28000/28P01 login rejected, 3D000 no such database, 08xxx connection, 42P01 no such table.
-  return /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EHOSTUNREACH|Can't reach database|DatabaseNotReachable|DatabaseAccessDenied|DatabaseDoesNotExist|Code: `(28000|28P01|3D000|08\w{3}|42P01)`/.test(text)
+  return /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EHOSTUNREACH|EMAXCONNSESSION|max clients reached|Can't reach database|DatabaseNotReachable|DatabaseAccessDenied|DatabaseDoesNotExist|Code: `(28000|28P01|3D000|08\w{3}|42P01|XX000)`/.test(text)
 }
 
 export * from './generated/prisma/client'
