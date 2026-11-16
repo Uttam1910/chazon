@@ -41,18 +41,33 @@ export function verifyEnvPassword(password: string) {
 /** Makes sure the .env Admin has an active ADMIN row; a previous .env Admin (email changed) is deactivated. Needs the database. */
 export async function ensureEnvAdmin() {
   if (!env.ADMIN_EMAIL) return null
-  await prisma.adminUser.updateMany({ where: { passwordHash: ENV_MANAGED, NOT: { email: env.ADMIN_EMAIL } }, data: { active: false } })
-  return prisma.adminUser.upsert({
-    where: { email: env.ADMIN_EMAIL },
-    update: { name: env.ADMIN_NAME, role: 'ADMIN', active: true, passwordHash: ENV_MANAGED },
-    create: { email: env.ADMIN_EMAIL, name: env.ADMIN_NAME, role: 'ADMIN', active: true, passwordHash: ENV_MANAGED },
-  })
+  try {
+    await prisma.adminUser.updateMany({ where: { passwordHash: ENV_MANAGED, NOT: { email: env.ADMIN_EMAIL } }, data: { active: false } })
+    return await prisma.adminUser.upsert({
+      where: { email: env.ADMIN_EMAIL },
+      update: { name: env.ADMIN_NAME, role: 'ADMIN', active: true, passwordHash: ENV_MANAGED },
+      create: { email: env.ADMIN_EMAIL, name: env.ADMIN_NAME, role: 'ADMIN', active: true, passwordHash: ENV_MANAGED },
+    })
+  } catch (error) {
+    // The .env Admin is fully functional without database synchronization.
+    console.warn('[auth] Could not synchronize .env Admin with database (using fallback):', (error as Error)?.message || error)
+    return null
+  }
 }
 /** The .env Admin's database id when a database is reachable (cached), otherwise a placeholder id. */
-let envAdminRow: Promise<string> | null = null
-async function envAdminId() {
-  envAdminRow ??= ensureEnvAdmin().then(u => u!.id)
-  try { return await envAdminRow } catch { envAdminRow = null; return ENV_ADMIN_FALLBACK_ID }
+let cachedEnvAdminId: string | null = null
+async function envAdminId(): Promise<string> {
+  if (cachedEnvAdminId) return cachedEnvAdminId
+  try {
+    const user = await ensureEnvAdmin()
+    if (user?.id) {
+      cachedEnvAdminId = user.id
+      return user.id
+    }
+  } catch {
+    // Ignore error and fall back
+  }
+  return ENV_ADMIN_FALLBACK_ID
 }
 const envAdmin = async (): Promise<SessionUser> => ({ id: await envAdminId(), email: env.ADMIN_EMAIL!, name: env.ADMIN_NAME, role: 'ADMIN', managed: true })
 
@@ -88,7 +103,16 @@ function readEnvSession(token: string) {
 /** Signs in the .env Admin. No database needed; the last-login time is recorded only if one is available. */
 export async function createEnvSession(res: Response) {
   setEnvSessionCookie(res)
-  void ensureEnvAdmin().then(u => u && prisma.adminUser.update({ where: { id: u.id }, data: { lastLoginAt: new Date() } })).catch(() => {})
+  void (async () => {
+    try {
+      const u = await ensureEnvAdmin()
+      if (u) {
+        await prisma.adminUser.update({ where: { id: u.id }, data: { lastLoginAt: new Date() } }).catch(() => {})
+      }
+    } catch {
+      // safe fallback
+    }
+  })()
   return envAdmin()
 }
 export async function createSession(res: Response, req: Request, userId: string) {

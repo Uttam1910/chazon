@@ -37,6 +37,15 @@ function normalizeRequest(req) {
 }
 
 export default function handler(req, res) {
-  normalizeRequest(req)
-  return getApp()(req, res)
+  try {
+    normalizeRequest(req)
+    return getApp()(req, res)
+  } catch (error) {
+    console.error('Unhandled Vercel serverless error:', error)
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'application/json')
+      res.statusCode = 500
+      res.end(JSON.stringify({ error: { code: 'SERVERLESS_ERROR', message: error?.message || 'Server error' } }))
+    }
+  }
 }

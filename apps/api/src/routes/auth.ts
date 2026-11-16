@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { rateLimit } from 'express-rate-limit'
 import { z } from 'zod'
-import { prisma } from '../db'
+import { isDatabaseUnavailable, prisma } from '../db'
 import { createEnvSession, createSession, currentUser, destroySession, destroyUserSessions, hashPassword, isEnvAdmin, isStrongPassword, passwordRule, requireAuth, timingDummy, verifyEnvPassword, verifyPassword } from '../lib/auth'
 import { ApiError, ok, parse } from '../lib/http'
 
@@ -24,11 +24,19 @@ authRouter.post('/login', loginLimiter, async (req, res) => {
     if (!verifyEnvPassword(password)) throw new ApiError(401, 'INVALID_CREDENTIALS', 'Incorrect email or password.')
     return ok(res, await createEnvSession(res))
   }
-  const user = await prisma.adminUser.findUnique({ where: { email } })
+  let user
+  try {
+    user = await prisma.adminUser.findUnique({ where: { email } })
+  } catch (error) {
+    if (isDatabaseUnavailable(error)) {
+      throw new ApiError(503, 'DATABASE_UNAVAILABLE', 'Database is currently unreachable. If using the primary admin account, ensure ADMIN_EMAIL and ADMIN_PASSWORD are set in Vercel environment variables.')
+    }
+    throw error
+  }
   const valid = user ? await verifyPassword(password, user.passwordHash) : (await verifyPassword(password, await timingDummy()), false)
   if (!user || !valid || !user.active) throw new ApiError(401, 'INVALID_CREDENTIALS', 'Incorrect email or password.')
-  await prisma.session.deleteMany({ where: { userId: user.id, expiresAt: { lt: new Date() } } })
-  await prisma.adminUser.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+  await prisma.session.deleteMany({ where: { userId: user.id, expiresAt: { lt: new Date() } } }).catch(() => {})
+  await prisma.adminUser.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }).catch(() => {})
   await createSession(res, req, user.id)
   ok(res, { id: user.id, email: user.email, name: user.name, role: user.role, managed: false })
 })

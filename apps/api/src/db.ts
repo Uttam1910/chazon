@@ -18,14 +18,31 @@ function disconnectedClient(): PrismaClient {
   }) as PrismaClient
 }
 
+const isVercel = Boolean(process.env.VERCEL)
+const isRemoteDb = Boolean(
+  env.DATABASE_URL &&
+    (env.DATABASE_URL.includes('supabase') ||
+      env.DATABASE_URL.includes('pooler') ||
+      env.DATABASE_URL.includes('aws') ||
+      env.DATABASE_URL.includes('sslmode=require') ||
+      env.NODE_ENV === 'production')
+)
+
 const pool = env.DATABASE_URL
   ? new pg.Pool({
       connectionString: env.DATABASE_URL,
-      max: 5,
+      max: isVercel ? 2 : 5,
       idleTimeoutMillis: 10000,
       connectionTimeoutMillis: 10000,
+      ...(isRemoteDb ? { ssl: { rejectUnauthorized: false } } : {}),
     })
   : null
+
+if (pool) {
+  pool.on('error', err => {
+    console.warn('[db pool error (handled)]', (err as Error)?.message || err)
+  })
+}
 
 export const prisma = pool
   ? new PrismaClient({ adapter: new PrismaPg(pool) })
@@ -38,9 +55,9 @@ export function isDatabaseUnavailable(error: unknown): boolean {
   if (error instanceof Prisma.PrismaClientKnownRequestError && ['P1000', 'P1001', 'P1002', 'P1003', 'P1010', 'P1017'].includes(error.code)) return true
   // P2021: the tables don't exist yet (migrations not run).
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2021') return true
-  const text = `${(error as { code?: string })?.code ?? ''} ${(error as Error)?.message ?? ''}`
+  const text = `${(error as { code?: string })?.code ?? ''} ${(error as Error)?.message ?? ''} ${JSON.stringify(error ?? {})}`
   // Raw queries surface the PostgreSQL code: 28000/28P01 login rejected, 3D000 no such database, 08xxx connection, 42P01 no such table.
-  return /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EHOSTUNREACH|EMAXCONNSESSION|max clients reached|Can't reach database|DatabaseNotReachable|DatabaseAccessDenied|DatabaseDoesNotExist|Code: `(28000|28P01|3D000|08\w{3}|42P01|XX000)`/.test(text)
+  return /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EHOSTUNREACH|EMAXCONNSESSION|max clients reached|Can't reach database|DatabaseNotReachable|DatabaseAccessDenied|DatabaseDoesNotExist|DriverAdapterError|ForeignKeyConstraintViolation|connection terminated unexpectedly|Connection terminated|SSL|pg_hba|password authentication failed|SASL|Code: `(28000|28P01|3D000|08\w{3}|42P01|XX000)`/i.test(text)
 }
 
 export * from './generated/prisma/client'
