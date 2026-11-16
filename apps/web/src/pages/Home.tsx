@@ -112,13 +112,18 @@ export function Home() {
             {/* Above-the-fold Interactive Website Audit Box */}
             <div className="hero-audit-box">
               <div className="health-scanner-heading">
-                <span className="health-scanner-symbol"><Activity size={30} /></span>
-                <div><h2>Website Health Scanner <span>Free</span></h2>
-                <p>Check your website's performance, SEO, speed and key issues in seconds.</p></div>
+                <span className="health-scanner-symbol"><Activity size={28} /></span>
+                <div>
+                  <h2>Website Health Scanner <span>Free Instant Score</span></h2>
+                  <p>
+                    Enter your website URL and click <strong>Run Scan</strong> to instantly calculate your live <strong>0–100 Website Health Score</strong>, speed index, and SEO bottlenecks.
+                  </p>
+                </div>
               </div>
+
               <form onSubmit={handleHeroAuditSubmit} className="hero-audit-form" role="search" aria-label="Instant Website Audit">
                 <div className="hero-audit-input-wrap">
-                  <Globe size={18} className="hero-audit-icon" aria-hidden="true" />
+                  <Globe size={19} className="hero-audit-icon" aria-hidden="true" />
                   <input
                     type="text"
                     value={heroUrl}
@@ -130,14 +135,30 @@ export function Home() {
                   />
                 </div>
                 <button type="submit" className="hero-audit-submit-btn">
-                  Scan My Website <ArrowRight size={20} />
+                  <span>Run Health Scan</span> <ArrowRight size={19} />
                 </button>
               </form>
 
               <div className="hero-audit-perks">
-                <span><Zap size={22} /> Get a quick health score</span>
-                <span><FileText size={22} /> See key issues &amp; fixes</span>
-                <span><BarChart2 size={22} /> Simple, actionable report</span>
+                <span><Zap size={20} /> Instant 0–100 Health Score</span>
+                <span><FileText size={20} /> Pinpoint Speed &amp; SEO Leaks</span>
+                <span><BarChart2 size={20} /> Simple, Actionable Fixes</span>
+              </div>
+
+              {/* Developer-Grade Deep-Dive Consultation Strip */}
+              <div className="hero-audit-dev-callout">
+                <div className="dev-callout-content">
+                  <div className="dev-callout-badge-wrap">
+                    <span className="dev-callout-badge" aria-hidden="true">&lt;/&gt;</span>
+                  </div>
+                  <div className="dev-callout-text">
+                    <strong>Need a deeper developer-level audit?</strong>
+                    <span>For custom source code, Core Web Vitals, server latency &amp; database bottlenecks.</span>
+                  </div>
+                </div>
+                <Link to="/contact" className="dev-callout-btn">
+                  <span>Contact Tech Team</span> <ArrowRight size={14} />
+                </Link>
               </div>
             </div>
           </div>

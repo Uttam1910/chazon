@@ -2,7 +2,10 @@ import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'prisma/config'
 
-// Secrets live in the repository-root .env (see .env.example).
+// Secrets live in the repository-root .env or .env.local (see .env.example).
+const rootEnvLocal = fileURLToPath(new URL('../../.env.local', import.meta.url))
+if (existsSync(rootEnvLocal)) process.loadEnvFile(rootEnvLocal)
+
 const rootEnv = fileURLToPath(new URL('../../.env', import.meta.url))
 if (existsSync(rootEnv)) process.loadEnvFile(rootEnv)
 

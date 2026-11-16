@@ -3,9 +3,12 @@ import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 
-// Secrets come from the environment. Locally they are read from the repository-root .env (see .env.example);
+// Secrets come from the environment. Locally they are read from the repository-root .env or .env.local (see .env.example);
 // values already set in the process environment take precedence.
 // (Both src/env.ts and the bundled dist/index.js sit two levels below the repository root.)
+const rootEnvLocal = fileURLToPath(new URL('../../../.env.local', import.meta.url))
+if (existsSync(rootEnvLocal)) process.loadEnvFile(rootEnvLocal)
+
 const rootEnv = fileURLToPath(new URL('../../../.env', import.meta.url))
 if (existsSync(rootEnv)) process.loadEnvFile(rootEnv)
 
