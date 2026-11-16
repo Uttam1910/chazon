@@ -65,8 +65,13 @@ function notification(s: Submission): Email {
     [s.kind === 'audit' ? 'Audit focus' : 'Message', s.message],
   ]
   const link = env.ADMIN_URL ? `${env.ADMIN_URL}/${s.kind === 'audit' ? 'audits' : 'leads'}/${s.id}` : ''
+  const recipient =
+    env.CHAZON_NOTIFICATION_EMAIL && env.CHAZON_NOTIFICATION_EMAIL !== 'you@yourdomain.com'
+      ? env.CHAZON_NOTIFICATION_EMAIL
+      : (process.env.VITE_CONTACT_EMAIL || env.ADMIN_EMAIL || 'projects3223@gmail.com')
+
   return {
-    to: env.CHAZON_NOTIFICATION_EMAIL!,
+    to: recipient,
     replyTo: s.email,
     subject: `[${s.reference || 'CHZ'}] ${label}: ${s.businessName} (${s.name})`,
     text: `${label} [${s.reference || 'CHZ'}]\n\n${rows.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n')}${link ? `\n\nOpen in Admin: ${link}` : ''}`,
@@ -80,12 +85,17 @@ function confirmation(s: Submission): Email {
   const audit = s.kind === 'audit'
   const first = s.name.split(/\s+/)[0]
   const refText = s.reference ? ` (Enquiry Ref: ${s.reference})` : ''
+  const notificationEmail =
+    env.CHAZON_NOTIFICATION_EMAIL && env.CHAZON_NOTIFICATION_EMAIL !== 'you@yourdomain.com'
+      ? env.CHAZON_NOTIFICATION_EMAIL
+      : (process.env.VITE_CONTACT_EMAIL || env.ADMIN_EMAIL || 'projects3223@gmail.com')
+
   const text = audit
     ? `Hi ${first},\n\nThank you for requesting a Digital Growth Audit for ${s.businessName}${refText}. We have received your details and our team is reviewing your digital presence.\n\nWe will be in touch shortly to share our preliminary findings and recommended next steps.\n\n— Team Chazon`
     : `Hi ${first},\n\nThank you for reaching out to Chazon Digital Ventures${refText}. We have received your enquiry about ${s.businessName} and look forward to learning more about your business objectives.\n\nOur founder and strategy team review every submission directly. We will be in touch via your preferred method (${s.preferredContact || 'WhatsApp'}) within 4 to 24 business hours.\n\n— Team Chazon`
   return {
     to: s.email,
-    ...(env.CHAZON_NOTIFICATION_EMAIL ? { replyTo: env.CHAZON_NOTIFICATION_EMAIL } : {}),
+    ...(notificationEmail ? { replyTo: notificationEmail } : {}),
     subject: audit ? 'We’ve received your Digital Growth Audit request' : 'Thank you for contacting Chazon',
     text,
     html: layout(text.split('\n\n').map(p => `<p style="font-size:15px;line-height:1.6;margin:0 0 16px">${escape(p).replace(/\n/g, '<br>')}</p>`).join('')),
@@ -95,16 +105,41 @@ function confirmation(s: Submission): Email {
 /** Sends the internal notification and the customer confirmation, recording each outcome on the timeline. */
 export async function notifySubmission(s: Submission) {
   const target = s.kind === 'audit' ? { auditId: s.id } : { leadId: s.id }
-  const log = (type: string, message: string) => prisma.activity.create({ data: { ...target, type, message } }).catch(e => console.error('Activity log failed', e))
-  if (!emailConfigured) { await log('EMAIL_SKIPPED', 'Email notifications are not configured; no emails were sent.'); return }
+  const log = async (type: string, message: string) => {
+    try {
+      if (s.kind === 'audit') {
+        const exists = await prisma.growthAudit.findUnique({ where: { id: s.id }, select: { id: true } })
+        if (!exists) return
+      } else {
+        const exists = await prisma.lead.findUnique({ where: { id: s.id }, select: { id: true } })
+        if (!exists) return
+      }
+      await prisma.activity.create({ data: { ...target, type, message } })
+    } catch {
+      // Timeline logging is non-fatal; email sending is already completed
+    }
+  }
+  if (!emailConfigured) {
+    console.warn('[email] Skipping email notifications: RESEND_API_KEY or RESEND_FROM_EMAIL is not configured.')
+    await log('EMAIL_SKIPPED', 'Email notifications are not configured; no emails were sent.')
+    return
+  }
+
+  const isAutomatedScanEmail = s.email && (s.email.startsWith('scan@') || s.email.includes('noreply') || s.email.includes('test@example'))
   const jobs: [string, Email | null][] = [
-    ['Team notification', env.CHAZON_NOTIFICATION_EMAIL ? notification(s) : null],
-    ['Customer confirmation', confirmation(s)],
+    ['Team notification', notification(s)],
+    ['Customer confirmation', s.email && !isAutomatedScanEmail ? confirmation(s) : null],
   ]
+
   for (const [label, email] of jobs) {
-    if (!email) { await log('EMAIL_SKIPPED', `${label} skipped: CHAZON_NOTIFICATION_EMAIL is not set.`); continue }
+    if (!email) continue
     const result = await sendEmail(email)
-    if (result.ok) await log('EMAIL_SENT', `${label} sent to ${email.to}.`)
-    else { console.error(`${label} failed for ${s.kind} ${s.id}: ${result.error}`); await log('EMAIL_FAILED', `${label} to ${email.to} failed.`) }
+    if (result.ok) {
+      console.log(`[email] ${label} sent successfully to ${email.to}`)
+      await log('EMAIL_SENT', `${label} sent to ${email.to}.`)
+    } else {
+      console.error(`[email] ${label} failed for ${s.kind} ${s.id}: ${result.error}`)
+      await log('EMAIL_FAILED', `${label} to ${email.to} failed. ${result.error}`)
+    }
   }
 }

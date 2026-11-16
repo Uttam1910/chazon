@@ -21,6 +21,7 @@ import {
 import { isDatabaseUnavailable, prisma, type Prisma } from '../db'
 import { env } from '../env'
 import { dispatchBackground } from '../lib/background'
+import { notifySubmission } from '../lib/email'
 import { runtimeStore } from '../lib/runtime-store'
 import {
   AuditError,
@@ -333,10 +334,11 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
       }
 
       // Also ensure a GrowthAudit record is saved so the audit appears in both database tables and admin metrics!
+      let growthAuditId: string | null = null
       try {
         const topIssueList = (summary.topIssues ?? []).map(i => i.title).slice(0, 3).join('; ')
         const reqSummary = `Instant Website Health Score: ${summary.overallScore}/100. Speed: ${summary.performanceScore}%, SEO: ${summary.seoScore}%, Mobile: ${summary.mobileScore}%. ${topIssueList ? `Top findings: ${topIssueList}` : ''}`
-        await prisma.growthAudit.create({
+        const ga = await prisma.growthAudit.create({
           data: {
             name: `Website Scan: ${summary.normalizedUrl}`,
             businessName: summary.normalizedUrl,
@@ -356,9 +358,33 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
             },
           },
         })
-        console.log(`[audit ${id}] Successfully recorded GrowthAudit entry for ${summary.normalizedUrl}`)
+        growthAuditId = ga.id
+        console.log(`[audit ${id}] Successfully recorded GrowthAudit entry for ${summary.normalizedUrl} (ID: ${ga.id})`)
       } catch (gaErr) {
         console.error(`[audit ${id}] Failed to create GrowthAudit entry:`, gaErr)
+      }
+
+      // Dispatch real-time email notification to the Admin with scan diagnostics
+      try {
+        await dispatchBackground(
+          notifySubmission({
+            kind: 'audit',
+            id: growthAuditId || summary.id,
+            reference: summary.reference,
+            name: `Website Scan (${summary.normalizedUrl})`,
+            businessName: summary.normalizedUrl,
+            email: `scan@${summary.normalizedUrl}`,
+            phone: 'N/A (Automated Website Scan)',
+            preferredContact: 'Admin Dashboard',
+            website: summary.url,
+            category: 'Website Health Scanner',
+            service: `Instant Health Score: ${summary.overallScore}/100`,
+            message: `Performance Speed: ${summary.performanceScore}%, Technical SEO: ${summary.seoScore}%, Mobile UX: ${summary.mobileScore}%, Conversion Readiness: ${summary.conversionScore}%.`,
+            auditRef: summary.reference,
+          })
+        )
+      } catch (err) {
+        console.error(`[audit ${id}] Failed to dispatch email notification:`, err)
       }
 
       runtimeStore.invalidateDashboard()
