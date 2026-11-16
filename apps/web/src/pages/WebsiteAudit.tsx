@@ -9,17 +9,21 @@ import {
   Clock,
   Download,
   ExternalLink,
+  FileText,
   Gauge,
   Globe,
   History,
   Info,
   Link2,
+  MessageCircle,
   MinusCircle,
   RotateCcw,
   Search,
+  Send,
   Share2,
   ShieldCheck,
   Smartphone,
+  Sparkles,
   Target,
   Trash2,
   UserCheck,
@@ -37,8 +41,13 @@ import {
   type AuditTabKey,
 } from '../lib/audit-report-tabs'
 import { auditApi, AuditApiError } from '../lib/audit-api'
-import { getBusinessFriendlyTitle } from '../lib/findingExplanations'
-import { track } from '../config'
+import {
+  getBusinessFriendlyTitle,
+  getBusinessExplanation,
+  getBusinessImpacts,
+  type BusinessImpactItem,
+} from '../lib/findingExplanations'
+import { config, getEnquiryEndpoints, track } from '../config'
 import { useRouter } from '../location'
 import { Link } from '../router'
 import { breadcrumbSchema, faqSchema, usePageMeta, webApplicationSchema } from '../seo'
@@ -93,6 +102,27 @@ function formatAuditTime(timestamp: number): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
+function generateAutofillMessage(report: AuditReport, score: number | null): string {
+  let domain = 'yourwebsite.com'
+  try {
+    domain = new URL(report.finalUrl || report.inputUrl).hostname.replace(/^www\./, '')
+  } catch {
+    domain = (report.finalUrl || report.inputUrl).replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+  }
+  const scoreText = score !== null ? `${score}/100` : 'Not computed'
+
+  const topFindings = (report.findings || [])
+    .filter((f) => f.severity !== 'info')
+    .slice(0, 3)
+    .map((f) => `• ${getBusinessFriendlyTitle(f) || f.title}`)
+    .join('\n')
+
+  return `Target: ${report.finalUrl || report.inputUrl} (${domain})
+Health Score: ${scoreText}
+${topFindings ? `Key Bottlenecks Detected:\n${topFindings}\n` : ''}
+Hi Chazon Team, I reviewed our website audit diagnostic and would like to request the full comprehensive 20+ page engineering report and discuss having your team resolve these performance and SEO bottlenecks. Please contact us with next steps.`
+}
+
 export function WebsiteAudit() {
   usePageMeta({
     title: 'Free Website Health Scanner: Core Web Vitals & SEO Diagnostic | Chazon Digital',
@@ -122,6 +152,19 @@ export function WebsiteAudit() {
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null)
   const [history, setHistory] = useState<AuditHistoryEntry[]>([])
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false)
+
+  // Direct Enquiry Form State
+  const [enquiryName, setEnquiryName] = useState('')
+  const [enquiryEmail, setEnquiryEmail] = useState('')
+  const [enquiryPhone, setEnquiryPhone] = useState('')
+  const [enquiryMessage, setEnquiryMessage] = useState('')
+  const [enquiryBusy, setEnquiryBusy] = useState(false)
+  const [enquirySuccess, setEnquirySuccess] = useState(false)
+  const [enquiryReference, setEnquiryReference] = useState<string | null>(null)
+  const [enquiryWhatsAppHref, setEnquiryWhatsAppHref] = useState<string | null>(null)
+  const [enquiryError, setEnquiryError] = useState<string | null>(null)
+  const enquiryFormStarted = useRef(Date.now())
+  const enquiryRef = useRef<HTMLDivElement | null>(null)
 
   const selectCategoryTab = (tab: AuditTabKey) => {
     setActiveCategoryTab(tab)
@@ -565,6 +608,118 @@ export function WebsiteAudit() {
     overallScore === null ? '#9CA3AF' : overallScore >= 80 ? '#10B981' : overallScore >= 60 ? '#F59E0B' : '#EF4444'
   const gaugeScoreValue = overallScore ?? 0
 
+  // Autofill enquiry message whenever report changes
+  useEffect(() => {
+    if (report) {
+      setEnquiryMessage(generateAutofillMessage(report, overallScore))
+      setEnquirySuccess(false)
+      setEnquiryError(null)
+      setEnquiryReference(null)
+      enquiryFormStarted.current = Date.now()
+    }
+  }, [report, overallScore])
+
+  const scrollToEnquiry = () => {
+    if (enquiryRef.current) {
+      enquiryRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      const nameInput = enquiryRef.current.querySelector<HTMLInputElement>('input[name="enquiryName"]')
+      if (nameInput) {
+        setTimeout(() => nameInput.focus(), 450)
+      }
+    }
+  }
+
+  const handleSubmitEnquiry = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!report) return
+    setEnquiryError(null)
+
+    if (!enquiryName.trim() || enquiryName.trim().length < 2) {
+      setEnquiryError('Please enter your full name.')
+      return
+    }
+    if (!enquiryEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(enquiryEmail.trim())) {
+      setEnquiryError('Please enter a valid work email address.')
+      return
+    }
+
+    setEnquiryBusy(true)
+
+    const payload = {
+      enquiry_type: 'audit',
+      name: enquiryName.trim(),
+      email: enquiryEmail.trim(),
+      phone: enquiryPhone.trim() || 'Not provided',
+      business: displayDomain || 'Not specified',
+      website: report.finalUrl || report.inputUrl,
+      category: 'Website Health Audit',
+      service: 'Full Engineering Audit Report & Fix Roadmap',
+      message: enquiryMessage.trim(),
+      auditRef: report.id,
+      form_started: enquiryFormStarted.current,
+      source_detail: 'website_audit_instant_enquiry',
+    }
+
+    const endpoints = getEnquiryEndpoints()
+    let succeeded = false
+    let refCode = ''
+    let waUrl = ''
+
+    for (const endpoint of endpoints) {
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const json = await res.json().catch(() => ({})) as {
+          data?: { received?: boolean; reference?: string; whatsAppHref?: string }
+          received?: boolean
+          reference?: string
+          whatsAppHref?: string
+        }
+        const data = json.data ?? json
+        if (res.ok && (data.received || res.status === 201 || res.status === 200)) {
+          succeeded = true
+          refCode = data.reference || `AUD-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+          if (data.whatsAppHref) {
+            waUrl = data.whatsAppHref
+          }
+          break
+        }
+      } catch (postErr) {
+        // try next endpoint
+        void postErr
+      }
+    }
+
+    if (succeeded) {
+      setEnquiryReference(refCode)
+      if (waUrl) setEnquiryWhatsAppHref(waUrl)
+      setEnquirySuccess(true)
+      track('form_submission', { form: 'website_audit_full_report_enquiry', url: report.finalUrl || report.inputUrl })
+    } else {
+      setEnquiryError('Could not send your request. Please check your connection or reach out directly via WhatsApp.')
+    }
+    setEnquiryBusy(false)
+  }
+
+  const waMessage = report
+    ? `Hi Chazon Team! I just audited my website (${displayDomain}) on your Website Health Scanner and scored ${overallScore ?? 'N/A'}/100. I would like to request the full comprehensive engineering report and discuss fixing our website bottlenecks. (Ref: ${report.id.slice(0, 8)})`
+    : 'Hi Chazon Team, I would like to request a website audit and consultation.'
+  const waHref = `https://wa.me/${config.whatsapp}?text=${encodeURIComponent(waMessage)}`
+
+  const actionableAll = (report?.findings || []).filter((f) => f.severity !== 'info')
+  const businessImpactList: BusinessImpactItem[] = report ? getBusinessImpacts(report.findings || []) : []
+  void businessImpactList
+
+  const topCriticalFindings = [...actionableAll]
+    .sort((a, b) => {
+      const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
+      return (order[a.severity] ?? 4) - (order[b.severity] ?? 4)
+    })
+    .slice(0, 3)
+
   // Findings & Checks per Tab
   const allFindings = report?.findings || []
   const allChecks = report?.checks || []
@@ -779,6 +934,15 @@ export function WebsiteAudit() {
                 </div>
 
                 <div className="arv-header-right">
+                  <button
+                    type="button"
+                    className="button button-primary arv-action-btn arv-get-report-btn"
+                    onClick={scrollToEnquiry}
+                    title="Request full 20+ page engineering report & developer fix roadmap"
+                  >
+                    <FileText size={16} />
+                    <span>Request Full Report</span>
+                  </button>
                   {history.length > 1 && (
                     <button
                       type="button"
@@ -930,6 +1094,154 @@ export function WebsiteAudit() {
                       </div>
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* =============================================================
+                  EXECUTIVE DIAGNOSTIC SUMMARY & PLAIN-ENGLISH SHORT REPORT
+                  ============================================================= */}
+              <div className="arv-executive-brief-card">
+                <div className="aeb-header">
+                  <div className="aeb-badge-row">
+                    <span className="aeb-eyebrow">
+                      <Sparkles size={14} /> Executive Diagnostic Brief
+                    </span>
+                    <span className={`aeb-status-chip ${ratingBadgeClass}`}>
+                      {overallScore === null
+                        ? 'Diagnostic Incomplete'
+                        : overallScore < 60
+                          ? 'High Revenue & Traffic Leak'
+                          : overallScore < 80
+                            ? 'Noticeable Friction Gaps'
+                            : 'Solid Foundation'}
+                    </span>
+                  </div>
+
+                  <h2 className="aeb-title">
+                    {overallScore === null
+                      ? 'Diagnostic Summary'
+                      : overallScore < 60
+                        ? `Critical bottlenecks on ${displayDomain} are suppressing your reach & conversions.`
+                        : overallScore < 80
+                          ? `Performance and SEO bottlenecks on ${displayDomain} are leaving customer growth on the table.`
+                          : `${displayDomain} has a strong foundation with targeted conversion optimization opportunities.`}
+                  </h2>
+
+                  <p className="aeb-desc">
+                    {overallScore === null
+                      ? 'We were unable to complete all network requests for this domain. Please verify your server accessibility.'
+                      : overallScore < 60
+                        ? 'Our automated scanner detected major speed lags and search indexing obstacles. Prospective customers on mobile devices face excessive delays before viewing your offerings, directly inflating bounce rates and reducing inbound leads.'
+                        : overallScore < 80
+                          ? 'Your website is functional, but delayed visual rendering and technical SEO gaps create visitor friction. Addressing these high-impact findings will meaningfully improve your visitor retention and search engine rankings.'
+                          : 'Your website outperforms the majority of industry peers in speed and hygiene. Fine-tuning Core Web Vitals stability and mobile conversion touchpoints will help maximize your inbound lead capture.'}
+                  </p>
+                </div>
+
+                {/* 3 Business Impact Pillars */}
+                <div className="aeb-impact-pillars-grid">
+                  <div className="aeb-pillar-item">
+                    <div className="api-icon-wrap is-speed">
+                      <Gauge size={18} />
+                    </div>
+                    <div className="api-content">
+                      <strong className="api-title">Speed &amp; Visitor Bounce Risk</strong>
+                      <p className="api-text">
+                        {perfScore !== null && perfScore < 70
+                          ? 'High bounce risk: 53% of mobile visitors abandon pages taking over 3s to load.'
+                          : 'Good delivery speed; minor script optimization will preserve mobile retention.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="aeb-pillar-item">
+                    <div className="api-icon-wrap is-seo">
+                      <Search size={18} />
+                    </div>
+                    <div className="api-content">
+                      <strong className="api-title">Google Search Visibility</strong>
+                      <p className="api-text">
+                        {seoScore !== null && seoScore < 75
+                          ? 'Indexing barriers detected; search engine crawlers may limit prominent display in search results.'
+                          : 'Solid technical SEO tags detected; structured metadata helps preserve ranking.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="aeb-pillar-item">
+                    <div className="api-icon-wrap is-convert">
+                      <Target size={18} />
+                    </div>
+                    <div className="api-content">
+                      <strong className="api-title">Inquiry &amp; Conversion Friction</strong>
+                      <p className="api-text">
+                        {mobileScore !== null && mobileScore < 75
+                          ? 'Mobile usability and layout shifts make tapping buttons or completing contact forms harder for users.'
+                          : 'Mobile viewport is responsive; clean interaction paths protect direct customer inquiries.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top Critical Issues - Plain English Cards */}
+                {topCriticalFindings.length > 0 && (
+                  <div className="aeb-critical-issues-section">
+                    <div className="acis-header">
+                      <h3 className="acis-title">Top Priority Issues Requiring Attention (Plain English)</h3>
+                      <span className="acis-subtitle">
+                        Ranked by impact on search traffic, user retention and conversion.
+                      </span>
+                    </div>
+
+                    <div className="acis-issues-grid">
+                      {topCriticalFindings.map((finding, idx) => {
+                        const exp = getBusinessExplanation(finding)
+                        const title = getBusinessFriendlyTitle(finding) || finding.title
+                        return (
+                          <div key={finding.id} className="acis-issue-card">
+                            <div className="aic-header">
+                              <span className="aic-rank mono">#{idx + 1}</span>
+                              <strong className="aic-title">{title}</strong>
+                              <span className={`aic-severity sev-${finding.severity}`}>
+                                {finding.severity}
+                              </span>
+                            </div>
+
+                            <div className="aic-body">
+                              <div className="aic-row">
+                                <span className="aic-label">What is the problem:</span>
+                                <p className="aic-val">{exp.whatIsWrong || finding.plainSummary || finding.observed || finding.title}</p>
+                              </div>
+                              <div className="aic-row is-impact">
+                                <span className="aic-label">Why it hurts your business:</span>
+                                <p className="aic-val">{exp.businessImpact || exp.whyItMatters || 'Delays user interaction and reduces visitor trust.'}</p>
+                              </div>
+                              <div className="aic-row is-fix">
+                                <span className="aic-label">Recommended developer fix:</span>
+                                <p className="aic-val">{exp.whatToDo || finding.recommendation || 'Optimize and refactor affected assets.'}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Direct CTA Bar inside Brief */}
+                <div className="aeb-cta-bar">
+                  <div className="acb-text">
+                    <strong>Want these bottlenecks resolved by senior developers?</strong>
+                    <span>We build high-performance websites and fix Core Web Vitals to convert visitors into paying clients.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={scrollToEnquiry}
+                    className="button button-primary aeb-scroll-btn"
+                  >
+                    <span>Request Full Report &amp; Fix Scope</span>
+                    <ArrowRight size={16} />
+                  </button>
                 </div>
               </div>
 
@@ -1138,24 +1450,249 @@ export function WebsiteAudit() {
                 </div>
               </div>
 
-              {/* Bottom Conversion Callout */}
-              <div className="arv-conversion-banner">
-                <div className="acb-copy">
-                  <h3>Want Chazon to Fix These Performance &amp; Conversion Leaks?</h3>
-                  <p>
-                    We build high-performance, fast-loading digital engines that eliminate friction and convert
-                    traffic into profitable customers.
-                  </p>
-                </div>
-                <div className="acb-actions">
-                  <Link
-                    to={`/contact?type=CONVERT&service=audit&url=${encodeURIComponent(
-                      report.finalUrl || report.inputUrl
-                    )}&score=${overallScore ?? 'na'}&ref=${encodeURIComponent(report.id)}`}
-                    className="button button-primary acb-btn"
-                  >
-                    Fix These Issues with Chazon <ArrowRight size={16} />
-                  </Link>
+              {/* =============================================================
+                  HIGH-CONVERTING DIRECT ENQUIRY SECTION (AUTOFILLED)
+                  ============================================================= */}
+              <div className="audit-enquiry-section" id="request-full-report" ref={enquiryRef}>
+                <div className="aes-container-card">
+                  <div className="aes-grid">
+                    {/* Left Side: Value Proposition & Scope Breakdown */}
+                    <div className="aes-left-info">
+                      <div className="aes-badge">
+                        <Sparkles size={14} />
+                        <span>CHAZON ENGINEERING SCOPE</span>
+                      </div>
+                      <h3 className="aes-title">
+                        Get the Full 20+ Page Engineering Report &amp; Fix Roadmap
+                      </h3>
+                      <p className="aes-subtitle">
+                        Our technical architects review your codebase, Core Web Vitals telemetry, and conversion bottlenecks to build an actionable, step-by-step developer remediation roadmap.
+                      </p>
+
+                      <div className="aes-checklist">
+                        <div className="aes-check-item">
+                          <div className="aci-icon">
+                            <Check size={16} />
+                          </div>
+                          <div>
+                            <strong>Complete Codebase &amp; Architecture Review</strong>
+                            <span>Deep-dive into render-blocking scripts, font loading, TTFB, and database/hosting latency.</span>
+                          </div>
+                        </div>
+
+                        <div className="aes-check-item">
+                          <div className="aci-icon">
+                            <Check size={16} />
+                          </div>
+                          <div>
+                            <strong>Line-by-Line Developer Remediation Guide</strong>
+                            <span>Clear, reproducible instructions your developers can implement immediately to hit 90+ Lighthouse scores.</span>
+                          </div>
+                        </div>
+
+                        <div className="aes-check-item">
+                          <div className="aci-icon">
+                            <Check size={16} />
+                          </div>
+                          <div>
+                            <strong>Technical SEO &amp; Indexability Hardening</strong>
+                            <span>Canonical tags, structured schema.org entities, sitemap hierarchies, and crawl optimization.</span>
+                          </div>
+                        </div>
+
+                        <div className="aes-check-item">
+                          <div className="aci-icon">
+                            <Check size={16} />
+                          </div>
+                          <div>
+                            <strong>Direct Technical Founder Consultation</strong>
+                            <span>30-minute discovery call with our engineering leads to review your growth roadmap.</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* WhatsApp Direct Alternative */}
+                      <div className="aes-whatsapp-box">
+                        <div className="awb-text">
+                          <strong>Prefer an instant response?</strong>
+                          <span>Chat directly with our founding team on WhatsApp with your audit data attached.</span>
+                        </div>
+                        <a
+                          href={waHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="button button-whatsapp aes-wa-btn"
+                        >
+                          <MessageCircle size={18} />
+                          <span>Chat on WhatsApp</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Right Side: Autofilled Direct Enquiry Form */}
+                    <div className="aes-right-form">
+                      {enquirySuccess ? (
+                        <div className="aes-success-box" role="status">
+                          <div className="asb-icon-wrap">
+                            <CheckCircle2 size={40} />
+                          </div>
+                          <h4 className="asb-title">Enquiry Sent to Engineering Team</h4>
+                          <p className="asb-desc">
+                            Thank you, <strong>{enquiryName}</strong>. Your full report request for <strong>{displayDomain}</strong> has been routed directly to our founders.
+                          </p>
+
+                          <div className="asb-ref-pill">
+                            <span>Reference Code:</span>
+                            <strong className="mono">{enquiryReference || 'CHZ-AUDIT'}</strong>
+                          </div>
+
+                          <div className="asb-next-steps">
+                            <div className="ans-item">
+                              <span className="ans-num mono">1</span>
+                              <span>We review your audit diagnostics &amp; crawl telemetry.</span>
+                            </div>
+                            <div className="ans-item">
+                              <span className="ans-num mono">2</span>
+                              <span>We prepare your custom remediation roadmap.</span>
+                            </div>
+                            <div className="ans-item">
+                              <span className="ans-num mono">3</span>
+                              <span>We follow up directly via Email / WhatsApp within 4–24 hours.</span>
+                            </div>
+                          </div>
+
+                          <a
+                            href={
+                              enquiryWhatsAppHref ||
+                              `https://wa.me/${config.whatsapp}?text=${encodeURIComponent(
+                                `Hi Chazon! I just submitted an enquiry for ${displayDomain} (Ref: ${enquiryReference || 'CHZ-AUDIT'}).`
+                              )}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="button button-whatsapp asb-wa-btn"
+                          >
+                            <MessageCircle size={16} />
+                            <span>Follow Up on WhatsApp Now</span>
+                          </a>
+                        </div>
+                      ) : (
+                        <form onSubmit={handleSubmitEnquiry} className="aes-form" noValidate>
+                          <div className="aes-form-header">
+                            <h4 className="afh-title">Direct Enquiry Form</h4>
+                            <span className="afh-autofill-tag">
+                              <Sparkles size={13} /> Audit Data Autofilled
+                            </span>
+                          </div>
+
+                          {/* Autofilled Audit Context Badge */}
+                          <div className="aes-context-pill">
+                            <Globe size={14} />
+                            <span className="acp-domain" title={report.finalUrl || report.inputUrl}>
+                              {displayDomain}
+                            </span>
+                            <span className={`acp-score ${ratingBadgeClass}`}>
+                              {overallScore !== null ? `Score: ${overallScore}/100` : 'Score N/A'}
+                            </span>
+                            <span className="acp-ref mono">Ref: #{report.id.slice(0, 8)}</span>
+                          </div>
+
+                          {enquiryError && (
+                            <div className="aes-error-alert" role="alert">
+                              <AlertTriangle size={15} />
+                              <span>{enquiryError}</span>
+                            </div>
+                          )}
+
+                          <div className="aes-fields-grid">
+                            <div className="aes-field-group">
+                              <label htmlFor="enquiry-name" className="aes-label">
+                                Your Name <span className="req">*</span>
+                              </label>
+                              <input
+                                id="enquiry-name"
+                                name="enquiryName"
+                                type="text"
+                                required
+                                value={enquiryName}
+                                onChange={(e) => setEnquiryName(e.target.value)}
+                                placeholder="e.g. John Doe"
+                                className="aes-input"
+                              />
+                            </div>
+
+                            <div className="aes-field-group">
+                              <label htmlFor="enquiry-email" className="aes-label">
+                                Work Email <span className="req">*</span>
+                              </label>
+                              <input
+                                id="enquiry-email"
+                                name="enquiryEmail"
+                                type="email"
+                                required
+                                value={enquiryEmail}
+                                onChange={(e) => setEnquiryEmail(e.target.value)}
+                                placeholder="e.g. john@yourcompany.com"
+                                className="aes-input"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="aes-field-group">
+                            <label htmlFor="enquiry-phone" className="aes-label">
+                              Phone / WhatsApp Number <span className="opt">(Optional)</span>
+                            </label>
+                            <input
+                              id="enquiry-phone"
+                              name="enquiryPhone"
+                              type="tel"
+                              value={enquiryPhone}
+                              onChange={(e) => setEnquiryPhone(e.target.value)}
+                              placeholder="+91 98200 00000"
+                              className="aes-input"
+                            />
+                          </div>
+
+                          <div className="aes-field-group">
+                            <div className="aes-msg-label-row">
+                              <label htmlFor="enquiry-message" className="aes-label">
+                                Project Message &amp; Diagnostic Details
+                              </label>
+                              <span className="aes-autofill-hint">Autofilled from your scan</span>
+                            </div>
+                            <textarea
+                              id="enquiry-message"
+                              name="enquiryMessage"
+                              rows={5}
+                              value={enquiryMessage}
+                              onChange={(e) => setEnquiryMessage(e.target.value)}
+                              className="aes-textarea"
+                            />
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={enquiryBusy}
+                            className="button button-primary aes-submit-btn"
+                          >
+                            {enquiryBusy ? (
+                              <span>Submitting Enquiry...</span>
+                            ) : (
+                              <>
+                                <span>Send Enquiry &amp; Request Full Report</span>
+                                <Send size={16} />
+                              </>
+                            )}
+                          </button>
+
+                          <div className="aes-form-footer-note">
+                            <ShieldCheck size={14} />
+                            <span>100% confidential. Directly emailed to our founding team with zero sales spam.</span>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

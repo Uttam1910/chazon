@@ -34,6 +34,18 @@ function normalizeRequest(req) {
   } catch {
     // Ignore non-configurable properties
   }
+
+  // Ensure client IP is available for rate-limiting and logging on serverless runtimes
+  if (!req.ip) {
+    const forwarded = req.headers['x-forwarded-for']
+    const clientIp = Array.isArray(forwarded) ? forwarded[0] : forwarded
+    req.ip = clientIp?.split(',')[0]?.trim() || req.socket?.remoteAddress || '127.0.0.1'
+  }
+
+  // If Vercel's serverless runtime already parsed the body, mark it so Express's body-parser doesn't try to re-read the consumed stream
+  if (req.body && typeof req.body === 'object') {
+    req._body = true
+  }
 }
 
 export default function handler(req, res) {

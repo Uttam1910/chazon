@@ -33,10 +33,18 @@ export const timingDummy = () => (dummyHash ??= hashPassword(randomBytes(16).toS
 // its passwordHash is a marker that can never verify.
 export const ENV_MANAGED = 'env-managed'
 const ENV_ADMIN_FALLBACK_ID = 'env-admin'
-export const isEnvAdmin = (email: string) => !!env.ADMIN_EMAIL && email.toLowerCase() === env.ADMIN_EMAIL
+export const isEnvAdmin = (email: string) => {
+  if (!env.ADMIN_EMAIL) return false
+  const cleanEmail = email.trim().toLowerCase().replace(/^["']|["']$/g, '')
+  const cleanConfig = env.ADMIN_EMAIL.trim().toLowerCase().replace(/^["']|["']$/g, '')
+  return cleanEmail === cleanConfig
+}
 export function verifyEnvPassword(password: string) {
+  if (!env.ADMIN_PASSWORD) return false
+  const cleanPassword = password.trim()
+  const cleanConfig = env.ADMIN_PASSWORD.trim().replace(/^["']|["']$/g, '')
   const digest = (v: string) => createHmac('sha256', env.AUTH_SECRET).update(v).digest()
-  return !!env.ADMIN_PASSWORD && timingSafeEqual(digest(password), digest(env.ADMIN_PASSWORD))
+  return timingSafeEqual(digest(cleanPassword), digest(cleanConfig))
 }
 /** Makes sure the .env Admin has an active ADMIN row; a previous .env Admin (email changed) is deactivated. Needs the database. */
 export async function ensureEnvAdmin() {
@@ -59,7 +67,9 @@ let cachedEnvAdminId: string | null = null
 async function envAdminId(): Promise<string> {
   if (cachedEnvAdminId) return cachedEnvAdminId
   try {
-    const user = await ensureEnvAdmin()
+    const userPromise = ensureEnvAdmin()
+    const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 1500))
+    const user = await Promise.race([userPromise, timeoutPromise])
     if (user?.id) {
       cachedEnvAdminId = user.id
       return user.id

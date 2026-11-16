@@ -16,6 +16,12 @@ const auditLimiter = rateLimit({
   limit: 10,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
+  validate: false,
+  keyGenerator: req => {
+    const forwarded = req.headers['x-forwarded-for']
+    const clientIp = Array.isArray(forwarded) ? forwarded[0] : forwarded
+    return clientIp?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress || '127.0.0.1'
+  },
   handler: (_req, res) =>
     res.status(429).json({
       error: {

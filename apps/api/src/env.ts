@@ -39,24 +39,28 @@ const vercelDefaultOrigin =
   toOrigin(process.env.VERCEL_BRANCH_URL) ||
   toOrigin(process.env.VERCEL_URL)
 
-const optional = z.string().trim().optional().transform(v => v || undefined)
+const cleanEnvVal = (v?: string) => (v ? v.trim().replace(/^["']|["']$/g, '').trim() || undefined : undefined)
+const optional = z.string().trim().optional().transform(cleanEnvVal)
 const origin = (fallback: string) =>
   z
     .string()
     .trim()
     .optional()
     .transform(v => {
-      const cleaned = v && !(isVercel && isProduction && isLoopbackUrl(v)) ? v : ''
+      const cleaned = cleanEnvVal(v && !(isVercel && isProduction && isLoopbackUrl(v)) ? v : undefined) || ''
       return (cleaned || vercelDefaultOrigin || (isProduction ? '' : fallback)).replace(/\/$/, '')
     })
 
-const rawAuthSecret = process.env.AUTH_SECRET?.trim()
+const rawAuthSecret = cleanEnvVal(process.env.AUTH_SECRET)
 if (isVercel && (!rawAuthSecret || rawAuthSecret.length < 32)) {
   console.warn('AUTH_SECRET is missing or under 32 chars; using an ephemeral runtime secret on Vercel.')
 }
 const authSecretSchema = isVercel
-  ? z.string().optional().transform(v => (v && v.trim().length >= 32 ? v.trim() : randomBytes(32).toString('hex')))
-  : z.string({ error: 'AUTH_SECRET is required (generate one with `openssl rand -base64 48`)' }).min(32, 'AUTH_SECRET must be at least 32 characters (generate one with `openssl rand -base64 48`)')
+  ? z.string().optional().transform(v => {
+      const val = cleanEnvVal(v)
+      return val && val.length >= 32 ? val : randomBytes(32).toString('hex')
+    })
+  : z.string({ error: 'AUTH_SECRET is required (generate one with `openssl rand -base64 48`)' }).transform(v => cleanEnvVal(v) || '').pipe(z.string().min(32, 'AUTH_SECRET must be at least 32 characters (generate one with `openssl rand -base64 48`)'))
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -74,10 +78,10 @@ const schema = z.object({
   CHAZON_NOTIFICATION_EMAIL: optional,
   UPLOAD_DIR: optional,
   // The main Admin login. Credentials live only here — they are checked against the environment, never stored in the database.
-  ADMIN_EMAIL: z.string().trim().toLowerCase().optional().transform(v => v || undefined).pipe(z.email('ADMIN_EMAIL must be a valid email address').optional()),
-  ADMIN_PASSWORD: z.string().optional().transform(v => v || undefined).pipe(z.string().min(12, 'ADMIN_PASSWORD must be at least 12 characters').max(200).optional()),
-  ADMIN_NAME: z.string().trim().max(100).optional().transform(v => v || 'Chazon Admin'),
-  TRUST_PROXY: z.coerce.number().int().min(0).default(isVercel ? 1 : 0).transform(v => (isVercel && v < 1 ? 1 : v)),
+  ADMIN_EMAIL: z.string().trim().toLowerCase().optional().transform(cleanEnvVal).pipe(z.email('ADMIN_EMAIL must be a valid email address').optional()),
+  ADMIN_PASSWORD: z.string().optional().transform(cleanEnvVal).pipe(z.string().min(12, 'ADMIN_PASSWORD must be at least 12 characters').max(200).optional()),
+  ADMIN_NAME: z.string().trim().max(100).optional().transform(v => cleanEnvVal(v) || 'Chazon Admin'),
+  TRUST_PROXY: z.coerce.number().int().min(0).default(isVercel ? 1 : 0).transform(v => (isVercel || isProduction ? Math.max(1, v) : v)),
   // Website Audit Engine settings
   PAGESPEED_API_KEY: optional,
   MAX_CONCURRENT_AUDITS: z.coerce.number().int().positive().default(2),

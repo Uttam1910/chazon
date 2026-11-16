@@ -32,6 +32,12 @@ const enquiryLimiter = rateLimit({
   limit: 5,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
+  validate: false,
+  keyGenerator: req => {
+    const forwarded = req.headers['x-forwarded-for']
+    const clientIp = Array.isArray(forwarded) ? forwarded[0] : forwarded
+    return clientIp?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress || '127.0.0.1'
+  },
   handler: (_req, res) =>
     res.status(429).json({
       error: { code: 'RATE_LIMITED', message: 'Too many enquiries submitted. Please wait a few minutes and try again.' },
@@ -188,7 +194,6 @@ publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimite
         try {
           await prisma.growthAudit.create({
             data: {
-              reference: generateReference('AUD'),
               name: body.contact.name,
               businessName: body.business.businessName,
               email: body.contact.email,
@@ -309,10 +314,11 @@ publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimite
   if (isAuditEnquiry) {
     const auditMsg = `Audit requested through website form (Ref: ${reference}).`
     let auditId: string
+    const { reference: _ref, auditRef: _ar, ...growthAuditData } = common
     try {
       const audit = await prisma.growthAudit.create({
         data: {
-          ...common,
+          ...growthAuditData,
           requirements: body.message,
           activities: {
             create: { type: 'CREATED', message: auditMsg },
@@ -320,10 +326,16 @@ publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimite
         },
       })
       auditId = audit.id
+      if (body.auditRef) {
+        await linkAuditReference(body.auditRef, auditId, reference)
+      }
       runtimeStore.invalidateDashboard()
     } catch (err) {
       if (!isDatabaseUnavailable(err)) throw err
-      auditId = runtimeStore.createGrowthAudit({ ...common, requirements: body.message }, auditMsg).id
+      auditId = runtimeStore.createGrowthAudit({ ...growthAuditData, requirements: body.message }, auditMsg).id
+      if (body.auditRef) {
+        runtimeStore.linkLeadToAuditScan(body.auditRef, auditId, reference)
+      }
     }
     await dispatchBackground(notifySubmission({ kind: 'audit', id: auditId, ...common, service: body.service, message: body.message }))
     return ok(res, { received: true, reference, whatsAppHref: buildWhatsAppHref(body.business, reference, body.service || 'Digital Growth Audit') }, 201)

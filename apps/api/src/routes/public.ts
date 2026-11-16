@@ -31,7 +31,16 @@ const cacheable = (seconds: number) => (_req: unknown, res: { set: (k: string, v
 
 // ---------- Enquiries: "Let's Talk" → Lead, "Digital Growth Audit" → GrowthAudit ----------
 const enquiryLimiter = rateLimit({
-  windowMs: 10 * 60_000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false,
+  windowMs: 10 * 60_000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  validate: false,
+  keyGenerator: req => {
+    const forwarded = req.headers['x-forwarded-for']
+    const clientIp = Array.isArray(forwarded) ? forwarded[0] : forwarded
+    return clientIp?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress || '127.0.0.1'
+  },
   handler: (_req, res) => res.status(429).json({ error: { code: 'RATE_LIMITED', message: 'Too many submissions. Please try again in a few minutes.' } }),
 })
 const field = (max: number) => z.string().trim().max(max).optional().transform(v => v || null)
