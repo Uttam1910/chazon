@@ -6,7 +6,8 @@
   "fluid": true,
   "functions": {
     "api/index.mjs": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "apps/api/dist/**"
     }
   },
   "rewrites": [

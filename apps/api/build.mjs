@@ -1,8 +1,11 @@
-// Bundles the API (and the workspace's @chazon/shared source) into dist/; npm dependencies stay external.
+// Bundles the API (and workspace packages like @chazon/shared) into dist/; all external npm packages stay external.
 import { build } from 'esbuild'
 import { readFile } from 'node:fs/promises'
+
 const pkg = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'))
-const external = Object.keys(pkg.dependencies).filter(name => !name.startsWith('@chazon/'))
+const externalDeps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })
+  .filter(name => !name.startsWith('@chazon/'))
+
 await build({
   entryPoints: ['src/index.ts', 'src/app.ts'],
   outdir: 'dist',
@@ -12,6 +15,17 @@ await build({
   format: 'esm',
   target: 'node20',
   sourcemap: true,
-  external: [...external, ...external.map(name => `${name}/*`)],
+  external: [
+    ...externalDeps,
+    ...externalDeps.map(name => `${name}/*`),
+    'pg',
+    'pg/*',
+    '@prisma/*',
+    'express',
+    'express/*',
+  ],
+  banner: {
+    js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
+  },
   logLevel: 'info',
 })
