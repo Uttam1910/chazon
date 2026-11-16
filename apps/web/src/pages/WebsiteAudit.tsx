@@ -963,42 +963,57 @@ export function WebsiteAudit() {
                   </div>
                 </div>
 
-                {/* Right Side: Laptop with Audit Mockup */}
+                {/* Right Side: Laptop Scene with Polished Glass HUD Diagnostics */}
                 <div className="audit-hero-right">
-                  <div className="audit-hero-laptop-scene">
-                    <picture className="audit-laptop-picture">
-                      <source srcSet="/assets/hero-laptop-desk.webp" type="image/webp" />
-                      <img
-                        src="/assets/hero-laptop-desk.png"
-                        alt="Website Audit diagnostic on laptop on desk"
-                        className="audit-laptop-img"
-                        width={2064}
-                        height={1152}
-                        loading="eager"
-                      />
-                    </picture>
+                  <div className="audit-hero-scene-wrap">
+                    <div className="audit-hero-backdrop-glow" aria-hidden="true" />
+                    <div className="audit-hero-laptop-scene">
+                      <picture className="audit-laptop-picture">
+                        <source srcSet="/assets/website-audit-hero.webp" type="image/webp" />
+                        <img
+                          src="/assets/website-audit-hero.jpg"
+                          alt="Website Audit diagnostic report and performance analysis on laptop"
+                          className="audit-laptop-img"
+                          width={1376}
+                          height={768}
+                          loading="eager"
+                        />
+                      </picture>
 
-                    {/* Floating Diagnostic Card on Laptop */}
-                    <div className="audit-laptop-screen-overlay" aria-hidden="true">
-                      <div className="also-card">
-                        <div className="also-score-side">
-                          <div className="also-circle">
-                            <span className="also-num">87</span>
-                            <span className="also-sub">Website Score</span>
-                          </div>
+                      {/* Top-Right: Verified Core Web Vitals Badge */}
+                      <div className="audit-hud-badge-top" aria-hidden="true">
+                        <div className="ahb-icon-check">
+                          <ShieldCheck size={16} />
                         </div>
-                        <div className="also-checks-side">
-                          <div className="also-check-row">
-                            <span>Performance</span> <Check size={14} className="also-check-icon" />
+                        <div className="ahb-text">
+                          <strong>Core Web Vitals Pass</strong>
+                          <span>Sub-800ms speed index</span>
+                        </div>
+                      </div>
+
+                      {/* Bottom-Left: Live Diagnostic Health Card */}
+                      <div className="audit-hud-card-bottom" aria-hidden="true">
+                        <div className="ahc-score-ring">
+                          <span className="ahc-num">87</span>
+                          <span className="ahc-label">SCORE</span>
+                        </div>
+                        <div className="ahc-info">
+                          <div className="ahc-header">
+                            <strong>Website Health Scanner</strong>
+                            <span className="ahc-live-pill">
+                              <span className="ahc-dot" /> LIVE
+                            </span>
                           </div>
-                          <div className="also-check-row">
-                            <span>SEO</span> <Check size={14} className="also-check-icon" />
-                          </div>
-                          <div className="also-check-row">
-                            <span>Accessibility</span> <Check size={14} className="also-check-icon" />
-                          </div>
-                          <div className="also-check-row">
-                            <span>Best Practices</span> <Check size={14} className="also-check-icon" />
+                          <div className="ahc-metrics-row">
+                            <span className="ahc-metric">
+                              <Check size={13} className="ahc-check" /> Performance
+                            </span>
+                            <span className="ahc-metric">
+                              <Check size={13} className="ahc-check" /> SEO 100%
+                            </span>
+                            <span className="ahc-metric">
+                              <Check size={13} className="ahc-check" /> Mobile Ready
+                            </span>
                           </div>
                         </div>
                       </div>

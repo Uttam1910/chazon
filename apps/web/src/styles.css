@@ -9922,92 +9922,252 @@ select.smart-select {
   margin: 0;
 }
 
-/* Laptop Scene on Audit Hero */
+/* --------------------------------------------------------------------------
+   Audit Hero - Laptop Diagnostic Visual & Floating Glassmorphism HUD
+   -------------------------------------------------------------------------- */
+.audit-hero-right {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.audit-hero-scene-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.audit-hero-backdrop-glow {
+  position: absolute;
+  inset: -16px;
+  background: radial-gradient(circle at 65% 45%, rgba(216, 69, 2, 0.14), rgba(245, 158, 11, 0.09) 45%, transparent 72%);
+  filter: blur(28px);
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 32px;
+}
+
 .audit-hero-laptop-scene {
   position: relative;
-  border-radius: 20px;
+  z-index: 1;
+}
+
+.audit-laptop-picture {
+  display: block;
+  border-radius: 22px;
   overflow: hidden;
-  box-shadow: 0 20px 48px -12px rgba(36, 24, 19, 0.14);
-  border: 1px solid rgba(36, 24, 19, 0.08);
+  box-shadow:
+    0 24px 56px -14px rgba(36, 24, 19, 0.18),
+    0 4px 16px -2px rgba(36, 24, 19, 0.08),
+    0 0 0 1px rgba(36, 24, 19, 0.08);
+  background: #FFFDF9;
 }
 
 .audit-laptop-img {
   width: 100%;
   height: auto;
   display: block;
+  object-fit: cover;
+  transform: translateZ(0);
 }
 
-.audit-laptop-screen-overlay {
+/* Floating Glassmorphism Badge: Top Right (Core Web Vitals) */
+.audit-hud-badge-top {
   position: absolute;
-  top: 16%;
-  left: 36%;
-  right: 12%;
-  bottom: 24%;
+  top: -14px;
+  right: -10px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 8px 10px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 9999px;
+  box-shadow:
+    0 14px 32px -6px rgba(36, 24, 19, 0.16),
+    0 4px 12px -2px rgba(36, 24, 19, 0.06);
+  animation: hudFloat 4.5s ease-in-out infinite;
+}
+
+.ahb-icon-check {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+  flex-shrink: 0;
 }
 
-.also-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  border-radius: 12px;
-  padding: 12px 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+.ahb-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.ahb-text strong {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #1E293B;
+  letter-spacing: -0.01em;
+}
+
+.ahb-text span {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #059669;
+  margin-top: 2px;
+}
+
+/* Floating Glassmorphism Card: Bottom Left (Health Scanner 87 Score) */
+.audit-hud-card-bottom {
+  position: absolute;
+  bottom: -18px;
+  left: -12px;
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: 14px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  width: 100%;
-  max-width: 270px;
+  padding: 12px 18px;
+  max-width: 350px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 18px;
+  box-shadow:
+    0 18px 40px -8px rgba(36, 24, 19, 0.18),
+    0 6px 16px -2px rgba(36, 24, 19, 0.08);
+  animation: hudFloatReverse 5s ease-in-out infinite;
 }
 
-.also-circle {
-  width: 52px;
-  height: 52px;
+.ahc-score-ring {
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
+  background: linear-gradient(145deg, #F0FDF4 0%, #DCFCE7 100%);
   border: 3px solid #10B981;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
   flex-shrink: 0;
 }
 
-.also-num {
+.ahc-num {
   font-family: var(--font-sans);
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   font-weight: 800;
-  color: #241813;
+  color: #065F46;
   line-height: 1;
 }
 
-.also-sub {
-  font-size: 0.52rem;
-  color: #786C65;
-  text-transform: uppercase;
+.ahc-label {
+  font-family: var(--font-sans);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #047857;
   margin-top: 2px;
 }
 
-.also-checks-side {
+.ahc-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   flex: 1;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: #241813;
+  min-width: 0;
 }
 
-.also-check-row {
+.ahc-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 
-.also-check-icon {
+.ahc-header strong {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1E293B;
+  white-space: nowrap;
+}
+
+.ahc-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ECFDF5;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-family: var(--font-sans);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #059669;
+}
+
+.ahc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10B981;
+  display: inline-block;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35);
+}
+
+.ahc-metrics-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ahc-metric {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.ahc-check {
   color: #10B981;
+  flex-shrink: 0;
+}
+
+@keyframes hudFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes hudFloatReverse {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(4px);
+  }
 }
 
 /* "Audit Your Website" Card Container */
@@ -10824,6 +10984,60 @@ select.smart-select {
   .audit-hero-points-list {
     grid-template-columns: 1fr;
     gap: 18px;
+  }
+
+  .audit-hud-badge-top {
+    top: 8px;
+    right: 8px;
+    padding: 6px 12px 6px 8px;
+    animation: none;
+  }
+
+  .ahb-icon-check {
+    width: 26px;
+    height: 26px;
+  }
+
+  .ahb-text strong {
+    font-size: 0.75rem;
+  }
+
+  .ahb-text span {
+    font-size: 0.625rem;
+  }
+
+  .audit-hud-card-bottom {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    margin-top: 14px;
+    max-width: 100%;
+    padding: 10px 14px;
+    gap: 12px;
+    animation: none;
+    border-radius: 14px;
+  }
+
+  .ahc-score-ring {
+    width: 46px;
+    height: 46px;
+  }
+
+  .ahc-num {
+    font-size: 1.1rem;
+  }
+
+  .ahc-header strong {
+    font-size: 0.8125rem;
+  }
+
+  .ahc-metrics-row {
+    gap: 6px 10px;
+  }
+
+  .ahc-metric {
+    font-size: 0.625rem;
   }
 
   .arc-input-box {
