@@ -165,9 +165,91 @@ function buildDashboardPayload(params: {
       .map(([label, count]) => ({ label, count })),
   ].filter(item => item.count > 0 || (ENQUIRY_PILLARS as readonly string[]).includes(item.label))
 
+  // Real 6-month timeline buckets directly aggregated from database record timestamps
+  const now = new Date()
+  const monthlyBuckets: {
+    label: string
+    year: number
+    month: number
+    leads: number
+    audits: number
+    scans: number
+    won: number
+  }[] = []
+
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    monthlyBuckets.push({
+      label: d.toLocaleString('en-US', { month: 'short' }),
+      year: d.getFullYear(),
+      month: d.getMonth(),
+      leads: 0,
+      audits: 0,
+      scans: 0,
+      won: 0,
+    })
+  }
+
+  for (const l of params.leads) {
+    const d = new Date(toIso(l.createdAt))
+    const bucket = monthlyBuckets.find(b => b.year === d.getFullYear() && b.month === d.getMonth())
+    if (bucket) {
+      bucket.leads++
+      if (l.status === 'WON') bucket.won++
+    }
+  }
+
+  for (const a of params.audits) {
+    const d = new Date(toIso(a.createdAt))
+    const bucket = monthlyBuckets.find(b => b.year === d.getFullYear() && b.month === d.getMonth())
+    if (bucket) {
+      bucket.audits++
+    }
+  }
+
+  for (const s of params.scans) {
+    const d = new Date(s.createdAt)
+    const bucket = monthlyBuckets.find(b => b.year === d.getFullYear() && b.month === d.getMonth())
+    if (bucket) {
+      bucket.scans++
+    }
+  }
+
+  const timeline = monthlyBuckets.map(b => ({
+    month: b.label,
+    leads: b.leads,
+    audits: b.audits,
+    scans: b.scans,
+    won: b.won,
+    total: b.leads + b.audits,
+  }))
+
+  const currLeads = monthlyBuckets[monthlyBuckets.length - 1]?.leads ?? 0
+  const prevLeads = monthlyBuckets[monthlyBuckets.length - 2]?.leads ?? 0
+  let leadGrowthPercent = 0
+  if (prevLeads > 0) {
+    leadGrowthPercent = Math.round(((currLeads - prevLeads) / prevLeads) * 100)
+  } else if (currLeads > 0) {
+    leadGrowthPercent = 100
+  }
+
+  const currAudits = monthlyBuckets[monthlyBuckets.length - 1]?.audits ?? 0
+  const prevAudits = monthlyBuckets[monthlyBuckets.length - 2]?.audits ?? 0
+  let auditGrowthPercent = 0
+  if (prevAudits > 0) {
+    auditGrowthPercent = Math.round(((currAudits - prevAudits) / prevAudits) * 100)
+  } else if (currAudits > 0) {
+    auditGrowthPercent = 100
+  }
+
   return {
     storageMode: params.storageMode,
     generatedAt: new Date().toISOString(),
+    timeline,
+    growthRates: {
+      leads: leadGrowthPercent,
+      audits: auditGrowthPercent,
+    },
     leads: {
       total: params.leads.length,
       new: byStatus.NEW ?? 0,

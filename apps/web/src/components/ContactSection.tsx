@@ -39,16 +39,18 @@ export function ContactSection({ initialService = '' }: { initialService?: strin
 
     try {
       const endpoint = config.enquiryEndpoint || '/api/public/enquiries'
+      const isAudit = (service || '').toLowerCase().includes('audit')
       const payload = {
         name: name.trim(),
         business: name.trim() + ' Business',
         email: email.trim().toLowerCase(),
         phone: phone.trim() || '+91 00000 00000',
         service: service,
+        enquiry_type: isAudit ? 'audit' : 'talk',
         message: message.trim(),
         company_url: companyUrl || undefined, // Honeypot
         form_started: startedAt,
-        source_detail: 'direct_contact_form',
+        source_detail: isAudit ? 'growth_audit_form' : 'direct_contact_form',
       }
 
       const res = await fetch(endpoint, {

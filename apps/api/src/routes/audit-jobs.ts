@@ -288,6 +288,18 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
       auditJobStore.complete(job, report)
       const summary = runtimeStore.recordJobComplete(id, report)
       await persistJob(job, true)
+
+      const metricsJson = JSON.parse(JSON.stringify({
+        strategy: summary.strategy || 'mobile',
+        pagesInspected: summary.pagesInspected || 1,
+        durationMs: summary.durationMs ?? null,
+        accessibilityScore: summary.accessibilityScore ?? null,
+        bestPracticesScore: summary.bestPracticesScore ?? null,
+        headline: summary.headline ?? null,
+      })) as Prisma.InputJsonValue
+
+      const issuesJson = JSON.parse(JSON.stringify(summary.topIssues ?? [])) as Prisma.InputJsonValue
+
       try {
         await prisma.auditScan.upsert({
           where: { reference: summary.reference },
@@ -299,15 +311,8 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
             seoScore: summary.seoScore,
             mobileScore: summary.mobileScore,
             conversionScore: summary.conversionScore,
-            metrics: {
-              strategy: summary.strategy,
-              pagesInspected: summary.pagesInspected,
-              durationMs: summary.durationMs,
-              accessibilityScore: summary.accessibilityScore,
-              bestPracticesScore: summary.bestPracticesScore,
-              headline: summary.headline,
-            },
-            issues: summary.topIssues as unknown as object,
+            metrics: metricsJson,
+            issues: issuesJson,
           },
           create: {
             reference: summary.reference,
@@ -318,20 +323,45 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
             seoScore: summary.seoScore,
             mobileScore: summary.mobileScore,
             conversionScore: summary.conversionScore,
-            metrics: {
-              strategy: summary.strategy,
-              pagesInspected: summary.pagesInspected,
-              durationMs: summary.durationMs,
-              accessibilityScore: summary.accessibilityScore,
-              bestPracticesScore: summary.bestPracticesScore,
-              headline: summary.headline,
-            },
-            issues: summary.topIssues as unknown as object,
+            metrics: metricsJson,
+            issues: issuesJson,
           },
         })
-      } catch {
-        // DB unavailable — scan remains synced in runtimeStore for live Admin visibility
+        console.log(`[audit ${id}] Successfully saved auditScan to database for ${summary.normalizedUrl}`)
+      } catch (dbErr) {
+        console.error(`[audit ${id}] Failed to save auditScan to database:`, dbErr)
       }
+
+      // Also ensure a GrowthAudit record is saved so the audit appears in both database tables and admin metrics!
+      try {
+        const topIssueList = (summary.topIssues ?? []).map(i => i.title).slice(0, 3).join('; ')
+        const reqSummary = `Instant Website Health Score: ${summary.overallScore}/100. Speed: ${summary.performanceScore}%, SEO: ${summary.seoScore}%, Mobile: ${summary.mobileScore}%. ${topIssueList ? `Top findings: ${topIssueList}` : ''}`
+        await prisma.growthAudit.create({
+          data: {
+            name: `Website Scan: ${summary.normalizedUrl}`,
+            businessName: summary.normalizedUrl,
+            email: `scan@${summary.normalizedUrl}`,
+            phone: 'Not provided',
+            website: summary.url,
+            category: 'Website Health Scanner',
+            requirements: reqSummary,
+            source: 'Website Scanner',
+            sourceDetail: 'instant_health_audit',
+            status: 'NEW',
+            activities: {
+              create: {
+                type: 'CREATED',
+                message: `Automated website audit scan executed for ${summary.url} with overall health score ${summary.overallScore}/100.`,
+              },
+            },
+          },
+        })
+        console.log(`[audit ${id}] Successfully recorded GrowthAudit entry for ${summary.normalizedUrl}`)
+      } catch (gaErr) {
+        console.error(`[audit ${id}] Failed to create GrowthAudit entry:`, gaErr)
+      }
+
+      runtimeStore.invalidateDashboard()
       await pruneExpiredAuditJobs()
     })
     .catch(async (err: unknown) => {

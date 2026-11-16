@@ -73,13 +73,41 @@ auditAnalyzerRouter.post('/analyze', auditCors, json({ limit: '16kb' }), auditLi
           seoScore: result.scores.seo,
           mobileScore: result.scores.mobile,
           conversionScore: result.scores.conversion,
-          metrics: result.metrics,
-          issues: result.issues as unknown as object,
+          metrics: JSON.parse(JSON.stringify(result.metrics)),
+          issues: JSON.parse(JSON.stringify(result.issues ?? [])),
         },
       })
-    } catch {
-      // If DB is disconnected or unavailable, the audit result is still returned to the user
+      console.log(`[audit-analyzer] Saved auditScan to DB for ${result.normalizedUrl}`)
+    } catch (scanErr) {
+      console.error('[audit-analyzer] Failed to save auditScan to DB:', scanErr)
     }
+
+    try {
+      await prisma.growthAudit.create({
+        data: {
+          name: `Website Scan: ${result.normalizedUrl}`,
+          businessName: result.normalizedUrl,
+          email: `scan@${result.normalizedUrl}`,
+          phone: 'Not provided',
+          website: result.url,
+          category: 'Website Health Scanner',
+          requirements: `Instant Website Health Score: ${result.overallScore}/100. Speed: ${result.scores.performance}%, SEO: ${result.scores.seo}%, Mobile: ${result.scores.mobile}%.`,
+          source: 'Website Scanner',
+          sourceDetail: 'audit_analyzer',
+          status: 'NEW',
+          activities: {
+            create: {
+              type: 'CREATED',
+              message: `Legacy analyzer scan executed for ${result.url} with score ${result.overallScore}/100.`,
+            },
+          },
+        },
+      })
+    } catch (gaErr) {
+      console.error('[audit-analyzer] Failed to create GrowthAudit entry:', gaErr)
+    }
+
+    runtimeStore.invalidateDashboard()
 
     ok(res, result, 200)
   } catch (err: unknown) {

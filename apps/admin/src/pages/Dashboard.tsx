@@ -4,7 +4,6 @@ import {
   Activity,
   ArrowRight,
   BarChart2,
-  Briefcase,
   CheckCircle2,
   Globe,
   Mail,
@@ -17,7 +16,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react'
-import { AUDIT_STATUS_LABELS, LEAD_STATUSES, LEAD_STATUS_LABELS, type AuditStatus, type LeadStatus } from '@chazon/shared'
+import { LEAD_STATUSES, LEAD_STATUS_LABELS, type AuditStatus, type LeadStatus } from '@chazon/shared'
 import { useApi } from '../api'
 import { Badge, Card, PageHeader } from '../ui/Common'
 import { EmptyState, ErrorState, LoadingRows } from '../ui/States'
@@ -46,6 +45,18 @@ type WebsiteScanSummary = {
 type Stats = {
   storageMode?: 'database' | 'memory'
   generatedAt?: string
+  timeline?: {
+    month: string
+    leads: number
+    audits: number
+    scans: number
+    won: number
+    total: number
+  }[]
+  growthRates?: {
+    leads: number
+    audits: number
+  }
   leads: {
     total: number
     new: number
@@ -124,12 +135,50 @@ export function Dashboard() {
 
   const scans = data?.websiteScans
 
-  // Filtered recent messages
+  // Filtered recent messages directly from DB
   const filteredLeads = (data?.recentLeads ?? []).filter(lead => {
     if (messagesFilter === 'new') return lead.status === 'NEW'
     if (messagesFilter === 'audits') return Boolean(lead.auditRef)
     return true
   })
+
+  // Dynamic SVG Chart Plotting directly from DB Timeline Records
+  const timeline = data?.timeline && data.timeline.length ? data.timeline : [
+    { month: 'Month 1', leads: 0, audits: 0, scans: 0, won: 0, total: 0 },
+    { month: 'Month 2', leads: 0, audits: 0, scans: 0, won: 0, total: 0 },
+    { month: 'Month 3', leads: 0, audits: 0, scans: 0, won: 0, total: 0 },
+    { month: 'Month 4', leads: 0, audits: 0, scans: 0, won: 0, total: 0 },
+    { month: 'Month 5', leads: 0, audits: 0, scans: 0, won: 0, total: 0 },
+    { month: 'Today', leads: 0, audits: 0, scans: 0, won: 0, total: 0 },
+  ]
+
+  const getPointValue = (p: typeof timeline[number]) => {
+    if (chartMode === 'revenue') return p.won
+    if (chartMode === 'leads') return p.leads
+    return p.scans
+  }
+
+  const values = timeline.map(getPointValue)
+  const maxVal = Math.max(1, ...values)
+
+  const chartPoints = timeline.map((p, idx) => {
+    const val = getPointValue(p)
+    const x = 60 + idx * 168
+    const y = maxVal > 0 ? 215 - (val / maxVal) * 160 : 215
+    return { x, y, val, month: p.month }
+  })
+
+  let curveD = chartPoints.length ? `M ${chartPoints[0].x} ${chartPoints[0].y}` : ''
+  for (let i = 0; i < chartPoints.length - 1; i++) {
+    const p0 = chartPoints[i]
+    const p1 = chartPoints[i + 1]
+    const mx = p0.x + (p1.x - p0.x) / 2
+    curveD += ` C ${mx} ${p0.y}, ${mx} ${p1.y}, ${p1.x} ${p1.y}`
+  }
+
+  const areaD = chartPoints.length
+    ? `${curveD} L ${chartPoints[chartPoints.length - 1].x} 215 L ${chartPoints[0].x} 215 Z`
+    : ''
 
   return (
     <div className="growth-dashboard-root">
@@ -137,8 +186,8 @@ export function Dashboard() {
         title="Business Growth Dashboard"
         description={
           data?.generatedAt
-            ? `Real-time Pipeline, Visitor Traffic, Client Inquiries & Revenue Trajectory · Updated ${timeAgo(data.generatedAt)}`
-            : 'Real-time Pipeline, Visitor Traffic, Client Inquiries & Revenue Trajectory.'
+            ? `Real-time Pipeline, Client Inquiries & Revenue Trajectory from Database · Updated ${timeAgo(data.generatedAt)}`
+            : 'Real-time Pipeline, Client Inquiries & Revenue Trajectory from Database.'
         }
         actions={
           <div className="button-group">
@@ -167,105 +216,117 @@ export function Dashboard() {
       ) : (
         data && (
           <>
-            {/* ROW 1: TOP 3 EXECUTIVE GROWTH METRICS (Directly from Homepage Hero Laptop Mockup) */}
+            {/* ROW 1: TOP 4 EXECUTIVE GROWTH METRICS (100% Genuine Database Records) */}
             <div className="hero-mockup-kpis">
-              {/* Metric 1: Website Visits / Traffic */}
-              <div className="growth-metric-card">
-                <div className="gmc-header">
-                  <div className="gmc-icon-wrap orange">
-                    <Activity size={20} />
-                  </div>
-                  <span className="trend-badge positive">
-                    <TrendingUp size={12} />
-                    <span>+68%</span>
-                  </span>
-                </div>
-                <div className="gmc-body">
-                  <span className="gmc-label">Website Visits</span>
-                  <div className="gmc-number-row">
-                    <strong className="gmc-value">24,830</strong>
-                    <span className="gmc-period">/mo</span>
-                  </div>
-                  <span className="gmc-subtext">Organic Search, Direct &amp; Campaigns</span>
-                </div>
-              </div>
-
-              {/* Metric 2: Leads & Inquiries */}
+              {/* Metric 1: Total Leads & Inquiries */}
               <Link to="/leads" className="growth-metric-card link-card">
                 <div className="gmc-header">
                   <div className="gmc-icon-wrap amber">
                     <MessageSquare size={20} />
                   </div>
-                  <span className="trend-badge positive">
-                    <TrendingUp size={12} />
-                    <span>+42%</span>
-                  </span>
+                  {data.growthRates && data.growthRates.leads !== 0 ? (
+                    <span className={`trend-badge ${data.growthRates.leads > 0 ? 'positive' : 'negative'}`}>
+                      <TrendingUp size={12} />
+                      <span>{data.growthRates.leads > 0 ? `+${data.growthRates.leads}%` : `${data.growthRates.leads}%`} MoM</span>
+                    </span>
+                  ) : (
+                    <span className="trend-badge neutral">
+                      <span>{data.leads.new} New</span>
+                    </span>
+                  )}
                 </div>
                 <div className="gmc-body">
-                  <span className="gmc-label">Qualified Leads &amp; Inquiries</span>
+                  <span className="gmc-label">Total Leads &amp; Inquiries</span>
                   <div className="gmc-number-row">
-                    <strong className="gmc-value">
-                      {data.leads.total > 0 ? (data.leads.total * 35 + 1420).toLocaleString('en-IN') : '1,420'}
-                    </strong>
-                    <span className="gmc-period">total</span>
+                    <strong className="gmc-value">{data.leads.total.toLocaleString('en-IN')}</strong>
+                    <span className="gmc-period">leads</span>
                   </div>
                   <span className="gmc-subtext">
-                    <strong style={{ color: 'var(--orange-text)' }}>{data.leads.new} new inquiries</strong> · {data.leads.withAuditCount ?? 0} with audits
+                    <strong style={{ color: 'var(--orange-text)' }}>{data.leads.new} awaiting response</strong> · {data.leads.last30Days} in last 30d
                   </span>
                 </div>
               </Link>
 
-              {/* Metric 3: Customers & Won Engagements */}
+              {/* Metric 2: Growth Audits */}
+              <Link to="/audits" className="growth-metric-card link-card">
+                <div className="gmc-header">
+                  <div className="gmc-icon-wrap blue">
+                    <Activity size={20} />
+                  </div>
+                  {data.growthRates && data.growthRates.audits !== 0 ? (
+                    <span className={`trend-badge ${data.growthRates.audits > 0 ? 'positive' : 'negative'}`}>
+                      <TrendingUp size={12} />
+                      <span>{data.growthRates.audits > 0 ? `+${data.growthRates.audits}%` : `${data.growthRates.audits}%`} MoM</span>
+                    </span>
+                  ) : (
+                    <span className="trend-badge neutral">
+                      <span>{data.audits.new} New</span>
+                    </span>
+                  )}
+                </div>
+                <div className="gmc-body">
+                  <span className="gmc-label">Growth Audits Requested</span>
+                  <div className="gmc-number-row">
+                    <strong className="gmc-value">{data.audits.total.toLocaleString('en-IN')}</strong>
+                    <span className="gmc-period">audits</span>
+                  </div>
+                  <span className="gmc-subtext">
+                    <strong style={{ color: 'var(--accent)' }}>{data.audits.new} awaiting review</strong> · {data.audits.last30Days} in last 30d
+                  </span>
+                </div>
+              </Link>
+
+              {/* Metric 3: Converted Clients (Won) */}
               <Link to="/leads?status=WON" className="growth-metric-card link-card">
                 <div className="gmc-header">
                   <div className="gmc-icon-wrap green">
                     <CheckCircle2 size={20} />
                   </div>
                   <span className="trend-badge positive">
-                    <TrendingUp size={12} />
-                    <span>+21%</span>
+                    <CheckCircle2 size={12} />
+                    <span>{data.leads.total > 0 ? `${Math.round((data.leads.converted / data.leads.total) * 100)}% Win Rate` : 'Pipeline active'}</span>
                   </span>
                 </div>
                 <div className="gmc-body">
-                  <span className="gmc-label">Converted Customers</span>
+                  <span className="gmc-label">Converted Clients (Won)</span>
                   <div className="gmc-number-row">
-                    <strong className="gmc-value">
-                      {data.leads.converted > 0 ? (data.leads.converted * 12 + 312).toLocaleString('en-IN') : '312'}
-                    </strong>
+                    <strong className="gmc-value">{data.leads.converted.toLocaleString('en-IN')}</strong>
                     <span className="gmc-period">won</span>
                   </div>
                   <span className="gmc-subtext">
-                    {data.leads.qualified} qualified opportunities currently in pipeline
+                    {data.leads.qualified} qualified in pipeline · {data.leads.byStatus.PROPOSAL_SENT ?? 0} proposals sent
                   </span>
                 </div>
               </Link>
 
-              {/* Metric 4: Website Health Scanner Score */}
+              {/* Metric 4: Website Health Scanner Diagnostics */}
               <Link to="/audits?tab=scans" className="growth-metric-card link-card highlight">
                 <div className="gmc-header">
                   <div className="gmc-icon-wrap violet">
                     <Sparkles size={20} />
                   </div>
                   <span className="health-score-pill">
-                    <span>Score: {scans?.avgOverallScore || 82}</span>
+                    <span>{scans && scans.total > 0 ? `Avg: ${scans.avgOverallScore}/100` : '0 scans logged'}</span>
                   </span>
                 </div>
                 <div className="gmc-body">
-                  <span className="gmc-label">Website Health Scanner</span>
+                  <span className="gmc-label">Website Health Scans</span>
                   <div className="gmc-number-row">
                     <strong className="gmc-value" style={{ color: 'var(--orange)' }}>
-                      {scans?.avgOverallScore || 82}
-                      <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--muted)' }}>/100</span>
+                      {scans?.total ?? 0}
                     </strong>
+                    <span className="gmc-period">scans</span>
                   </div>
                   <span className="gmc-subtext">
-                    Speed {scans?.avgPerformanceScore || 88}% · SEO {scans?.avgSeoScore || 95}% · UX {scans?.avgMobileScore || 90}%
+                    {scans && scans.total > 0
+                      ? `Speed ${scans.avgPerformanceScore}% · SEO ${scans.avgSeoScore}% · UX ${scans.avgMobileScore}%`
+                      : 'Live scans from /website-audit appear here'}
                   </span>
                 </div>
               </Link>
             </div>
 
-            {/* ROW 2: INTERACTIVE REVENUE & GROWTH TRAJECTORY CHART (Matching Homepage Laptop Screen) */}
+            {/* ROW 2: INTERACTIVE REVENUE & GROWTH TRAJECTORY CHART (Directly from DB Timeline) */}
             <div className="chart-hero-container">
               <div className="chart-header-row">
                 <div className="chart-title-group">
@@ -273,7 +334,7 @@ export function Dashboard() {
                     <BarChart2 size={18} style={{ color: 'var(--orange)' }} />
                     <h3>Business Growth Trajectory</h3>
                   </div>
-                  <p>Aggregated revenue, conversion velocity, and acquisition stream over time.</p>
+                  <p>Real-time monthly historical trajectory aggregated directly from database records.</p>
                 </div>
 
                 <div className="chart-pills-bar">
@@ -282,48 +343,48 @@ export function Dashboard() {
                     className={`chart-pill-btn ${chartMode === 'revenue' ? 'active' : ''}`}
                     onClick={() => setChartMode('revenue')}
                   >
-                    Revenue Growth
+                    Won Clients ({data.leads.converted})
                   </button>
                   <button
                     type="button"
                     className={`chart-pill-btn ${chartMode === 'leads' ? 'active' : ''}`}
                     onClick={() => setChartMode('leads')}
                   >
-                    Lead Velocity
+                    Leads Inquiries ({data.leads.total})
                   </button>
                   <button
                     type="button"
                     className={`chart-pill-btn ${chartMode === 'traffic' ? 'active' : ''}`}
                     onClick={() => setChartMode('traffic')}
                   >
-                    Traffic Index
+                    Website Scans ({scans?.total ?? 0})
                   </button>
                 </div>
               </div>
 
-              {/* Floating Pill Badges from the Laptop Mockup */}
+              {/* Floating Pill Badges from Genuine DB Records */}
               <div className="hero-laptop-floating-badges" aria-hidden="true">
                 <div className="hl-badge hl-badge-leads">
                   <Users size={14} />
-                  <span>Qualified Leads <strong>↑ +42%</strong></span>
+                  <span>Qualified Leads: <strong>{data.leads.qualified}</strong> ({data.leads.new} new)</span>
                 </div>
                 <div className="hl-badge hl-badge-revenue">
-                  <BarChart2 size={14} />
-                  <span>Revenue <strong>↑ +68%</strong></span>
+                  <CheckCircle2 size={14} />
+                  <span>Won Engagements: <strong>{data.leads.converted}</strong></span>
                 </div>
                 <div className="hl-badge hl-badge-audit">
                   <Sparkles size={14} />
-                  <span>Website Health Scanner <strong>82</strong></span>
+                  <span>Health Scans: <strong>{scans?.total ?? 0}</strong> {scans && scans.total > 0 ? `(Avg ${scans.avgOverallScore})` : ''}</span>
                 </div>
               </div>
 
-              {/* Responsive SVG Smooth Area Chart */}
+              {/* Responsive SVG Smooth Area Chart Plotted from Database */}
               <div className="chart-svg-wrap">
                 <svg viewBox="0 0 960 260" preserveAspectRatio="none" className="growth-area-svg">
                   <defs>
                     <linearGradient id="growthWarmGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#fa5500" stopOpacity="0.35" />
-                      <stop offset="45%" stopColor="#fa5500" stopOpacity="0.12" />
+                      <stop offset="0%" stopColor="#fa5500" stopOpacity="0.32" />
+                      <stop offset="50%" stopColor="#fa5500" stopOpacity="0.10" />
                       <stop offset="100%" stopColor="#fa5500" stopOpacity="0.0" />
                     </linearGradient>
                     <linearGradient id="growthStrokeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -337,54 +398,60 @@ export function Dashboard() {
                   </defs>
 
                   {/* Horizontal Grid Lines */}
-                  <line x1="40" y1="40" x2="940" y2="40" stroke="#f0e9e4" strokeDasharray="4 4" />
-                  <line x1="40" y1="95" x2="940" y2="95" stroke="#f0e9e4" strokeDasharray="4 4" />
-                  <line x1="40" y1="150" x2="940" y2="150" stroke="#f0e9e4" strokeDasharray="4 4" />
-                  <line x1="40" y1="205" x2="940" y2="205" stroke="#f0e9e4" strokeDasharray="4 4" />
+                  <line x1="40" y1="50" x2="920" y2="50" stroke="#f0e9e4" strokeDasharray="4 4" />
+                  <line x1="40" y1="105" x2="920" y2="105" stroke="#f0e9e4" strokeDasharray="4 4" />
+                  <line x1="40" y1="160" x2="920" y2="160" stroke="#f0e9e4" strokeDasharray="4 4" />
+                  <line x1="40" y1="215" x2="920" y2="215" stroke="#f0e9e4" strokeDasharray="4 4" />
 
-                  {/* Shaded Area Fill */}
-                  <path
-                    d="M 40 215 
-                       C 120 205, 180 185, 260 170 
-                       C 340 155, 400 175, 480 145 
-                       C 560 115, 620 130, 700 95 
-                       C 780 60, 860 55, 940 35 
-                       L 940 220 
-                       L 40 220 Z"
-                    fill="url(#growthWarmGradient)"
-                  />
+                  {/* Dynamic Shaded Area Fill from DB */}
+                  {areaD && <path d={areaD} fill="url(#growthWarmGradient)" />}
 
-                  {/* Smooth Bezier Line */}
-                  <path
-                    d="M 40 215 
-                       C 120 205, 180 185, 260 170 
-                       C 340 155, 400 175, 480 145 
-                       C 560 115, 620 130, 700 95 
-                       C 780 60, 860 55, 940 35"
-                    fill="none"
-                    stroke="url(#growthStrokeGrad)"
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                    filter="url(#glowDrop)"
-                  />
+                  {/* Dynamic Smooth Bezier Line from DB */}
+                  {curveD && (
+                    <path
+                      d={curveD}
+                      fill="none"
+                      stroke="url(#growthStrokeGrad)"
+                      strokeWidth="3.5"
+                      strokeLinecap="round"
+                      filter="url(#glowDrop)"
+                    />
+                  )}
 
-                  {/* Data Points on the line */}
-                  <circle cx="40" cy="215" r="4.5" fill="#fff" stroke="#fa5500" strokeWidth="2.5" />
-                  <circle cx="260" cy="170" r="4.5" fill="#fff" stroke="#fa5500" strokeWidth="2.5" />
-                  <circle cx="480" cy="145" r="4.5" fill="#fff" stroke="#fa5500" strokeWidth="2.5" />
-                  <circle cx="700" cy="95" r="4.5" fill="#fff" stroke="#fa5500" strokeWidth="2.5" />
-                  <circle cx="940" cy="35" r="5.5" fill="#fff" stroke="#d93800" strokeWidth="3" />
+                  {/* Dynamic Data Points on the line with Tooltips and Values */}
+                  {chartPoints.map((pt, idx) => (
+                    <g key={pt.month + idx}>
+                      <circle
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={idx === chartPoints.length - 1 ? 5.5 : 4.5}
+                        fill="#fff"
+                        stroke={idx === chartPoints.length - 1 ? '#d93800' : '#fa5500'}
+                        strokeWidth={idx === chartPoints.length - 1 ? 3 : 2.5}
+                      >
+                        <title>{pt.month}: {pt.val} {chartMode}</title>
+                      </circle>
+                      {pt.val > 0 && (
+                        <text
+                          x={pt.x}
+                          y={pt.y - 10}
+                          textAnchor="middle"
+                          fill="#1f2937"
+                          fontSize="11"
+                          fontWeight="600"
+                        >
+                          {pt.val}
+                        </text>
+                      )}
+                    </g>
+                  ))}
                 </svg>
 
-                {/* X Axis Labels */}
+                {/* X Axis Labels directly from DB Timeline */}
                 <div className="chart-x-axis">
-                  <span>Jan</span>
-                  <span>Mar</span>
-                  <span>May</span>
-                  <span>Jul</span>
-                  <span>Sep</span>
-                  <span>Nov</span>
-                  <span>Today</span>
+                  {chartPoints.map((pt, idx) => (
+                    <span key={pt.month + idx}>{pt.month}</span>
+                  ))}
                 </div>
               </div>
             </div>
@@ -520,19 +587,21 @@ export function Dashboard() {
                 {scans && (
                   <div className="audit-engine-summary-bar">
                     <div className="aes-item">
-                      <strong style={{ color: 'var(--orange)' }}>{scans.avgOverallScore || 82}</strong>
+                      <strong style={{ color: 'var(--orange)' }}>
+                        {scans.total > 0 ? scans.avgOverallScore : '—'}
+                      </strong>
                       <small>Avg Health</small>
                     </div>
                     <div className="aes-item">
-                      <strong>{scans.avgPerformanceScore || 88}</strong>
+                      <strong>{scans.total > 0 ? scans.avgPerformanceScore : '—'}</strong>
                       <small>Speed</small>
                     </div>
                     <div className="aes-item">
-                      <strong>{scans.avgSeoScore || 95}</strong>
+                      <strong>{scans.total > 0 ? scans.avgSeoScore : '—'}</strong>
                       <small>SEO Index</small>
                     </div>
                     <div className="aes-item">
-                      <strong>{scans.avgMobileScore || 90}</strong>
+                      <strong>{scans.total > 0 ? scans.avgMobileScore : '—'}</strong>
                       <small>Mobile UX</small>
                     </div>
                     <div className="aes-item">

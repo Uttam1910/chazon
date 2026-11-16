@@ -182,6 +182,32 @@ publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimite
       if (body.auditRef) {
         await linkAuditReference(body.auditRef, createdLead.id, reference)
       }
+
+      // If this enquiry was submitted for an audit, also record it in GrowthAudit
+      if (body.auditRef || (body.category && body.category.toLowerCase().includes('audit')) || (body.goals && body.goals.some(g => g.toLowerCase().includes('audit')))) {
+        try {
+          await prisma.growthAudit.create({
+            data: {
+              reference: generateReference('AUD'),
+              name: body.contact.name,
+              businessName: body.business.businessName,
+              email: body.contact.email,
+              phone: body.contact.phone,
+              website: body.business.website,
+              category: body.category || 'Digital Growth Audit',
+              requirements: body.contact.message || body.business.description,
+              budget: body.budget,
+              source: 'Website',
+              sourceDetail: body.source_detail || 'smart_audit_enquiry',
+              status: 'NEW',
+              activities: { create: { type: 'CREATED', message: `Audit request recorded from dynamic enquiry (Ref: ${reference})` } },
+            },
+          })
+        } catch {
+          // non-blocking
+        }
+      }
+
       runtimeStore.invalidateDashboard()
     } catch (err) {
       if (!isDatabaseUnavailable(err)) throw err
@@ -275,7 +301,12 @@ publicEnquiriesRouter.post('/', formCors, json({ limit: '64kb' }), enquiryLimite
     sourceDetail: body.source_detail,
   }
 
-  if (body.enquiry_type === 'audit') {
+  const isAuditEnquiry =
+    body.enquiry_type === 'audit' ||
+    Boolean(body.service && body.service.toLowerCase().includes('audit')) ||
+    Boolean(body.category && body.category.toLowerCase().includes('audit'))
+
+  if (isAuditEnquiry) {
     const auditMsg = `Audit requested through website form (Ref: ${reference}).`
     let auditId: string
     try {
