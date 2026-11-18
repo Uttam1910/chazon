@@ -175,6 +175,19 @@ auditAuthRouter.post('/verify-otp', otpVerifyLimiter, async (req: Request, res: 
   const finalCompany = companyName || otp.company || null
   const finalDomain = domain || otp.domain || null
 
+  const existingUser = await prisma.auditUser.findUnique({ where: { email } })
+  const alreadyAudited = Boolean(existingUser?.hasAudited)
+
+  // Keep the domain that was actually audited; do not overwrite with new target URL
+  let auditedDomain = existingUser?.domain || domain || null
+  if (existingUser?.hasAudited && existingUser.auditJobId) {
+    const job = await prisma.auditJob.findUnique({ where: { id: existingUser.auditJobId } })
+    const jobReport = job?.report as { finalUrl?: string; inputUrl?: string } | null
+    if (jobReport?.finalUrl || jobReport?.inputUrl) {
+      auditedDomain = jobReport.finalUrl || jobReport.inputUrl || auditedDomain
+    }
+  }
+
   // Upsert AuditUser
   const user = await prisma.auditUser.upsert({
     where: { email },
@@ -188,7 +201,7 @@ auditAuthRouter.post('/verify-otp', otpVerifyLimiter, async (req: Request, res: 
     update: {
       ...(name ? { name } : {}),
       ...(finalCompany ? { companyName: finalCompany } : {}),
-      ...(finalDomain ? { domain: finalDomain } : {}),
+      ...(alreadyAudited ? { domain: auditedDomain } : finalDomain ? { domain: finalDomain } : {}),
     },
   })
 
@@ -232,6 +245,19 @@ auditAuthRouter.post('/google', async (req: Request, res: Response) => {
     throw new ApiError(401, 'GOOGLE_AUTH_FAILED', (err as Error).message || 'Google authentication failed.')
   }
 
+  const existingUser = await prisma.auditUser.findUnique({ where: { email: googleData.email } })
+  const alreadyAudited = Boolean(existingUser?.hasAudited)
+
+  // Keep the domain that was actually audited; do not overwrite with new target URL
+  let auditedDomain = existingUser?.domain || domain || null
+  if (existingUser?.hasAudited && existingUser.auditJobId) {
+    const job = await prisma.auditJob.findUnique({ where: { id: existingUser.auditJobId } })
+    const jobReport = job?.report as { finalUrl?: string; inputUrl?: string } | null
+    if (jobReport?.finalUrl || jobReport?.inputUrl) {
+      auditedDomain = jobReport.finalUrl || jobReport.inputUrl || auditedDomain
+    }
+  }
+
   const user = await prisma.auditUser.upsert({
     where: { email: googleData.email },
     create: {
@@ -245,7 +271,7 @@ auditAuthRouter.post('/google', async (req: Request, res: Response) => {
     update: {
       googleSub: googleData.sub,
       ...(companyName ? { companyName } : {}),
-      ...(domain ? { domain } : {}),
+      ...(alreadyAudited ? { domain: auditedDomain } : domain ? { domain } : {}),
     },
   })
 
@@ -286,6 +312,15 @@ auditAuthRouter.get('/me', async (req: Request, res: Response) => {
     })
   }
 
+  let finalDomain = user.domain
+  if (user.hasAudited && user.auditJobId) {
+    const job = await prisma.auditJob.findUnique({ where: { id: user.auditJobId } })
+    const jobReport = job?.report as { finalUrl?: string; inputUrl?: string } | null
+    if (jobReport?.finalUrl || jobReport?.inputUrl) {
+      finalDomain = jobReport.finalUrl || jobReport.inputUrl || finalDomain
+    }
+  }
+
   ok(res, {
     authenticated: true,
     user: {
@@ -293,7 +328,7 @@ auditAuthRouter.get('/me', async (req: Request, res: Response) => {
       name: user.name,
       email: user.email,
       companyName: user.companyName,
-      domain: user.domain,
+      domain: finalDomain,
       hasAudited: user.hasAudited,
       auditJobId: user.auditJobId,
     },

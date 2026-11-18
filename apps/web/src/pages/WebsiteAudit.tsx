@@ -95,6 +95,16 @@ ${topFindings ? `Key Bottlenecks Detected:\n${topFindings}\n` : ''}
 Hi Chazon Team, I reviewed our website audit diagnostic and would like to request the full comprehensive 20+ page engineering report and discuss having your team resolve these performance and SEO bottlenecks. Please contact us with next steps.`
 }
 
+function extractDomain(input?: string | null): string {
+  if (!input) return ''
+  try {
+    const formatted = input.startsWith('http://') || input.startsWith('https://') ? input : `https://${input}`
+    return new URL(formatted).hostname.replace(/^www\./, '').toLowerCase()
+  } catch {
+    return input.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '').toLowerCase()
+  }
+}
+
 export function WebsiteAudit() {
   usePageMeta({
     title: 'Free Website Health Scanner & SEO Diagnostic | Chazon',
@@ -118,6 +128,11 @@ export function WebsiteAudit() {
   const [progressPercent, setProgressPercent] = useState(15)
   const [jobStatus, setJobStatus] = useState<AuditJobStatus | null>(null)
   const [report, setReport] = useState<AuditReport | null>(null)
+  const [loadingReport, setLoadingReport] = useState(false)
+  const [initializing, setInitializing] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return Boolean(new URLSearchParams(window.location.search).get('url')?.trim())
+  })
   const [error, setError] = useState<string | null>(null)
   const [shareToast, setShareToast] = useState(false)
   const [activeCategoryTab, setActiveCategoryTab] = useState<AuditTabKey>('all')
@@ -174,51 +189,128 @@ export function WebsiteAudit() {
     }
   }, [])
 
-  // Load authenticated audit user on mount
+  // Lock background scroll when any dialog/modal is open
   useEffect(() => {
-    void auditAuthApi.getMe().then((user) => {
+    if (typeof document === 'undefined') return
+    if (showAuthModal || showLimitModal) {
+      const originalOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = originalOverflow
+      }
+    }
+  }, [showAuthModal, showLimitModal])
+
+  // Load user and initialize URL / search target on mount & on search param change
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let isCancelled = false
+
+    const params = new URLSearchParams(search || window.location.search)
+    const queryUrl = params.get('url')?.trim() || ''
+
+    let formattedQueryUrl = ''
+    if (queryUrl) {
+      formattedQueryUrl = queryUrl.startsWith('http://') || queryUrl.startsWith('https://')
+        ? queryUrl
+        : `https://${queryUrl}`
+      setUrl(formattedQueryUrl)
+    }
+
+    const targetDomain = extractDomain(formattedQueryUrl)
+    if (targetDomain) {
+      setInitializing(true)
+    }
+
+    void (async () => {
+      let user: AuditUser | null = null
+      try {
+        user = await auditAuthApi.getMe()
+      } catch {
+        user = null
+      }
+
+      if (isCancelled || !isMountedRef.current) return
+
+      // Scenario 1: A specific URL was requested via search query params
+      if (targetDomain) {
+        lastAutoSearchRef.current = queryUrl
+
+        // If user already used their 1 free audit on a DIFFERENT domain
+        if (user?.hasAudited && user.domain && extractDomain(user.domain) !== targetDomain) {
+          await auditAuthApi.logout().catch(() => {})
+          if (isCancelled || !isMountedRef.current) return
+          setAuditUser(null)
+          setReport(null)
+          setAuthModalDomain(formattedQueryUrl)
+          setShowAuthModal(true)
+          setInitializing(false)
+          return
+        }
+
+        // If not logged in
+        if (!user) {
+          setAuditUser(null)
+          setReport(null)
+          setAuthModalDomain(formattedQueryUrl)
+          setShowAuthModal(true)
+          setInitializing(false)
+          return
+        }
+
+        // User is logged in
+        setAuditUser(user)
+
+        // If logged in and already audited the SAME domain, load saved report
+        if (user.hasAudited) {
+          setShowLimitModal(false)
+          if (user.auditJobId) {
+            setLoadingReport(true)
+            try {
+              const rep = await auditApi.getReport(user.auditJobId)
+              if (!isCancelled && isMountedRef.current) setReport(rep)
+            } catch {
+              // ignore
+            } finally {
+              if (!isCancelled && isMountedRef.current) setLoadingReport(false)
+            }
+          }
+          setInitializing(false)
+          return
+        }
+
+        // Logged in and hasn't audited yet -> auto start
+        setReport(null)
+        setInitializing(false)
+        void startAuditRef.current(undefined, formattedQueryUrl)
+        return
+      }
+
+      // Scenario 2: No specific URL query requested (landing on /website-audit directly)
       if (user) {
         setAuditUser(user)
         if (user.domain && !url) {
           setUrl(user.domain.startsWith('http') ? user.domain : `https://${user.domain}`)
         }
         if (user.hasAudited && user.auditJobId) {
-          void auditApi.getReport(user.auditJobId).then((rep) => {
-            if (isMountedRef.current) setReport(rep)
-          }).catch(() => {})
+          setLoadingReport(true)
+          try {
+            const rep = await auditApi.getReport(user.auditJobId)
+            if (!isCancelled && isMountedRef.current) setReport(rep)
+          } catch {
+            // ignore
+          } finally {
+            if (!isCancelled && isMountedRef.current) setLoadingReport(false)
+          }
         }
       }
-    })
-  }, [])
-
-  // Auto-start when arriving with ?url=...; deferred by a tick so React StrictMode
-  // double-invocation cancels the pending timer cleanly before aborting a live fetch.
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const params = new URLSearchParams(search || window.location.search)
-    const queryUrl = params.get('url')?.trim()
-    if (!queryUrl || lastAutoSearchRef.current === queryUrl) return
-
-    let trimmed = queryUrl
-    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
-      trimmed = `https://${trimmed}`
-    }
-    setUrl(trimmed)
-
-    const timer = window.setTimeout(() => {
-      if (!isMountedRef.current) return
-      lastAutoSearchRef.current = queryUrl
-      if (auditUser?.hasAudited) {
-        setShowLimitModal(true)
-        return
-      }
-      void startAuditRef.current(undefined, trimmed)
-    }, 0)
+      setInitializing(false)
+    })()
 
     return () => {
-      window.clearTimeout(timer)
+      isCancelled = true
     }
-  }, [search, auditUser])
+  }, [search])
 
   // Start Real Audit
   const handleStartAudit = async (e?: FormEvent, targetUrl?: string) => {
@@ -236,8 +328,21 @@ export function WebsiteAudit() {
       setUrl(trimmed)
     }
 
+    const targetDomain = extractDomain(trimmed)
+
+    // If an existing logged-in user already audited a DIFFERENT domain, log them out so user can sign in fresh
+    if (auditUser?.hasAudited && auditUser.domain && extractDomain(auditUser.domain) !== targetDomain) {
+      setReport(null)
+      await auditAuthApi.logout().catch(() => {})
+      setAuditUser(null)
+      setAuthModalDomain(trimmed)
+      setShowAuthModal(true)
+      return
+    }
+
     // Require sign-up/login before launching audit
     if (!auditUser) {
+      setReport(null)
       setAuthModalDomain(trimmed)
       setShowAuthModal(true)
       return
@@ -390,14 +495,16 @@ export function WebsiteAudit() {
   const handleLoadUserReport = async (jobId?: string) => {
     const id = jobId || auditUser?.auditJobId
     if (!id) return
+    setLoadingReport(true)
+    setError(null)
     try {
       setScanning(false)
       const fetched = await auditApi.getReport(id)
       setReport(fetched)
-      setError(null)
     } catch {
       setError('Unable to load your audit report. Please contact our team.')
     } finally {
+      setLoadingReport(false)
       setScanning(false)
     }
   }
@@ -405,13 +512,19 @@ export function WebsiteAudit() {
   const handleAuthSuccess = (user: AuditUser) => {
     setAuditUser(user)
     setShowAuthModal(false)
+    setShowLimitModal(false)
+
     if (user.hasAudited) {
+      if (user.domain) {
+        setUrl(user.domain.startsWith('http') ? user.domain : `https://${user.domain}`)
+        setAuthModalDomain(user.domain)
+      }
       if (user.auditJobId) {
         void handleLoadUserReport(user.auditJobId)
       }
-      setShowLimitModal(true)
     } else {
-      const target = url || authModalDomain || user.domain
+      setReport(null)
+      const target = url || authModalDomain || user.domain || ''
       if (target) {
         void handleStartAudit(undefined, target)
       }
@@ -419,16 +532,17 @@ export function WebsiteAudit() {
   }
 
   const handleSignOutAndNewScan = async (domainToScan?: string) => {
-    await auditAuthApi.logout()
     setAuditUser(null)
     setReport(null)
     setError(null)
+    setShowLimitModal(false)
     const nextDomain = domainToScan || url || authModalDomain || ''
     if (nextDomain) {
       setUrl(nextDomain)
       setAuthModalDomain(nextDomain)
     }
     setShowAuthModal(true)
+    void auditAuthApi.logout().catch(() => {})
   }
 
   // Share Functionality
@@ -477,18 +591,10 @@ export function WebsiteAudit() {
     })}`
   }
 
-  const requestedDomain = (url || authModalDomain || '')
-    .replace(/^https?:\/\//, '')
-    .replace(/\/.*$/, '')
-    .replace(/^www\./, '')
-    .toLowerCase()
-  const auditedDomain = displayDomain.toLowerCase()
-  const hasDomainMismatch = Boolean(
-    auditUser?.hasAudited &&
-    requestedDomain &&
-    auditedDomain &&
-    requestedDomain !== auditedDomain &&
-    requestedDomain !== 'yourwebsite.com'
+  const currentTargetDomain = extractDomain(url || authModalDomain)
+  const reportDomain = extractDomain(report?.finalUrl || report?.inputUrl)
+  const isReportMatchingTarget = Boolean(
+    report && (!currentTargetDomain || reportDomain === currentTargetDomain)
   )
 
   // Scores
@@ -705,19 +811,97 @@ export function WebsiteAudit() {
     <PageShell hideFooterCta>
       <div className="audit-page-wrapper surface-cream">
         <div className="container audit-page-container">
-          {/* Breadcrumb Navigation */}
-          <nav className="audit-page-breadcrumb" aria-label="Breadcrumb">
-            <span className="breadcrumb-diamond" aria-hidden="true">❖</span>
-            <Link to="/" className="breadcrumb-link">Home</Link>
-            <span className="breadcrumb-sep" aria-hidden="true">&gt;</span>
-            <span className="breadcrumb-link">Website Audit</span>
-            {report && (
-              <>
-                <span className="breadcrumb-sep" aria-hidden="true">&gt;</span>
-                <span className="breadcrumb-current">Results</span>
-              </>
+          {/* Breadcrumb Navigation & Account Pill */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+            <nav className="audit-page-breadcrumb" aria-label="Breadcrumb" style={{ marginBottom: 0 }}>
+              <span className="breadcrumb-diamond" aria-hidden="true">❖</span>
+              <Link to="/" className="breadcrumb-link">Home</Link>
+              <span className="breadcrumb-sep" aria-hidden="true">&gt;</span>
+              <span className="breadcrumb-link">Website Audit</span>
+              {report && isReportMatchingTarget && (
+                <>
+                  <span className="breadcrumb-sep" aria-hidden="true">&gt;</span>
+                  <span className="breadcrumb-current">Results</span>
+                </>
+              )}
+            </nav>
+
+            {auditUser && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: '#ffffff',
+                  border: '1px solid #fed7aa',
+                  borderRadius: '9999px',
+                  padding: '4px 12px',
+                  fontSize: '0.8125rem',
+                  color: '#4b5563',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                }}
+              >
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981' }} />
+                <span>Signed in as <strong style={{ color: '#181918' }}>{auditUser.email}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => void handleSignOutAndNewScan()}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#d44720',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    marginLeft: '4px',
+                  }}
+                  title="Sign out or switch account"
+                >
+                  Sign Out
+                </button>
+              </div>
             )}
-          </nav>
+          </div>
+
+          {/* =================================================================
+              INITIALIZING / LOADING REPORT STATE
+              ================================================================= */}
+          {(initializing || loadingReport) && !scanning && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '52vh',
+                textAlign: 'center',
+                padding: '48px 24px',
+              }}
+            >
+              <div
+                style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  border: '3.5px solid #fed7aa',
+                  borderTopColor: '#d44720',
+                  animation: 'spin 0.8s linear infinite',
+                  marginBottom: '20px',
+                }}
+              />
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#181918', margin: '0 0 8px', letterSpacing: '-0.01em' }}>
+                {loadingReport ? 'Loading Saved Diagnostic Report' : 'Preparing Website Health Diagnostic'}
+              </h2>
+              <p style={{ fontSize: '0.9375rem', color: '#686a65', margin: 0, maxWidth: '420px', lineHeight: 1.55 }}>
+                {loadingReport
+                  ? 'Retrieving performance, SEO, and Core Web Vitals telemetry...'
+                  : 'Connecting to diagnostic engine and checking session...'}
+              </p>
+            </div>
+          )}
 
           {/* =================================================================
               STATE B: SCANNING / LOADING STATE
@@ -816,7 +1000,7 @@ export function WebsiteAudit() {
           {/* =================================================================
               STATE C: ACTUAL AUDIT RESULTS DASHBOARD
               ================================================================= */}
-          {!scanning && report && (
+          {!initializing && !loadingReport && !scanning && report && isReportMatchingTarget && (
             <div className="audit-results-view" id="audit-report-results">
               {/* Status Notice Banner when 1-Time Free Diagnostic Scan is Complete */}
               {auditUser?.hasAudited && (
@@ -881,21 +1065,11 @@ export function WebsiteAudit() {
                       </div>
 
                       <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 6px', color: '#181918', letterSpacing: '-0.01em' }}>
-                        {hasDomainMismatch
-                          ? `Free Audit Completed for ${displayDomain}`
-                          : `Saved Diagnostic Report for ${displayDomain}`}
+                        Saved Diagnostic Report for {displayDomain}
                       </h2>
 
                       <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.55, margin: '0 0 16px' }}>
-                        {hasDomainMismatch ? (
-                          <>
-                            Your single complimentary audit was already used for <strong style={{ color: '#181918' }}>{displayDomain}</strong>. Each free account is limited to 1 scan. You are currently viewing your saved report below.
-                          </>
-                        ) : (
-                          <>
-                            Your single-use complimentary website health scan is complete. Below is your saved performance, SEO, and Core Web Vitals diagnostic report.
-                          </>
-                        )}
+                        Your single-use complimentary website health scan is complete. Below is your saved performance, SEO, and Core Web Vitals diagnostic report.
                       </p>
 
                       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -941,7 +1115,7 @@ export function WebsiteAudit() {
 
                         <button
                           type="button"
-                          onClick={() => handleSignOutAndNewScan(hasDomainMismatch ? requestedDomain : undefined)}
+                          onClick={() => handleSignOutAndNewScan()}
                           style={{
                             background: 'none',
                             border: 'none',
@@ -953,9 +1127,7 @@ export function WebsiteAudit() {
                             padding: '6px 8px',
                           }}
                         >
-                          {hasDomainMismatch
-                            ? `Sign in with another account to scan ${requestedDomain}`
-                            : 'Audit another domain? Sign in with a different account'}
+                          Audit another domain? Sign in with a different account
                         </button>
                       </div>
                     </div>
@@ -1695,7 +1867,7 @@ export function WebsiteAudit() {
           {/* =================================================================
               STATE A: INITIAL AUDIT INTRODUCTION & RUN AUDIT FORM
               ================================================================= */}
-          {!scanning && !report && (
+          {!initializing && !loadingReport && !scanning && (!report || !isReportMatchingTarget) && (
             <div className="audit-initial-view">
               {/* Hero Split */}
               <div className="audit-hero-split">
@@ -2006,36 +2178,43 @@ export function WebsiteAudit() {
             </h3>
 
             <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.6, margin: '0 0 20px' }}>
-              Your account ({auditUser?.email}) has already completed its single-use free website diagnostic for <strong>{displayDomain}</strong>.
+              Your account ({auditUser?.email}) has already completed its single-use free website diagnostic for <strong>{auditUser?.domain || displayDomain}</strong>.
               <br />
               <span style={{ color: '#b91c1c', fontWeight: 600 }}>Each account is strictly restricted to 1 free audit.</span>
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {report && (
-                <button
-                  type="button"
-                  onClick={() => setShowLimitModal(false)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 18px',
-                    background: '#d44720',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    fontSize: '0.9375rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    boxShadow: '0 2px 6px rgba(212, 71, 32, 0.25)',
-                  }}
-                >
-                  <FileText size={16} /> View Saved Report for {displayDomain}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLimitModal(false)
+                  if (auditUser?.domain) {
+                    setUrl(auditUser.domain.startsWith('http') ? auditUser.domain : `https://${auditUser.domain}`)
+                    setAuthModalDomain(auditUser.domain)
+                  }
+                  if (auditUser?.auditJobId) {
+                    void handleLoadUserReport(auditUser.auditJobId)
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 18px',
+                  background: '#d44720',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '0.9375rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 2px 6px rgba(212, 71, 32, 0.25)',
+                }}
+              >
+                <FileText size={16} /> View Saved Report for {auditUser?.domain || displayDomain}
+              </button>
 
               <button
                 type="button"

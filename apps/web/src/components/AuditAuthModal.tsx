@@ -101,6 +101,7 @@ export function AuditAuthModal({
 
   // UI state
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resendCooldown, setResendCooldown] = useState(0)
 
@@ -113,6 +114,16 @@ export function AuditAuthModal({
     }
   }, [initialDomain])
 
+  // Lock background scroll when modal is open
+  useEffect(() => {
+    if (!isOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isOpen])
+
   useEffect(() => {
     if (!isOpen) {
       setError(null)
@@ -122,6 +133,8 @@ export function AuditAuthModal({
       setGoogleCredential(null)
       setGoogleUser(null)
       setGoogleHelp(false)
+      setLoading(false)
+      setGoogleLoading(false)
     }
   }, [isOpen])
 
@@ -136,7 +149,7 @@ export function AuditAuthModal({
 
   // Load and initialize Google Identity Services script
   useEffect(() => {
-    if (!isOpen || !googleClientId) return
+    if (!isOpen || !googleClientId || step !== 'auth') return
 
     const existingScript = document.getElementById('google-gsi-client')
     const initGoogle = () => {
@@ -147,6 +160,7 @@ export function AuditAuthModal({
           callback: async (response) => {
             if (!response.credential) return
             setError(null)
+            setGoogleLoading(true)
             setLoading(true)
 
             try {
@@ -184,35 +198,41 @@ export function AuditAuthModal({
               setError((err as Error).message || 'Google sign-in failed. Please try again.')
             } finally {
               setLoading(false)
+              setGoogleLoading(false)
             }
           },
         })
 
-        googleBtnContainerRef.current.innerHTML = ''
-        window.google.accounts.id.renderButton(googleBtnContainerRef.current, {
-          theme: 'outline',
-          size: 'large',
-          text: 'continue_with',
-          shape: 'rectangular',
-          width: 320,
-        })
+        if (googleBtnContainerRef.current) {
+          googleBtnContainerRef.current.innerHTML = ''
+          window.google.accounts.id.renderButton(googleBtnContainerRef.current, {
+            theme: 'outline',
+            size: 'large',
+            text: 'continue_with',
+            shape: 'rectangular',
+            width: 320,
+          })
+        }
       } catch (err) {
         console.warn('Google sign-in initialization failed:', err)
       }
     }
 
     if (window.google?.accounts?.id) {
-      initGoogle()
+      const timer = setTimeout(initGoogle, 0)
+      return () => clearTimeout(timer)
     } else if (!existingScript) {
       const script = document.createElement('script')
       script.id = 'google-gsi-client'
       script.src = 'https://accounts.google.com/gsi/client'
       script.async = true
       script.defer = true
-      script.onload = initGoogle
+      script.onload = () => {
+        setTimeout(initGoogle, 0)
+      }
       document.head.appendChild(script)
     }
-  }, [isOpen, googleClientId])
+  }, [isOpen, googleClientId, step, domain, initialDomain])
 
   if (!isOpen) return null
 
@@ -386,20 +406,20 @@ export function AuditAuthModal({
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#feebe6', padding: '4px 10px', borderRadius: '20px', marginBottom: '12px' }}>
             <Sparkles size={14} style={{ color: '#d44720' }} />
             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#d44720', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Free Diagnostic Scan
+              {step === 'limit_finished' ? '1 Free Audit Completed' : 'Free Diagnostic Scan'}
             </span>
           </div>
 
           <h2 id="audit-auth-title" style={{ fontSize: '1.4rem', fontWeight: 800, margin: '0 0 6px', color: '#181918', letterSpacing: '-0.02em' }}>
             {step === 'limit_finished'
-              ? 'Free Audit Limit Finished'
+              ? 'Free Audit Already Completed'
               : step === 'google_details'
                 ? 'Almost Done! Confirm Business Details'
                 : 'Unlock Your Website Health Audit'}
           </h2>
           <p style={{ fontSize: '0.875rem', color: '#686a65', margin: 0, lineHeight: 1.5 }}>
             {step === 'limit_finished'
-              ? 'This account has completed its single-use free website audit. Free plan is limited to 1 audit.'
+              ? 'Each account is limited to 1 complimentary diagnostic scan.'
               : step === 'google_details'
                 ? 'Tell us your company and website domain to generate your diagnostic audit.'
                 : 'Sign up to launch your 0–100 performance, SEO & mobile audit. 1 free audit per account.'}
@@ -434,17 +454,45 @@ export function AuditAuthModal({
             <div>
               {/* Option A: Google Sign-In */}
               <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                {googleLoading && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '16px 20px',
+                      background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+                      border: '1.5px solid #fdba74',
+                      borderRadius: '10px',
+                      gap: '8px',
+                      boxShadow: '0 2px 8px rgba(212, 71, 32, 0.08)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <RefreshCw size={20} className="animate-spin" style={{ color: '#d44720' }} />
+                      <span style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#181918' }}>
+                        Authenticating with Google...
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.8125rem', color: '#686a65' }}>
+                      Verifying account credentials & preparing website audit...
+                    </span>
+                  </div>
+                )}
+
                 {googleClientId ? (
-                  <div>
+                  <div style={{ display: googleLoading ? 'none' : 'block' }}>
                     <div
                       ref={googleBtnContainerRef}
                       style={{ display: 'flex', justifyContent: 'center', minHeight: '44px' }}
                     />
                   </div>
                 ) : (
-                  <div>
+                  <div style={{ display: googleLoading ? 'none' : 'block' }}>
                     <button
                       type="button"
+                      disabled={loading || googleLoading}
                       onClick={() => setGoogleHelp(!googleHelp)}
                       style={{
                         width: '100%',
@@ -455,12 +503,13 @@ export function AuditAuthModal({
                         color: '#374151',
                         fontSize: '0.9375rem',
                         fontWeight: 600,
-                        cursor: 'pointer',
+                        cursor: loading || googleLoading ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '10px',
                         boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        opacity: loading || googleLoading ? 0.7 : 1,
                       }}
                     >
                       <svg width="18" height="18" viewBox="0 0 18 18">
@@ -496,6 +545,7 @@ export function AuditAuthModal({
                   </label>
                   <input
                     type="text"
+                    disabled={loading || googleLoading}
                     placeholder="e.g. Sarah Jenkins"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -518,6 +568,7 @@ export function AuditAuthModal({
                   <input
                     type="email"
                     required
+                    disabled={loading || googleLoading}
                     placeholder="sarah@yourbusiness.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -540,6 +591,7 @@ export function AuditAuthModal({
                     </label>
                     <input
                       type="text"
+                      disabled={loading || googleLoading}
                       placeholder="Acme Growth"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
@@ -561,6 +613,7 @@ export function AuditAuthModal({
                     </label>
                     <input
                       type="text"
+                      disabled={loading || googleLoading}
                       placeholder="yourbrand.com"
                       value={domain}
                       onChange={(e) => setDomain(e.target.value)}
@@ -580,7 +633,7 @@ export function AuditAuthModal({
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   style={{
                     width: '100%',
                     padding: '13px 20px',
@@ -590,15 +643,15 @@ export function AuditAuthModal({
                     borderRadius: '8px',
                     fontWeight: 700,
                     fontSize: '0.9375rem',
-                    cursor: loading ? 'not-allowed' : 'pointer',
+                    cursor: loading || googleLoading ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '8px',
-                    opacity: loading ? 0.75 : 1,
+                    opacity: loading || googleLoading ? 0.75 : 1,
                   }}
                 >
-                  {loading ? (
+                  {loading && !googleLoading ? (
                     <>
                       <RefreshCw size={16} className="animate-spin" />
                       Sending Code...
@@ -728,7 +781,12 @@ export function AuditAuthModal({
 
               <button
                 type="button"
-                onClick={() => setStep('auth')}
+                onClick={() => {
+                  setLoading(false)
+                  setGoogleLoading(false)
+                  setError(null)
+                  setStep('auth')
+                }}
                 style={{
                   width: '100%',
                   background: 'none',
@@ -832,7 +890,12 @@ export function AuditAuthModal({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '16px' }}>
                 <button
                   type="button"
-                  onClick={() => setStep('auth')}
+                  onClick={() => {
+                    setLoading(false)
+                    setGoogleLoading(false)
+                    setError(null)
+                    setStep('auth')
+                  }}
                   style={{ background: 'none', border: 'none', color: '#686a65', fontSize: '0.8125rem', cursor: 'pointer', padding: 0 }}
                 >
                   Change email
@@ -860,11 +923,11 @@ export function AuditAuthModal({
 
           {/* STEP 3: LIMIT FINISHED RESTRICTION SCREEN */}
           {step === 'limit_finished' && existingAuditedUser && (
-            <div style={{ textAlign: 'center', padding: '10px 0 4px' }}>
+            <div style={{ textAlign: 'center', padding: '6px 0 4px' }}>
               <div
                 style={{
-                  width: '54px',
-                  height: '54px',
+                  width: '56px',
+                  height: '56px',
                   borderRadius: '50%',
                   background: '#fff1ec',
                   border: '2px solid #fed7aa',
@@ -878,42 +941,49 @@ export function AuditAuthModal({
                 <ShieldAlert size={28} />
               </div>
 
+              <p style={{ fontSize: '0.9375rem', color: '#374151', lineHeight: 1.6, maxWidth: '420px', margin: '0 auto 14px' }}>
+                Account <strong style={{ color: '#181918' }}>{existingAuditedUser.email}</strong> has already completed its single free audit for:
+              </p>
+
+              {/* Box showing the URL that was actually audited! */}
               <div
                 style={{
+                  background: '#fff7ed',
+                  border: '1px solid #fed7aa',
+                  borderRadius: '10px',
+                  padding: '12px 18px',
+                  marginBottom: '16px',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  background: '#fff1ec',
-                  color: '#c2410c',
-                  border: '1px solid #fed7aa',
-                  padding: '3px 12px',
-                  borderRadius: '9999px',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  marginBottom: '10px',
+                  gap: '8px',
+                  maxWidth: '100%',
                 }}
               >
-                Account Limit Reached
+                <Globe size={18} style={{ color: '#ea580c', flexShrink: 0 }} />
+                <span style={{ fontWeight: 700, color: '#9a3412', wordBreak: 'break-all', fontSize: '0.9375rem' }}>
+                  {existingAuditedUser.domain || 'previously audited website'}
+                </span>
               </div>
 
-              <h3 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 10px', color: '#181918' }}>
-                Your Free Audit Limit is Finished
-              </h3>
-
-              <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.6, maxWidth: '420px', margin: '0 auto 20px' }}>
-                Your account (<strong style={{ color: '#181918' }}>{existingAuditedUser.email}</strong>) has already used its single-use complimentary diagnostic for <strong style={{ color: '#181918' }}>{existingAuditedUser.domain || 'your website'}</strong>.
-                <br />
-                <span style={{ color: '#b91c1c', fontWeight: 600 }}>Each account is strictly restricted to 1 free audit.</span>
+              <p style={{ fontSize: '0.85rem', color: '#b91c1c', fontWeight: 600, lineHeight: 1.55, maxWidth: '400px', margin: '0 auto 20px' }}>
+                Each account is restricted to 1 free diagnostic. To audit a new website, please sign in with a different Gmail or work email.
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '360px', margin: '0 auto' }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    onSuccess(existingAuditedUser)
-                    onClose()
+                  onClick={async () => {
+                    await auditAuthApi.logout().catch(() => {})
+                    setExistingAuditedUser(null)
+                    setGoogleCredential(null)
+                    setGoogleUser(null)
+                    setEmail('')
+                    setName('')
+                    setCode('')
+                    setLoading(false)
+                    setGoogleLoading(false)
+                    setError(null)
+                    setStep('auth')
                   }}
                   style={{
                     width: '100%',
@@ -932,38 +1002,35 @@ export function AuditAuthModal({
                     boxShadow: '0 2px 6px rgba(212, 71, 32, 0.25)',
                   }}
                 >
-                  <FileText size={16} /> View Your Saved Report
+                  <RotateCcw size={16} /> Sign in with a Different Account
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setExistingAuditedUser(null)
-                    setGoogleCredential(null)
-                    setGoogleUser(null)
-                    setEmail('')
-                    setName('')
-                    setCode('')
-                    setStep('auth')
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '11px 18px',
-                    background: '#ffffff',
-                    color: '#374151',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <RotateCcw size={15} /> Sign in with a Different Account
-                </button>
+                {existingAuditedUser.domain && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSuccess(existingAuditedUser)
+                      onClose()
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '11px 18px',
+                      background: '#ffffff',
+                      color: '#374151',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <FileText size={15} /> View Saved Report for {existingAuditedUser.domain}
+                  </button>
+                )}
 
                 <a
                   href="/contact"
@@ -972,7 +1039,7 @@ export function AuditAuthModal({
                     color: '#686a65',
                     fontSize: '0.8125rem',
                     textDecoration: 'underline',
-                    marginTop: '6px',
+                    marginTop: '4px',
                   }}
                 >
                   Need periodic monitoring? Contact engineering team

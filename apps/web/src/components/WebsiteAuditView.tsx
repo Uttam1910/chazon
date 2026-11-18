@@ -35,6 +35,16 @@ export interface WebsiteAuditViewProps {
   onFixWithChazon?: (data: { url: string; score: number; refId?: string }) => void
 }
 
+function extractDomain(input?: string | null): string {
+  if (!input) return ''
+  try {
+    const formatted = input.startsWith('http://') || input.startsWith('https://') ? input : `https://${input}`
+    return new URL(formatted).hostname.replace(/^www\./, '').toLowerCase()
+  } catch {
+    return input.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '').toLowerCase()
+  }
+}
+
 export function WebsiteAuditView({
   initialUrl = '',
   mode = 'full',
@@ -75,6 +85,17 @@ export function WebsiteAuditView({
   }, [])
 
   useEffect(() => {
+    if (typeof document === 'undefined') return
+    if (showAuthModal || showLimitModal) {
+      const originalOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = originalOverflow
+      }
+    }
+  }, [showAuthModal, showLimitModal])
+
+  useEffect(() => {
     if (initialUrl && !report && !scanning) {
       setUrl(initialUrl)
     }
@@ -88,7 +109,17 @@ export function WebsiteAuditView({
       return
     }
 
+    const targetDomain = extractDomain(trimmed)
+    if (auditUser?.hasAudited && auditUser.domain && extractDomain(auditUser.domain) !== targetDomain) {
+      setReport(null)
+      await auditAuthApi.logout().catch(() => {})
+      setAuditUser(null)
+      setShowAuthModal(true)
+      return
+    }
+
     if (!auditUser) {
+      setReport(null)
       setShowAuthModal(true)
       return
     }
@@ -222,6 +253,10 @@ export function WebsiteAuditView({
       minute: '2-digit',
     })}`
   }
+
+  const currentTargetDomain = extractDomain(url)
+  const reportDomain = extractDomain(report?.finalUrl || report?.inputUrl)
+  const isMatchingReport = Boolean(!currentTargetDomain || !reportDomain || currentTargetDomain === reportDomain)
 
   // Extract authentic live scores (sample preview shown only before a live report exists)
   const getScore = (key: string) => report?.scores.find((s) => s.key === key)?.value ?? null
@@ -450,7 +485,7 @@ export function WebsiteAuditView({
         <div className="container audit-mid-grid">
           {/* Left Column: The Audit Report Dashboard Card */}
           <div className="audit-report-card-wrap">
-            {auditUser?.hasAudited && (
+            {auditUser?.hasAudited && isMatchingReport && (
               <div
                 role="region"
                 aria-label="Audit status notice"
@@ -1118,7 +1153,7 @@ export function WebsiteAuditView({
             </h3>
 
             <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.6, margin: '0 0 20px' }}>
-              Your account ({auditUser?.email}) has already completed its single-use free website diagnostic for <strong>{displayDomain}</strong>.
+              Your account ({auditUser?.email}) has already completed its single-use free website diagnostic for <strong>{auditUser?.domain || displayDomain}</strong>.
               <br />
               <span style={{ color: '#b91c1c', fontWeight: 600 }}>Each account is strictly restricted to 1 free audit.</span>
             </p>
@@ -1152,8 +1187,9 @@ export function WebsiteAuditView({
                 type="button"
                 onClick={async () => {
                   setShowLimitModal(false)
-                  await auditAuthApi.logout()
+                  await auditAuthApi.logout().catch(() => {})
                   setAuditUser(null)
+                  setReport(null)
                   setShowAuthModal(true)
                 }}
                 style={{
@@ -1200,9 +1236,18 @@ export function WebsiteAuditView({
         onSuccess={(user) => {
           setAuditUser(user)
           setShowAuthModal(false)
+          setShowLimitModal(false)
           if (user.hasAudited) {
-            setShowLimitModal(true)
+            if (user.domain) {
+              setUrl(user.domain.startsWith('http') ? user.domain : `https://${user.domain}`)
+            }
+            if (user.auditJobId) {
+              void auditApi.getReport(user.auditJobId).then((rep) => {
+                if (isMountedRef.current) setReport(rep)
+              }).catch(() => {})
+            }
           } else {
+            setReport(null)
             void runAudit()
           }
         }}
