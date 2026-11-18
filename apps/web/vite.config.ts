@@ -7,6 +7,9 @@ import { resolve } from 'node:path'
 // `npm run build` also prerenders every fixed page and writes the sitemap (scripts/prerender.mjs).
 export default defineConfig({
   envDir: resolve(import.meta.dirname, '../..'),
+  build: {
+    chunkSizeWarningLimit: 1000,
+  },
   server: {
     port: 5173,
     strictPort: true,
