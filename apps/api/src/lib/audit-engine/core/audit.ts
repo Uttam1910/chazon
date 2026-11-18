@@ -108,17 +108,29 @@ function lighthouseCategories(cats: AuditCategoryKey[]): LighthouseCategoryId[] 
 export function planSteps(req: AuditRequest, opts: { skipLighthouse?: boolean } = {}): ProgressStep[] {
   const c = new Set(req.categories);
   const steps: ProgressStep[] = [
-    { key: 'validate', label: 'Validating URL and DNS', state: 'pending' },
-    { key: 'fetch', label: 'Fetching the start page', state: 'pending' },
+    { key: 'validate', label: 'Verifying domain security & server connection', state: 'pending' },
+    { key: 'fetch', label: 'Analyzing homepage & initial load speed', state: 'pending' },
   ];
-  if (!opts.skipLighthouse && lighthouseCategories(req.categories).length) steps.push({ key: 'lighthouse', label: `Lighthouse via PageSpeed Insights (${req.strategy})`, state: 'pending' });
-  if (c.has('seo') || c.has('crawl')) {
-    steps.push({ key: 'robots', label: 'Checking robots.txt', state: 'pending' });
-    steps.push({ key: 'sitemap', label: 'Looking for an XML sitemap', state: 'pending' });
+  if (!opts.skipLighthouse && lighthouseCategories(req.categories).length) {
+    steps.push({
+      key: 'lighthouse',
+      label: req.strategy === 'desktop'
+        ? 'Auditing Core Web Vitals & desktop loading performance'
+        : 'Auditing Core Web Vitals & mobile responsiveness',
+      state: 'pending',
+    });
   }
-  if (c.has('crawl') && req.crawlLimit > 1) steps.push({ key: 'crawl', label: `Crawling up to ${req.crawlLimit} pages`, state: 'pending' });
-  if (req.checkLinks && (c.has('seo') || c.has('crawl'))) steps.push({ key: 'links', label: 'Checking links', state: 'pending' });
-  steps.push({ key: 'analyze', label: 'Analysing findings and scores', state: 'pending' });
+  if (c.has('seo') || c.has('crawl')) {
+    steps.push({ key: 'robots', label: 'Checking search engine crawlability & visibility', state: 'pending' });
+    steps.push({ key: 'sitemap', label: 'Verifying Google sitemap & index readiness', state: 'pending' });
+  }
+  if (c.has('crawl') && req.crawlLimit > 1) {
+    steps.push({ key: 'crawl', label: 'Scanning multi-page user experience & conversion paths', state: 'pending' });
+  }
+  if (req.checkLinks && (c.has('seo') || c.has('crawl'))) {
+    steps.push({ key: 'links', label: 'Inspecting internal navigation & link health', state: 'pending' });
+  }
+  steps.push({ key: 'analyze', label: 'Calculating 0–100 Website Health Score & growth recommendations', state: 'pending' });
   return steps;
 }
 

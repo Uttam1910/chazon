@@ -123,7 +123,7 @@ export function organizationSchema(settings: PublicSettings, sameAs: string[]): 
   const orgUrl = base || 'https://chazon-sigma.vercel.app/'
   const org: Schema = {
     '@context': 'https://schema.org',
-    '@type': ['Organization', 'ProfessionalService'],
+    '@type': 'Organization',
     '@id': orgId(),
     name: settings.companyName || BRAND,
     legalName: 'Chazon Digital Ventures',

@@ -36,6 +36,7 @@ import {
 } from '../lib/audit-engine/core'
 import { JobStore, type Job } from '../lib/audit-engine/jobs/jobStore'
 import { parseClientReport } from '../lib/audit-engine/reportSchema'
+import { getAuthenticatedAuditUser, syncAuditUserToLead } from '../lib/audit-auth'
 
 const ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const JOB_TTL_MS = 30 * 60_000
@@ -70,7 +71,11 @@ function persistJob(job: Job, final = false): Promise<void> {
     async () => {
       if (!final && job.status.state !== 'running') return
       const { report, ...statusOnly } = job.status
-      const expiresAt = new Date(Date.now() + JOB_TTL_MS)
+      // Keep completed single audits saved for 1 year so returning users can always view their previous report
+      const expiresAt =
+        final && job.status.state === 'completed'
+          ? new Date(Date.now() + 365 * 24 * 3600_000)
+          : new Date(Date.now() + JOB_TTL_MS)
       await prisma.auditJob.upsert({
         where: { id: job.status.id },
         create: {
@@ -96,7 +101,8 @@ async function loadJobStatus(id: string): Promise<AuditJobStatus | null> {
   if (!env.DATABASE_URL) return null
   try {
     const row = await prisma.auditJob.findUnique({ where: { id } })
-    if (!row || row.expiresAt <= new Date()) return null
+    if (!row) return null
+    if (row.expiresAt <= new Date() && !row.report) return null
     const status = row.status as unknown as AuditJobStatus
     if (row.report && !status.report) {
       return { ...status, report: row.report as unknown as AuditReport }
@@ -247,6 +253,27 @@ auditJobsRouter.get('/config', (_req, res) => {
 
 // --- Start Audit Job --------------------------------------------------------
 async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?: boolean } = {}) {
+  // Gating: Only authenticated users can run audits
+  const auditUser = await getAuthenticatedAuditUser(req)
+  if (!auditUser) {
+    return sendError(
+      res,
+      401,
+      'AUTH_REQUIRED',
+      'Please sign in or create an account with Google or Email OTP to run your free website audit.'
+    )
+  }
+
+  // Gating: Each user/signup can only run an audit once
+  if (auditUser.hasAudited) {
+    return sendError(
+      res,
+      403,
+      'AUDIT_LIMIT_REACHED',
+      'You have already completed your 1 free diagnostic audit. To audit additional properties or discuss an engineering roadmap, please contact our team.'
+    )
+  }
+
   const parsed = launchSchema.safeParse(req.body ?? {})
   if (!parsed.success) {
     return sendError(res, 400, 'VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid request.')
@@ -282,6 +309,17 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
 
   const job = auditJobStore.create(planSteps(request, opts))
   const id = job.status.id
+
+  // Atomically mark auditUser as having initiated their 1 allowed audit
+  await prisma.auditUser.update({
+    where: { id: auditUser.id },
+    data: {
+      hasAudited: true,
+      auditJobId: id,
+      domain: auditUser.domain || request.url,
+    },
+  }).catch((err) => console.error(`[audit ${id}] Failed to mark auditUser hasAudited:`, err))
+
   runtimeStore.recordJobStart(id, request.url, request.strategy)
   await persistJob(job, false)
 
@@ -349,23 +387,34 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
       let growthAuditId: string | null = null
       try {
         const topIssueList = (summary.topIssues ?? []).map(i => i.title).slice(0, 3).join('; ')
+        // Sync lead CRM with completed audit details
+        void syncAuditUserToLead({
+          userId: auditUser.id,
+          name: auditUser.name,
+          email: auditUser.email,
+          companyName: auditUser.companyName,
+          domain: summary.normalizedUrl,
+          auditRef: summary.reference,
+        })
+
+        const businessTitle = auditUser.companyName || summary.normalizedUrl
         const reqSummary = `Instant Website Health Score: ${summary.overallScore}/100. Speed: ${summary.performanceScore}%, SEO: ${summary.seoScore}%, Mobile: ${summary.mobileScore}%. ${topIssueList ? `Top findings: ${topIssueList}` : ''}`
         const ga = await prisma.growthAudit.create({
           data: {
-            name: `Website Scan: ${summary.normalizedUrl}`,
-            businessName: summary.normalizedUrl,
-            email: `scan@${summary.normalizedUrl}`,
-            phone: 'Not provided',
+            name: auditUser.name,
+            businessName: businessTitle,
+            email: auditUser.email,
+            phone: 'Provided via Website Audit Gate',
             website: summary.url,
             category: 'Website Health Scanner',
             requirements: reqSummary,
-            source: 'Website Scanner',
-            sourceDetail: 'instant_health_audit',
+            source: 'Website Audit Gate',
+            sourceDetail: auditUser.authProvider,
             status: 'NEW',
             activities: {
               create: {
                 type: 'CREATED',
-                message: `Automated website audit scan executed for ${summary.url} with overall health score ${summary.overallScore}/100.`,
+                message: `Automated website audit scan executed by ${auditUser.name} (${auditUser.email}) for ${summary.url} with overall health score ${summary.overallScore}/100.`,
               },
             },
           },
@@ -383,15 +432,15 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
             kind: 'audit',
             id: growthAuditId || summary.id,
             reference: summary.reference,
-            name: `Website Scan (${summary.normalizedUrl})`,
-            businessName: summary.normalizedUrl,
-            email: `scan@${summary.normalizedUrl}`,
-            phone: 'N/A (Automated Website Scan)',
-            preferredContact: 'Admin Dashboard',
+            name: auditUser.name,
+            businessName: auditUser.companyName || summary.normalizedUrl,
+            email: auditUser.email,
+            phone: 'Website Audit Sign-up',
+            preferredContact: 'Email',
             website: summary.url,
             category: 'Website Health Scanner',
             service: `Instant Health Score: ${summary.overallScore}/100`,
-            message: `Performance Speed: ${summary.performanceScore}%, Technical SEO: ${summary.seoScore}%, Mobile UX: ${summary.mobileScore}%, Conversion Readiness: ${summary.conversionScore}%.`,
+            message: `Performance Speed: ${summary.performanceScore}%, Technical SEO: ${summary.seoScore}%, Mobile UX: ${summary.mobileScore}%, Conversion Readiness: ${summary.conversionScore}%. Provider: ${auditUser.authProvider}.`,
             auditRef: summary.reference,
           })
         )

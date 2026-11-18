@@ -135,6 +135,39 @@ model AuditJob {
   @@index([expiresAt])
 }
 
+/// Single-use website audit users.
+model AuditUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  companyName  String?
+  domain       String?
+  authProvider String   @default("EMAIL_OTP")
+  googleSub    String?  @unique
+  hasAudited   Boolean  @default(false)
+  auditJobId   String?
+  leadId       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([email])
+}
+
+/// Verification OTP codes for passwordless email signup.
+model AuditOtp {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  codeHash  String
+  name      String?
+  company   String?
+  domain    String?
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
 model LeadNote {
   id        String     @id @default(cuid())
   leadId    String

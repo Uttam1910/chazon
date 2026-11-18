@@ -6,13 +6,11 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
-  Clock,
   Download,
   ExternalLink,
   FileText,
   Gauge,
   Globe,
-  History,
   Info,
   Link2,
   MessageCircle,
@@ -22,10 +20,10 @@ import {
   Send,
   Share2,
   ShieldCheck,
+  ShieldAlert,
   Smartphone,
   Sparkles,
   Target,
-  Trash2,
   UserCheck,
   XCircle,
   Zap,
@@ -34,6 +32,7 @@ import type { AuditJobStatus, AuditReport, ScoreKey } from '@chazon/shared'
 import {
   AUDIT_TAB_META,
   AUDIT_TAB_ORDER,
+  formatAuditStepLabel,
   getActionableFindingsForTab,
   getChecksForTab,
   getFindingsForTab,
@@ -72,35 +71,8 @@ const auditFaqs: [string, string][] = [
   ],
 ]
 
-const STORAGE_KEY_SESSION = 'chazon_audit_session_history_v1'
-const STORAGE_KEY_DEVICE = 'chazon_audit_device_history_v1'
-
-export interface AuditHistoryEntry {
-  id: string
-  url: string
-  displayDomain: string
-  timestamp: number
-  overallScore: number | null
-  scores: {
-    performance: number | null
-    seo: number | null
-    accessibility: number | null
-    practices: number | null
-    mobile: number | null
-  }
-  report?: AuditReport
-}
-
-function formatAuditTime(timestamp: number): string {
-  const diffSec = Math.floor((Date.now() - timestamp) / 1000)
-  if (diffSec < 45) return 'Just now'
-  const diffMin = Math.floor(diffSec / 60)
-  if (diffMin < 60) return `${diffMin}m ago`
-  const diffHr = Math.floor(diffMin / 60)
-  if (diffHr < 24) return `${diffHr}h ago`
-  const d = new Date(timestamp)
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-}
+import { AuditAuthModal } from '../components/AuditAuthModal'
+import { auditAuthApi, type AuditUser } from '../lib/audit-auth-api'
 
 function generateAutofillMessage(report: AuditReport, score: number | null): string {
   let domain = 'yourwebsite.com'
@@ -125,7 +97,7 @@ Hi Chazon Team, I reviewed our website audit diagnostic and would like to reques
 
 export function WebsiteAudit() {
   usePageMeta({
-    title: 'Free Website Health Scanner: Core Web Vitals & SEO Diagnostic | Chazon Digital',
+    title: 'Free Website Health Scanner & SEO Diagnostic | Chazon',
     description:
       'Test your website speed, Core Web Vitals and SEO health in 30 seconds. Get an instant 0–100 score with actionable developer and conversion fixes.',
     path: '/website-audit',
@@ -150,8 +122,10 @@ export function WebsiteAudit() {
   const [shareToast, setShareToast] = useState(false)
   const [activeCategoryTab, setActiveCategoryTab] = useState<AuditTabKey>('all')
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null)
-  const [history, setHistory] = useState<AuditHistoryEntry[]>([])
-  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false)
+  const [auditUser, setAuditUser] = useState<AuditUser | null>(null)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showLimitModal, setShowLimitModal] = useState(false)
+  const [authModalDomain, setAuthModalDomain] = useState('')
 
   // Direct Enquiry Form State
   const [enquiryName, setEnquiryName] = useState('')
@@ -200,22 +174,21 @@ export function WebsiteAudit() {
     }
   }, [])
 
-  // Load session & device audit history on mount
+  // Load authenticated audit user on mount
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      const rawSession = window.sessionStorage.getItem(STORAGE_KEY_SESSION)
-      const rawDevice = window.localStorage.getItem(STORAGE_KEY_DEVICE)
-      const raw = rawSession || rawDevice
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) {
-          setHistory(parsed)
+    void auditAuthApi.getMe().then((user) => {
+      if (user) {
+        setAuditUser(user)
+        if (user.domain && !url) {
+          setUrl(user.domain.startsWith('http') ? user.domain : `https://${user.domain}`)
+        }
+        if (user.hasAudited && user.auditJobId) {
+          void auditApi.getReport(user.auditJobId).then((rep) => {
+            if (isMountedRef.current) setReport(rep)
+          }).catch(() => {})
         }
       }
-    } catch (err) {
-      console.warn('Failed to load audit history from storage:', err)
-    }
+    })
   }, [])
 
   // Auto-start when arriving with ?url=...; deferred by a tick so React StrictMode
@@ -235,13 +208,17 @@ export function WebsiteAudit() {
     const timer = window.setTimeout(() => {
       if (!isMountedRef.current) return
       lastAutoSearchRef.current = queryUrl
+      if (auditUser?.hasAudited) {
+        setShowLimitModal(true)
+        return
+      }
       void startAuditRef.current(undefined, trimmed)
     }, 0)
 
     return () => {
       window.clearTimeout(timer)
     }
-  }, [search])
+  }, [search, auditUser])
 
   // Start Real Audit
   const handleStartAudit = async (e?: FormEvent, targetUrl?: string) => {
@@ -257,6 +234,19 @@ export function WebsiteAudit() {
     if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
       trimmed = `https://${trimmed}`
       setUrl(trimmed)
+    }
+
+    // Require sign-up/login before launching audit
+    if (!auditUser) {
+      setAuthModalDomain(trimmed)
+      setShowAuthModal(true)
+      return
+    }
+
+    // Enforce 1 audit per signup rule: RESTRICT AND SHOW LIMIT MODAL!
+    if (auditUser.hasAudited) {
+      setShowLimitModal(true)
+      return
     }
 
     userCancelledRef.current = false
@@ -307,70 +297,12 @@ export function WebsiteAudit() {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current)
       setProgressPercent(100)
       setReport(completedReport)
+      setAuditUser((prev) => (prev ? { ...prev, hasAudited: true, auditJobId: completedReport.id } : null))
       track('form_submission', {
         form: 'website_audit',
         url: completedReport.finalUrl || completedReport.inputUrl,
       })
 
-      // Add to session & device history
-      let domain = 'yourwebsite.com'
-      try {
-        domain = new URL(completedReport.finalUrl || completedReport.inputUrl).hostname.replace(/^www\./, '')
-      } catch {
-        domain = (completedReport.finalUrl || completedReport.inputUrl).replace(/^https?:\/\//, '').replace(/\/.*$/, '')
-      }
-
-      const overall = getReportScoreValue(completedReport, 'overallHealth')
-      const perf = getReportScoreValue(completedReport, 'performance')
-      const seo = getReportScoreValue(completedReport, 'technicalSeo')
-      const access = getReportScoreValue(completedReport, 'accessibility')
-      const practices = getReportScoreValue(completedReport, 'bestPractices')
-      const mobile = getReportScoreValue(completedReport, 'mobileUx')
-
-      const newEntry: AuditHistoryEntry = {
-        id: completedReport.id,
-        url: completedReport.finalUrl || completedReport.inputUrl,
-        displayDomain: domain,
-        timestamp: Date.now(),
-        overallScore: overall,
-        scores: {
-          performance: perf,
-          seo: seo,
-          accessibility: access,
-          practices: practices,
-          mobile: mobile,
-        },
-        report: completedReport,
-      }
-
-      setHistory((prev) => {
-        const filtered = prev.filter((item) => item.id !== newEntry.id && item.url !== newEntry.url)
-        const updated = [newEntry, ...filtered].slice(0, 8)
-        if (typeof window !== 'undefined') {
-          try {
-            const serialized = JSON.stringify(updated)
-            window.sessionStorage.setItem(STORAGE_KEY_SESSION, serialized)
-            window.localStorage.setItem(STORAGE_KEY_DEVICE, serialized)
-          } catch {
-            const slim = updated.map((entry) => ({
-              id: entry.id,
-              url: entry.url,
-              displayDomain: entry.displayDomain,
-              timestamp: entry.timestamp,
-              overallScore: entry.overallScore,
-              scores: entry.scores,
-            }))
-            try {
-              window.sessionStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(slim))
-              window.localStorage.setItem(STORAGE_KEY_DEVICE, JSON.stringify(slim))
-            } catch (storageErr) {
-              // Ignore storage quota limits in private browsing
-              void storageErr
-            }
-          }
-        }
-        return updated
-      })
     } catch (err: unknown) {
       if (unmountAbortedRef.current.has(abortController) || !isMountedRef.current) {
         return
@@ -378,7 +310,15 @@ export function WebsiteAudit() {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current)
       setReport(null)
       if (err instanceof AuditApiError) {
-        if (err.code === 'CANCELLED') {
+        if (err.code === 'AUTH_REQUIRED') {
+          setAuthModalDomain(trimmed)
+          setShowAuthModal(true)
+          return
+        } else if (err.code === 'AUDIT_LIMIT_REACHED') {
+          setAuditUser((prev) => (prev ? { ...prev, hasAudited: true } : null))
+          setError(err.message)
+          return
+        } else if (err.code === 'CANCELLED') {
           setError(
             userCancelledRef.current
               ? 'The audit scan was cancelled.'
@@ -446,97 +386,49 @@ export function WebsiteAudit() {
     }
   }
 
-  // Reset to State A
-  const handleNewAudit = () => {
-    setReport(null)
-    setScanning(false)
-    setError(null)
-    setJobStatus(null)
-    setUrl('')
-    setProgressPercent(15)
-    setShowHistoryDrawer(false)
-  }
-
-  // Load a report from history (instant from memory/cache or fallback via API)
-  const handleSelectHistoryReport = async (item: AuditHistoryEntry) => {
-    if (item.report) {
-      setReport(item.report)
-      setUrl(item.url)
-      setError(null)
-      setScanning(false)
-      setShowHistoryDrawer(false)
-      if (typeof window !== 'undefined') {
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-      }
-      return
-    }
-
+  // Load user's completed single report
+  const handleLoadUserReport = async (jobId?: string) => {
+    const id = jobId || auditUser?.auditJobId
+    if (!id) return
     try {
-      setScanning(true)
-      setProgressPercent(35)
-      const fetched = await auditApi.getReport(item.id)
+      setScanning(false)
+      const fetched = await auditApi.getReport(id)
       setReport(fetched)
-      setUrl(item.url)
       setError(null)
-      setShowHistoryDrawer(false)
-      setHistory((prev) => {
-        const updated = prev.map((h) => (h.id === item.id ? { ...h, report: fetched } : h))
-        if (typeof window !== 'undefined') {
-          try {
-            window.sessionStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(updated))
-            window.localStorage.setItem(STORAGE_KEY_DEVICE, JSON.stringify(updated))
-          } catch (storageErr) {
-            // Ignore storage write errors
-            void storageErr
-          }
-        }
-        return updated
-      })
-      if (typeof window !== 'undefined') {
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-      }
     } catch {
-      setError('Unable to load cached audit report from server. Please re-run the audit.')
-      setUrl(item.url)
+      setError('Unable to load your audit report. Please contact our team.')
     } finally {
       setScanning(false)
     }
   }
 
-  const handleRemoveHistoryItem = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setHistory((prev) => {
-      const updated = prev.filter((item) => item.id !== id)
-      if (typeof window !== 'undefined') {
-        try {
-          window.sessionStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(updated))
-          window.localStorage.setItem(STORAGE_KEY_DEVICE, JSON.stringify(updated))
-        } catch (storageErr) {
-          // Ignore storage write errors
-          void storageErr
-        }
+  const handleAuthSuccess = (user: AuditUser) => {
+    setAuditUser(user)
+    setShowAuthModal(false)
+    if (user.hasAudited) {
+      if (user.auditJobId) {
+        void handleLoadUserReport(user.auditJobId)
       }
-      return updated
-    })
-  }
-
-  const handleClearHistory = () => {
-    setHistory([])
-    if (typeof window !== 'undefined') {
-      try {
-        window.sessionStorage.removeItem(STORAGE_KEY_SESSION)
-        window.localStorage.removeItem(STORAGE_KEY_DEVICE)
-      } catch (storageErr) {
-        // Ignore storage removal errors
-        void storageErr
+      setShowLimitModal(true)
+    } else {
+      const target = url || authModalDomain || user.domain
+      if (target) {
+        void handleStartAudit(undefined, target)
       }
     }
   }
 
-  const handleRescanHistory = (itemUrl: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setUrl(itemUrl)
-    void handleStartAudit(undefined, itemUrl)
+  const handleSignOutAndNewScan = async (domainToScan?: string) => {
+    await auditAuthApi.logout()
+    setAuditUser(null)
+    setReport(null)
+    setError(null)
+    const nextDomain = domainToScan || url || authModalDomain || ''
+    if (nextDomain) {
+      setUrl(nextDomain)
+      setAuthModalDomain(nextDomain)
+    }
+    setShowAuthModal(true)
   }
 
   // Share Functionality
@@ -584,6 +476,20 @@ export function WebsiteAudit() {
       minute: '2-digit',
     })}`
   }
+
+  const requestedDomain = (url || authModalDomain || '')
+    .replace(/^https?:\/\//, '')
+    .replace(/\/.*$/, '')
+    .replace(/^www\./, '')
+    .toLowerCase()
+  const auditedDomain = displayDomain.toLowerCase()
+  const hasDomainMismatch = Boolean(
+    auditUser?.hasAudited &&
+    requestedDomain &&
+    auditedDomain &&
+    requestedDomain !== auditedDomain &&
+    requestedDomain !== 'yourwebsite.com'
+  )
 
   // Scores
   const getScoreResult = (key: ScoreKey) => report?.scores.find((s) => s.key === key) ?? null
@@ -896,7 +802,7 @@ export function WebsiteAudit() {
                                 <span className="icon-pending-dot" />
                               )}
                             </span>
-                            <span className="asv-step-label">{step.label}</span>
+                            <span className="asv-step-label">{formatAuditStepLabel(step.key, step.label)}</span>
                           </li>
                         )
                       })}
@@ -912,6 +818,151 @@ export function WebsiteAudit() {
               ================================================================= */}
           {!scanning && report && (
             <div className="audit-results-view" id="audit-report-results">
+              {/* Status Notice Banner when 1-Time Free Diagnostic Scan is Complete */}
+              {auditUser?.hasAudited && (
+                <div
+                  role="region"
+                  aria-label="Audit status notice"
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #fed7aa',
+                    borderLeft: '4px solid #d44720',
+                    borderRadius: '14px',
+                    padding: '22px 26px',
+                    color: '#181918',
+                    marginBottom: '28px',
+                    boxShadow: '0 4px 20px -2px rgba(212, 71, 32, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
+                    <div
+                      style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '10px',
+                        background: '#fff1ec',
+                        border: '1px solid #fed7aa',
+                        color: '#d44720',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Sparkles size={20} />
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: '280px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            background: '#fff1ec',
+                            color: '#c2410c',
+                            border: '1px solid #fed7aa',
+                            padding: '3px 10px',
+                            borderRadius: '9999px',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                          }}
+                        >
+                          <CheckCircle2 size={12} />
+                          1-Time Free Diagnostic Completed
+                        </span>
+                        <span style={{ fontSize: '0.8125rem', color: '#686a65' }}>
+                          Account: <strong style={{ color: '#181918' }}>{auditUser.email}</strong>
+                        </span>
+                      </div>
+
+                      <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 6px', color: '#181918', letterSpacing: '-0.01em' }}>
+                        {hasDomainMismatch
+                          ? `Free Audit Completed for ${displayDomain}`
+                          : `Saved Diagnostic Report for ${displayDomain}`}
+                      </h2>
+
+                      <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.55, margin: '0 0 16px' }}>
+                        {hasDomainMismatch ? (
+                          <>
+                            Your single complimentary audit was already used for <strong style={{ color: '#181918' }}>{displayDomain}</strong>. Each free account is limited to 1 scan. You are currently viewing your saved report below.
+                          </>
+                        ) : (
+                          <>
+                            Your single-use complimentary website health scan is complete. Below is your saved performance, SEO, and Core Web Vitals diagnostic report.
+                          </>
+                        )}
+                      </p>
+
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={scrollToEnquiry}
+                          style={{
+                            padding: '10px 18px',
+                            background: '#d44720',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontWeight: 700,
+                            fontSize: '0.875rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            boxShadow: '0 2px 6px rgba(212, 71, 32, 0.25)',
+                          }}
+                        >
+                          <Sparkles size={16} /> Book Strategy Call to Fix Bottlenecks
+                        </button>
+
+                        <a
+                          href="/contact"
+                          style={{
+                            padding: '10px 18px',
+                            background: '#ffffff',
+                            color: '#374151',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '8px',
+                            fontWeight: 600,
+                            fontSize: '0.875rem',
+                            textDecoration: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                        >
+                          Talk to Engineering Team
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSignOutAndNewScan(hasDomainMismatch ? requestedDomain : undefined)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#d44720',
+                            fontSize: '0.8125rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            padding: '6px 8px',
+                          }}
+                        >
+                          {hasDomainMismatch
+                            ? `Sign in with another account to scan ${requestedDomain}`
+                            : 'Audit another domain? Sign in with a different account'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Report Header Bar */}
               <div className="arv-header-bar">
                 <div className="arv-header-left">
@@ -943,16 +994,6 @@ export function WebsiteAudit() {
                     <FileText size={16} />
                     <span>Request Full Report</span>
                   </button>
-                  {history.length > 1 && (
-                    <button
-                      type="button"
-                      className={`button button-secondary arv-action-btn arv-history-btn ${showHistoryDrawer ? 'is-active' : ''}`}
-                      onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
-                      title="Switch between audits performed in this session"
-                    >
-                      <History size={16} /> Recent Scans ({history.length})
-                    </button>
-                  )}
                   <button
                     type="button"
                     className="button button-secondary arv-action-btn"
@@ -969,60 +1010,13 @@ export function WebsiteAudit() {
                   </button>
                   <button
                     type="button"
-                    className="button button-primary arv-new-audit-btn"
-                    onClick={handleNewAudit}
+                    className="button button-secondary arv-action-btn"
+                    onClick={scrollToEnquiry}
                   >
-                    <RotateCcw size={16} /> New Audit
+                    <RotateCcw size={16} /> Fix Bottlenecks
                   </button>
                 </div>
               </div>
-
-              {/* Session History Quick-Switch Drawer */}
-              {showHistoryDrawer && history.length > 0 && (
-                <div className="arv-history-drawer" role="region" aria-label="Session audit history switcher">
-                  <div className="ahd-drawer-header">
-                    <div className="ahd-drawer-title">
-                      <History size={15} />
-                      <span>Switch to another scan from this session:</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="ahd-close-btn"
-                      onClick={() => setShowHistoryDrawer(false)}
-                      aria-label="Close session history list"
-                    >
-                      ✕ Close
-                    </button>
-                  </div>
-                  <div className="ahd-drawer-grid">
-                    {history.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => handleSelectHistoryReport(item)}
-                        className={`ahd-item-pill ${item.id === report.id ? 'is-current' : ''}`}
-                      >
-                        <Globe size={13} className="ahd-globe" />
-                        <span className="ahd-domain">{item.displayDomain}</span>
-                        <span
-                          className={`ahd-score ${
-                            item.overallScore === null
-                              ? 'score-gray'
-                              : item.overallScore >= 80
-                                ? 'score-green'
-                                : item.overallScore >= 60
-                                  ? 'score-amber'
-                                  : 'score-red'
-                          }`}
-                        >
-                          {item.overallScore ?? '—'}
-                        </span>
-                        {item.id === report.id && <span className="ahd-current-tag">Viewing</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Share Toast */}
               {shareToast && (
@@ -1826,175 +1820,278 @@ export function WebsiteAudit() {
                   </div>
                 )}
 
-                <form onSubmit={handleStartAudit} className="arc-form" noValidate>
-                  <div className="arc-input-box">
-                    <span className="arc-link-icon" aria-hidden="true">
-                      <Link2 size={18} />
-                    </span>
-                    <input
-                      type="url"
-                      required
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      placeholder="https://www.yourwebsite.com"
-                      className="arc-url-input"
-                      aria-label="Website URL to audit"
-                    />
-                    <button type="submit" className="button button-primary arc-submit-btn">
-                      <span>Run Website Audit</span>
-                      <ArrowRight size={18} />
-                    </button>
-                  </div>
-
-                  <div className="arc-checklist-row">
-                    <span className="arc-check-item">
-                      <Check size={15} /> Performance
-                    </span>
-                    <span className="arc-check-item">
-                      <Check size={15} /> SEO
-                    </span>
-                    <span className="arc-check-item">
-                      <Check size={15} /> Accessibility
-                    </span>
-                    <span className="arc-check-item">
-                      <Check size={15} /> Best Practices
-                    </span>
-                    <span className="arc-check-item">
-                      <Check size={15} /> Mobile Readiness
-                    </span>
-                  </div>
-                </form>
-              </div>
-
-              {/* Session / Device Audit History Section */}
-              {history.length > 0 && (
-                <div className="audit-history-section" id="session-audit-history">
-                  <div className="ahist-header">
-                    <div className="ahist-title-wrap">
-                      <div className="ahist-icon-badge" aria-hidden="true">
-                        <History size={18} />
-                      </div>
-                      <div>
-                        <h3 className="ahist-title">Recent Audits in This Session</h3>
-                        <p className="ahist-subtitle">
-                          Saved locally on this device · Click any audit to view its full diagnostic report
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleClearHistory}
-                      className="ahist-clear-btn"
-                      title="Clear session audit history"
+                {auditUser?.hasAudited ? (
+                  <div
+                    style={{
+                      padding: '24px 28px',
+                      background: '#ffffff',
+                      borderRadius: '14px',
+                      border: '1px solid #fed7aa',
+                      borderLeft: '4px solid #d44720',
+                      textAlign: 'center',
+                      marginTop: '12px',
+                      boxShadow: '0 4px 18px -2px rgba(212, 71, 32, 0.08)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: '#fff1ec',
+                        color: '#c2410c',
+                        border: '1px solid #fed7aa',
+                        padding: '4px 12px',
+                        borderRadius: '9999px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        marginBottom: '12px',
+                      }}
                     >
-                      <Trash2 size={13} />
-                      <span>Clear History</span>
-                    </button>
-                  </div>
-
-                  <div className="audit-history-grid">
-                    {history.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => handleSelectHistoryReport(item)}
-                        className="ahist-card"
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            void handleSelectHistoryReport(item)
-                          }
-                        }}
+                      <CheckCircle2 size={14} /> 1-Time Free Scan Completed
+                    </div>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 8px', color: '#181918' }}>
+                      Diagnostic Completed for {displayDomain}
+                    </h3>
+                    <p style={{ fontSize: '0.9rem', color: '#686a65', maxWidth: '520px', margin: '0 auto 20px', lineHeight: 1.55 }}>
+                      Your account (<strong>{auditUser.email}</strong>) has used its 1-time complimentary diagnostic for <strong>{displayDomain}</strong>. You can view your full saved report below or consult directly with our engineering team.
+                    </p>
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      {auditUser.auditJobId && !report && (
+                        <button
+                          type="button"
+                          onClick={() => handleLoadUserReport(auditUser.auditJobId!)}
+                          className="button button-primary"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                        >
+                          <FileText size={16} /> View Saved Report
+                        </button>
+                      )}
+                      <a
+                        href="#enquiry-form"
+                        onClick={scrollToEnquiry}
+                        className="button button-primary"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                       >
-                        <div className="ahist-card-top">
-                          <div className="ahist-domain-group">
-                            <div className="ahist-globe-icon" aria-hidden="true">
-                              <Globe size={16} />
-                            </div>
-                            <div className="ahist-domain-info">
-                              <strong className="ahist-domain-name" title={item.url}>
-                                {item.displayDomain}
-                              </strong>
-                              <span className="ahist-time-stamp">
-                                <Clock size={12} />
-                                {formatAuditTime(item.timestamp)}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div
-                            className={`ahist-score-chip ${
-                              item.overallScore === null
-                                ? 'chip-gray'
-                                : item.overallScore >= 80
-                                  ? 'chip-green'
-                                  : item.overallScore >= 60
-                                    ? 'chip-amber'
-                                    : 'chip-red'
-                            }`}
-                          >
-                            <span className="ahist-score-val">{item.overallScore ?? '—'}</span>
-                            <span className="ahist-score-suffix">/100</span>
-                          </div>
-                        </div>
-
-                        {/* Category Score Preview */}
-                        <div className="ahist-metrics-chips">
-                          {item.scores.performance !== null && (
-                            <span className="ahist-mchip">
-                              <Gauge size={12} /> Perf {item.scores.performance}
-                            </span>
-                          )}
-                          {item.scores.seo !== null && (
-                            <span className="ahist-mchip">
-                              <Search size={12} /> SEO {item.scores.seo}
-                            </span>
-                          )}
-                          {item.scores.mobile !== null && (
-                            <span className="ahist-mchip">
-                              <Smartphone size={12} /> Mobile {item.scores.mobile}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Card Footer Actions */}
-                        <div className="ahist-card-actions">
-                          <span className="ahist-view-cta">
-                            <span>View Full Report</span>
-                            <ChevronRight size={15} />
-                          </span>
-
-                          <div className="ahist-secondary-actions">
-                            <button
-                              type="button"
-                              onClick={(e) => handleRescanHistory(item.url, e)}
-                              className="ahist-action-icon-btn"
-                              title="Re-run audit for this URL"
-                              aria-label={`Re-run audit for ${item.displayDomain}`}
-                            >
-                              <RotateCcw size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => handleRemoveHistoryItem(item.id, e)}
-                              className="ahist-action-icon-btn delete-btn"
-                              title="Remove from history"
-                              aria-label={`Remove ${item.displayDomain} from history`}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                        <Sparkles size={16} /> Book Strategy Call
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => handleSignOutAndNewScan()}
+                        className="button button-secondary"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                      >
+                        <RotateCcw size={15} /> Sign in with another account
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <form onSubmit={handleStartAudit} className="arc-form" noValidate>
+                    <div className="arc-input-box">
+                      <span className="arc-link-icon" aria-hidden="true">
+                        <Link2 size={18} />
+                      </span>
+                      <input
+                        type="url"
+                        required
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        placeholder="https://www.yourwebsite.com"
+                        className="arc-url-input"
+                        aria-label="Website URL to audit"
+                      />
+                      <button type="submit" className="button button-primary arc-submit-btn">
+                        <span>Run Free Audit</span>
+                        <ArrowRight size={18} />
+                      </button>
+                    </div>
+
+                    <div className="arc-checklist-row">
+                      <span className="arc-check-item">
+                        <Check size={15} /> Performance
+                      </span>
+                      <span className="arc-check-item">
+                        <Check size={15} /> SEO
+                      </span>
+                      <span className="arc-check-item">
+                        <Check size={15} /> Accessibility
+                      </span>
+                      <span className="arc-check-item">
+                        <Check size={15} /> Best Practices
+                      </span>
+                      <span className="arc-check-item">
+                        <Check size={15} /> Mobile Readiness
+                      </span>
+                    </div>
+                  </form>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* EXPLICIT RESTRICTION MODAL: Pops up when a user whose limit is finished tries to audit */}
+      {showLimitModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="audit-limit-dialog-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(6px)',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              background: '#ffffff',
+              borderRadius: '16px',
+              border: '1px solid #fed7aa',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.35)',
+              overflow: 'hidden',
+              padding: '28px 24px 24px',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '54px',
+                height: '54px',
+                borderRadius: '50%',
+                background: '#fff1ec',
+                border: '2px solid #fed7aa',
+                color: '#d44720',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 14px',
+              }}
+            >
+              <ShieldAlert size={28} />
+            </div>
+
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                background: '#fff1ec',
+                color: '#c2410c',
+                border: '1px solid #fed7aa',
+                padding: '3px 12px',
+                borderRadius: '9999px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '10px',
+              }}
+            >
+              Account Limit Reached
+            </div>
+
+            <h3 id="audit-limit-dialog-title" style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 10px', color: '#181918' }}>
+              Your Free Audit Limit is Finished
+            </h3>
+
+            <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.6, margin: '0 0 20px' }}>
+              Your account ({auditUser?.email}) has already completed its single-use free website diagnostic for <strong>{displayDomain}</strong>.
+              <br />
+              <span style={{ color: '#b91c1c', fontWeight: 600 }}>Each account is strictly restricted to 1 free audit.</span>
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {report && (
+                <button
+                  type="button"
+                  onClick={() => setShowLimitModal(false)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 18px',
+                    background: '#d44720',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '0.9375rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 2px 6px rgba(212, 71, 32, 0.25)',
+                  }}
+                >
+                  <FileText size={16} /> View Saved Report for {displayDomain}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLimitModal(false)
+                  void handleSignOutAndNewScan()
+                }}
+                style={{
+                  width: '100%',
+                  padding: '11px 18px',
+                  background: '#ffffff',
+                  color: '#374151',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                <RotateCcw size={15} /> Sign in with Another Account
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLimitModal(false)
+                  scrollToEnquiry()
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#d44720',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  marginTop: '4px',
+                }}
+              >
+                Book Strategy Call to Fix Bottlenecks
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <AuditAuthModal
+        isOpen={showAuthModal}
+        initialDomain={authModalDomain || url}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={handleAuthSuccess}
+      />
     </PageShell>
   )
 }

@@ -12,6 +12,8 @@ import {
   ChevronDown,
   ChevronUp,
   ShieldCheck,
+  ShieldAlert,
+  RotateCcw,
   LineChart,
   Link2,
 } from 'lucide-react'
@@ -22,6 +24,9 @@ import {
   getBusinessFriendlyTitle,
 } from '../lib/findingExplanations'
 import { track } from '../config'
+import { AuditAuthModal } from './AuditAuthModal'
+import { auditAuthApi, type AuditUser } from '../lib/audit-auth-api'
+import { formatAuditStepLabel } from '../lib/audit-report-tabs'
 
 export interface WebsiteAuditViewProps {
   initialUrl?: string
@@ -45,6 +50,9 @@ export function WebsiteAuditView({
   const [activeTab, setActiveTab] = useState<'all' | 'critical' | 'warning' | 'passed'>('all')
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [auditUser, setAuditUser] = useState<AuditUser | null>(null)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showLimitModal, setShowLimitModal] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
   const isMountedRef = useRef(true)
   const userCancelledRef = useRef(false)
@@ -52,6 +60,9 @@ export function WebsiteAuditView({
 
   useEffect(() => {
     isMountedRef.current = true
+    void auditAuthApi.getMe().then((user) => {
+      if (user && isMountedRef.current) setAuditUser(user)
+    })
     const unmountAborted = unmountAbortedRef.current
     return () => {
       isMountedRef.current = false
@@ -74,6 +85,16 @@ export function WebsiteAuditView({
     const trimmed = url.trim()
     if (!trimmed) {
       setError('Please enter a website URL to audit.')
+      return
+    }
+
+    if (!auditUser) {
+      setShowAuthModal(true)
+      return
+    }
+
+    if (auditUser.hasAudited) {
+      setShowLimitModal(true)
       return
     }
 
@@ -100,6 +121,7 @@ export function WebsiteAuditView({
       )
 
       setReport(completedReport)
+      setAuditUser((prev) => (prev ? { ...prev, hasAudited: true, auditJobId: completedReport.id } : null))
       track('form_submission', {
         form: 'website_audit_tool',
         location: 'audit_page',
@@ -116,6 +138,15 @@ export function WebsiteAuditView({
       }
       setReport(null)
       if (err instanceof AuditApiError) {
+        if (err.code === 'AUTH_REQUIRED') {
+          setShowAuthModal(true)
+          return
+        }
+        if (err.code === 'AUDIT_LIMIT_REACHED') {
+          setAuditUser((prev) => (prev ? { ...prev, hasAudited: true } : null))
+          setError(err.message)
+          return
+        }
         if (err.code === 'CANCELLED') {
           setError(
             userCancelledRef.current
@@ -403,7 +434,7 @@ export function WebsiteAuditView({
                           <span className="step-dot" />
                         )}
                       </span>
-                      <span className="step-label">{s.label}</span>
+                      <span className="step-label">{formatAuditStepLabel(s.key, s.label)}</span>
                       {s.detail && <span className="step-detail">{s.detail}</span>}
                     </div>
                   ))}
@@ -419,6 +450,71 @@ export function WebsiteAuditView({
         <div className="container audit-mid-grid">
           {/* Left Column: The Audit Report Dashboard Card */}
           <div className="audit-report-card-wrap">
+            {auditUser?.hasAudited && (
+              <div
+                role="region"
+                aria-label="Audit status notice"
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #fed7aa',
+                  borderLeft: '4px solid #d44720',
+                  borderRadius: '12px',
+                  padding: '18px 22px',
+                  color: '#181918',
+                  marginBottom: '20px',
+                  boxShadow: '0 4px 16px -2px rgba(212, 71, 32, 0.08)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                  <div
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '8px',
+                      background: '#fff1ec',
+                      border: '1px solid #fed7aa',
+                      color: '#d44720',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <CheckCircle2 size={18} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          background: '#fff1ec',
+                          color: '#c2410c',
+                          border: '1px solid #fed7aa',
+                          padding: '2px 8px',
+                          borderRadius: '9999px',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        1-Time Free Diagnostic Completed
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: '#686a65' }}>
+                        Account: <strong style={{ color: '#181918' }}>{auditUser.email}</strong>
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#181918', marginBottom: '4px' }}>
+                      Saved Diagnostic Report for {displayDomain}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: '#4b5563', lineHeight: 1.5 }}>
+                      Each account is permitted 1 free website diagnostic. You are viewing your previously generated report.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="audit-report-card">
               {/* Card Topbar */}
               <div className="audit-report-topbar">
@@ -948,6 +1044,169 @@ export function WebsiteAuditView({
           </div>
         </div>
       </section>
+
+      {/* EXPLICIT RESTRICTION MODAL */}
+      {showLimitModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="audit-view-limit-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(6px)',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              background: '#ffffff',
+              borderRadius: '16px',
+              border: '1px solid #fed7aa',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.35)',
+              overflow: 'hidden',
+              padding: '28px 24px 24px',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '54px',
+                height: '54px',
+                borderRadius: '50%',
+                background: '#fff1ec',
+                border: '2px solid #fed7aa',
+                color: '#d44720',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 14px',
+              }}
+            >
+              <ShieldAlert size={28} />
+            </div>
+
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                background: '#fff1ec',
+                color: '#c2410c',
+                border: '1px solid #fed7aa',
+                padding: '3px 12px',
+                borderRadius: '9999px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '10px',
+              }}
+            >
+              Account Limit Reached
+            </div>
+
+            <h3 id="audit-view-limit-title" style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0 0 10px', color: '#181918' }}>
+              Your Free Audit Limit is Finished
+            </h3>
+
+            <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.6, margin: '0 0 20px' }}>
+              Your account ({auditUser?.email}) has already completed its single-use free website diagnostic for <strong>{displayDomain}</strong>.
+              <br />
+              <span style={{ color: '#b91c1c', fontWeight: 600 }}>Each account is strictly restricted to 1 free audit.</span>
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {report && (
+                <button
+                  type="button"
+                  onClick={() => setShowLimitModal(false)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 18px',
+                    background: '#d44720',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '0.9375rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <FileText size={16} /> View Saved Report for {displayDomain}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowLimitModal(false)
+                  await auditAuthApi.logout()
+                  setAuditUser(null)
+                  setShowAuthModal(true)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '11px 18px',
+                  background: '#ffffff',
+                  color: '#374151',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                <RotateCcw size={15} /> Sign in with Another Account
+              </button>
+
+              <a
+                href="/contact"
+                onClick={() => setShowLimitModal(false)}
+                style={{
+                  color: '#d44720',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  textDecoration: 'underline',
+                  marginTop: '4px',
+                }}
+              >
+                Talk to Engineering Team for Custom Audit
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <AuditAuthModal
+        isOpen={showAuthModal}
+        initialDomain={url}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={(user) => {
+          setAuditUser(user)
+          setShowAuthModal(false)
+          if (user.hasAudited) {
+            setShowLimitModal(true)
+          } else {
+            void runAudit()
+          }
+        }}
+      />
     </div>
   )
 }

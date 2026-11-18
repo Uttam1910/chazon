@@ -5,6 +5,7 @@ import { prisma } from './db'
 import { env, isAllowedOrigin } from './env'
 import { requireAdminOrigin, requireAuth, requireRole } from './lib/auth'
 import { errorHandler, ok } from './lib/http'
+import { auditAuthRouter } from './routes/audit-auth'
 import { auditAnalyzerRouter } from './routes/audit-analyzer'
 import { auditJobsRouter } from './routes/audit-jobs'
 import { auditsRouter } from './routes/audits'
@@ -40,6 +41,10 @@ export function createApp() {
   // Public enquiry intake (Section 7: POST /api/enquiries)
   app.use('/api/enquiries', publicEnquiriesRouter)
   app.use('/api/public/enquiries', publicEnquiriesRouter)
+
+  // Dedicated Website Audit authentication (Google + OTP)
+  app.use('/api/audit-auth', auditAuthRouter)
+  app.use('/api/public/audit-auth', auditAuthRouter)
 
   // Public live website audit engine (Jobs, Polling, Reports, Config)
   app.use('/api/audit', auditJobsRouter)

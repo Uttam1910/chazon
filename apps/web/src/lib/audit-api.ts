@@ -5,6 +5,7 @@ import type {
   PublicConfig,
 } from '@chazon/shared'
 import { config, getRuntimeHostname, isLoopbackHostname } from '../config'
+import { getAuditToken } from './audit-auth-api'
 
 export class AuditApiError extends Error {
   constructor(
@@ -32,16 +33,23 @@ function getCandidateBases(): string[] {
 
 async function tryFetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const candidates = getCandidateBases()
+  const token = getAuditToken()
   let lastError: unknown = null
 
   for (const base of candidates) {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(init?.headers as Record<string, string> | undefined),
+      }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch(`${base}${path}`, {
         ...init,
-        headers: {
-          'Content-Type': 'application/json',
-          ...init?.headers,
-        },
+        credentials: 'include',
+        headers,
       })
 
       let body: unknown = null

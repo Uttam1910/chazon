@@ -143,3 +143,26 @@ export async function notifySubmission(s: Submission) {
     }
   }
 }
+
+/** Sends a single-use 6-digit OTP code to verify user identity before launching a website audit. */
+export async function sendAuditOtpEmail(params: { to: string; code: string; name?: string }): Promise<Result> {
+  const firstName = params.name && params.name.trim() ? params.name.trim().split(/\s+/)[0] : 'there'
+  const text = `Hi ${firstName},\n\nYour Chazon verification code is: ${params.code}\n\nThis single-use code is valid for 10 minutes to verify your details and run your free website diagnostic audit.\n\nIf you did not request this verification code, you can safely ignore this email.\n\n— Team Chazon`
+  const html = layout(`
+    <h1 style="font-size:20px;font-weight:700;margin:0 0 16px;color:#181918">Verify your email to run your website audit</h1>
+    <p style="font-size:15px;line-height:1.6;color:#454743;margin:0 0 16px">Hi ${escape(firstName)},</p>
+    <p style="font-size:15px;line-height:1.6;color:#454743;margin:0 0 20px">Enter the verification code below to confirm your business details and launch your free website health scan:</p>
+    <div style="background:#f4f4f0;border-radius:8px;padding:24px 20px;text-align:center;margin:0 0 24px;border:1px solid #e2e4dc">
+      <span style="font-family:'Courier New',Courier,monospace;font-size:36px;font-weight:700;letter-spacing:8px;color:#d44720;display:inline-block">${escape(params.code)}</span>
+      <p style="font-size:12px;color:#767873;margin:10px 0 0">Valid for 10 minutes · Single-use</p>
+    </div>
+    <p style="font-size:13px;line-height:1.5;color:#8c8e88;margin:0">If you did not request this verification code, please disregard this email.</p>
+  `)
+
+  return sendEmail({
+    to: params.to,
+    subject: `Your Chazon verification code: ${params.code}`,
+    text,
+    html,
+  })
+}
