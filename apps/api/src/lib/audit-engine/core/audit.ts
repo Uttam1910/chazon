@@ -13,6 +13,7 @@ import type {
   StepState,
   TechnologySummary,
 } from '@chazon/shared';
+import { load } from 'cheerio';
 import { accessibilityChecks, analyzeAccessibility, LIGHTHOUSE_EQUIVALENTS, mobileChecks } from './analyze/accessibility';
 import { analyzeJourney, summariseJourney } from './analyze/journey';
 import { checkLinks } from './analyze/links';
@@ -35,7 +36,7 @@ import { plural } from './util/text';
 
 export const TOOL = { name: 'Website Audit & Digital Growth Analyzer', version: '0.2.0' };
 
-export type AuditErrorCode = 'INVALID_URL' | 'UNSAFE_URL' | 'DNS_FAILURE' | 'SITE_UNREACHABLE' | 'CANCELLED';
+export type AuditErrorCode = 'INVALID_URL' | 'UNSAFE_URL' | 'DNS_FAILURE' | 'SITE_UNREACHABLE' | 'PARKED_DOMAIN' | 'CANCELLED';
 
 export class AuditError extends Error {
   constructor(
@@ -73,6 +74,15 @@ export interface AuditDeps {
   limits?: Partial<AuditLimits>;
   /** Server-side only (never from the request): skip Lighthouse, e.g. for competitor observations. */
   skipLighthouse?: boolean;
+  requireInspectablePage?: boolean;
+}
+
+function isParkedDomain(html: string, hostname: string, domain: string): boolean {
+  const $ = load(html);
+  $('script, style, template').remove();
+  const text = $('body').text().replace(/\s+/g, ' ').toLowerCase();
+  return [hostname, domain].some((name) => text.includes(`the domain ${name} is for sale`)) ||
+    (/\b(?:this domain is for sale|this domain is parked)\b/.test(text) && /\b(?:afternic|parklogic|sedo)\b/.test(text));
 }
 
 export type ProgressFn = (key: string, state: StepState, detail?: string) => void;
@@ -249,8 +259,12 @@ export async function runAudit(
     startContentType = res.contentType;
     siteDomain = registeredDomain(res.finalUrl);
     if (res.status < 400 && !res.bodySkipped && siteDomain) {
+      const html = res.text();
+      if (isParkedDomain(html, new URL(res.finalUrl).hostname, siteDomain)) {
+        throw new AuditError('PARKED_DOMAIN', 'This domain shows a parking or for-sale page.');
+      }
       startPage = analyzePage({
-        html: res.text(),
+        html,
         url: startUrl.href,
         finalUrl: res.finalUrl,
         status: res.status,
@@ -268,10 +282,19 @@ export async function runAudit(
     }
     progress('fetch', res.status < 400 ? 'done' : 'failed', `HTTP ${res.status} in ${res.timeMs} ms${res.redirects.length ? ` after ${plural(res.redirects.length, 'redirect')}` : ''}`);
   } catch (err) {
+    if (err instanceof AuditError) {
+      progress('fetch', 'failed', err.message);
+      throw err;
+    }
     http.error = err instanceof FetchError ? err.message : 'The start page could not be fetched.';
     progress('fetch', 'failed', http.error);
   }
   checkAbort();
+  if (deps.requireInspectablePage && !startPage) {
+    throw new AuditError('SITE_UNREACHABLE', http.status && http.status >= 400
+      ? `The website returned HTTP ${http.status}, so we could not inspect it.`
+      : 'We couldn’t inspect a public webpage at that address.');
+  }
 
   // HTTP -> HTTPS behaviour
   if (http.finalUrl?.startsWith('https:')) {

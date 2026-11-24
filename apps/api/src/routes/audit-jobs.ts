@@ -142,6 +142,7 @@ const auditDeps: AuditDeps = {
   }),
   policy: strictPolicy,
   userAgentToken: env.AUDIT_USER_AGENT_TOKEN,
+  requireInspectablePage: true,
 }
 
 const freeText = (max: number) =>
@@ -182,6 +183,13 @@ function cleanDiscovery(d: z.infer<typeof discoverySchema> | undefined): Discove
 
 function sendError(res: Response, status: number, code: string, message: string) {
   res.status(status).json({ error: { code, message } })
+}
+
+function releaseAuditJob(id: string) {
+  return prisma.auditUser.updateMany({
+    where: { auditJobId: id, hasAudited: false },
+    data: { auditJobId: null },
+  })
 }
 
 export const auditJobsRouter = Router()
@@ -264,7 +272,7 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
     )
   }
 
-  // Gating: Each user/signup can only run an audit once
+  // A completed report uses the account's free audit.
   if (auditUser.hasAudited) {
     return sendError(
       res,
@@ -272,6 +280,10 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
       'AUDIT_LIMIT_REACHED',
       'You have already completed your 1 free diagnostic audit. To audit additional properties or discuss an engineering roadmap, please contact our team.'
     )
+  }
+
+  if (auditUser.auditJobId) {
+    return sendError(res, 409, 'AUDIT_IN_PROGRESS', 'An audit is already running on this account. Please wait for it to finish.')
   }
 
   const parsed = launchSchema.safeParse(req.body ?? {})
@@ -310,18 +322,30 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
   const job = auditJobStore.create(planSteps(request, opts))
   const id = job.status.id
 
-  // Atomically mark auditUser as having initiated their 1 allowed audit
-  await prisma.auditUser.update({
-    where: { id: auditUser.id },
-    data: {
-      hasAudited: true,
-      auditJobId: id,
-      domain: auditUser.domain || request.url,
-    },
-  }).catch((err) => console.error(`[audit ${id}] Failed to mark auditUser hasAudited:`, err))
+  const reserved = await prisma.$transaction(async (tx) => {
+    const claim = await tx.auditUser.updateMany({
+      where: { id: auditUser.id, hasAudited: false, auditJobId: null },
+      data: { auditJobId: id },
+    })
+    if (!claim.count) return false
+    await tx.auditJob.create({
+      data: {
+        id,
+        status: job.status as unknown as Prisma.InputJsonValue,
+        expiresAt: new Date(Date.now() + JOB_TTL_MS),
+      },
+    })
+    return true
+  }).catch((err: unknown) => {
+    auditJobStore.fail(job, 'INTERNAL_ERROR', 'The audit could not be started.')
+    throw err
+  })
+  if (!reserved) {
+    auditJobStore.fail(job, 'AUDIT_IN_PROGRESS', 'An audit has already been started on this account.')
+    return sendError(res, 409, 'AUDIT_IN_PROGRESS', 'An audit has already been started on this account. Please wait or refresh to view your report.')
+  }
 
   runtimeStore.recordJobStart(id, request.url, request.strategy)
-  await persistJob(job, false)
 
   const run = runAudit(
     id,
@@ -336,9 +360,28 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
 
   const backgroundWork = run
     .then(async (report) => {
-      auditJobStore.complete(job, report)
+      await persistChain.get(id)
+      const completedJob = { ...job, status: { ...job.status, steps: job.status.steps.map((step) => ({ ...step })) } }
+      auditJobStore.complete(completedJob, report)
+      const { report: savedReport, ...status } = completedJob.status
+      await prisma.$transaction(async (tx) => {
+        const completed = await tx.auditUser.updateMany({
+          where: { id: auditUser.id, auditJobId: id, hasAudited: false },
+          data: { hasAudited: true, domain: report.finalUrl || report.inputUrl },
+        })
+        if (!completed.count) throw new AuditError('CANCELLED', 'The audit was cancelled or expired.')
+        await tx.auditJob.update({
+          where: { id },
+          data: {
+            status: status as unknown as Prisma.InputJsonValue,
+            report: savedReport as unknown as Prisma.InputJsonValue,
+            expiresAt: new Date(Date.now() + 365 * 24 * 3600_000),
+          },
+        })
+      })
+      Object.assign(job, completedJob)
+      persistChain.delete(id)
       const summary = runtimeStore.recordJobComplete(id, report)
-      await persistJob(job, true)
 
       const metricsJson = JSON.parse(JSON.stringify({
         strategy: summary.strategy || 'mobile',
@@ -452,6 +495,13 @@ async function handleLaunch(req: Request, res: Response, opts: { skipLighthouse?
       await pruneExpiredAuditJobs()
     })
     .catch(async (err: unknown) => {
+      if (job.status.state === 'completed') {
+        console.error(`[audit ${id}] Failed to process the completed report:`, err)
+        return
+      }
+      await releaseAuditJob(id).catch((dbErr) => {
+        console.error(`[audit ${id}] Failed to release audit reservation:`, dbErr)
+      })
       if (err instanceof AuditError) {
         auditJobStore.fail(job, err.code, err.message)
         runtimeStore.recordJobFail(id, err.message)
@@ -547,6 +597,8 @@ const handleCancel = wrap(async (req: Request, res: Response) => {
   const job = auditJobStore.get(id)
   if (job) {
     if (job.status.state === 'running') {
+      const released = await releaseAuditJob(id)
+      if (!released.count) return void res.json({ ok: true })
       job.controller.abort()
       auditJobStore.fail(job, 'CANCELLED', 'The audit was cancelled by the user.')
       await persistJob(job, true)
@@ -556,6 +608,8 @@ const handleCancel = wrap(async (req: Request, res: Response) => {
   const status = await loadJobStatus(id)
   if (!status) return void sendError(res, 404, 'NOT_FOUND', 'Audit not found.')
   if (status.state === 'running') {
+    const released = await releaseAuditJob(id)
+    if (!released.count) return void res.json({ ok: true })
     const steps = status.steps.map((s) =>
       s.state === 'running' ? { ...s, state: 'failed' as const } : s.state === 'pending' ? { ...s, state: 'skipped' as const } : s
     )

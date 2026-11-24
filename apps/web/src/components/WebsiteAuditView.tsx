@@ -85,17 +85,6 @@ export function WebsiteAuditView({
   }, [])
 
   useEffect(() => {
-    if (typeof document === 'undefined') return
-    if (showAuthModal || showLimitModal) {
-      const originalOverflow = document.body.style.overflow
-      document.body.style.overflow = 'hidden'
-      return () => {
-        document.body.style.overflow = originalOverflow
-      }
-    }
-  }, [showAuthModal, showLimitModal])
-
-  useEffect(() => {
     if (initialUrl && !report && !scanning) {
       setUrl(initialUrl)
     }
@@ -1083,6 +1072,7 @@ export function WebsiteAuditView({
       {/* EXPLICIT RESTRICTION MODAL */}
       {showLimitModal && (
         <div
+          className="audit-modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="audit-view-limit-title"
@@ -1099,6 +1089,7 @@ export function WebsiteAuditView({
           }}
         >
           <div
+            className="audit-modal-panel"
             style={{
               width: '100%',
               maxWidth: '460px',
@@ -1106,7 +1097,6 @@ export function WebsiteAuditView({
               borderRadius: '16px',
               border: '1px solid #fed7aa',
               boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.35)',
-              overflow: 'hidden',
               padding: '28px 24px 24px',
               textAlign: 'center',
             }}

@@ -7,6 +7,7 @@ import { env } from '../env'
 import {
   AUDIT_SESSION_COOKIE,
   auditCookieOptions,
+  findAuditUser,
   getAuthenticatedAuditUser,
   hashOtp,
   issueAuditToken,
@@ -86,7 +87,7 @@ const googleAuthSchema = z.object({
 auditAuthRouter.post('/send-otp', otpSendLimiter, async (req: Request, res: Response) => {
   const { email, name, companyName, domain } = parse(sendOtpSchema, req.body)
 
-  const existingUser = await prisma.auditUser.findUnique({ where: { email } })
+  const existingUser = await findAuditUser({ email })
   const alreadyAudited = Boolean(existingUser?.hasAudited)
 
   // Generate 6-digit random code
@@ -175,7 +176,7 @@ auditAuthRouter.post('/verify-otp', otpVerifyLimiter, async (req: Request, res: 
   const finalCompany = companyName || otp.company || null
   const finalDomain = domain || otp.domain || null
 
-  const existingUser = await prisma.auditUser.findUnique({ where: { email } })
+  const existingUser = await findAuditUser({ email })
   const alreadyAudited = Boolean(existingUser?.hasAudited)
 
   // Keep the domain that was actually audited; do not overwrite with new target URL
@@ -245,7 +246,7 @@ auditAuthRouter.post('/google', async (req: Request, res: Response) => {
     throw new ApiError(401, 'GOOGLE_AUTH_FAILED', (err as Error).message || 'Google authentication failed.')
   }
 
-  const existingUser = await prisma.auditUser.findUnique({ where: { email: googleData.email } })
+  const existingUser = await findAuditUser({ email: googleData.email })
   const alreadyAudited = Boolean(existingUser?.hasAudited)
 
   // Keep the domain that was actually audited; do not overwrite with new target URL

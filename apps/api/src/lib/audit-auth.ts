@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import type { Request } from 'express'
+import type { AuditJobStatus } from '@chazon/shared'
 import { prisma } from '../db'
 import { env } from '../env'
 
@@ -102,13 +103,37 @@ export async function getAuthenticatedAuditUser(req: Request) {
   if (!payload) return null
 
   try {
-    const user = await prisma.auditUser.findUnique({
-      where: { id: payload.userId },
-    })
-    return user
+    return await findAuditUser({ id: payload.userId })
   } catch {
     return null
   }
+}
+
+export async function findAuditUser(where: { id: string } | { email: string }) {
+  const user = await prisma.auditUser.findUnique({ where })
+  if (!user?.auditJobId) return user
+
+  const job = await prisma.auditJob.findUnique({
+    where: { id: user.auditJobId },
+    select: { status: true, expiresAt: true },
+  })
+  const state = (job?.status as AuditJobStatus | undefined)?.state
+  if (state === 'completed') return user
+  if (state === 'running' && job && job.expiresAt > new Date()) return user
+
+  // Older accounts spent their audit at launch. A saved scan also covers reports
+  // whose job records have already expired.
+  if (user.hasAudited && !job && await prisma.auditScan.findUnique({
+    where: { reference: user.auditJobId },
+    select: { id: true },
+  })) return user
+
+  const released = await prisma.auditUser.updateMany({
+    where: { id: user.id, auditJobId: user.auditJobId, hasAudited: user.hasAudited },
+    data: { auditJobId: null, hasAudited: false },
+  })
+  if (released.count) return { ...user, auditJobId: null, hasAudited: false }
+  return prisma.auditUser.findUnique({ where })
 }
 
 /** Verifies Google ID Token via Google's tokeninfo API */

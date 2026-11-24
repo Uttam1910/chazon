@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   preflight,
+  runAudit,
   strictPolicy,
   AuditError,
 } from '../src/lib/audit-engine/core'
@@ -45,6 +46,30 @@ describe('Audit Scan Verification: Failure Scenarios (SSRF, DNS, Protocol)', () 
     await assert.rejects(
       () => preflight('https://this-chazon-domain-does-not-exist-98234729482.com', strictPolicy),
       (err: unknown) => err instanceof AuditError && err.code === 'DNS_FAILURE'
+    )
+  })
+
+  it('rejects a domain for sale even when its parking page returns HTTP 200', async () => {
+    const url = 'https://example.com/'
+    const html = '<body>The domain example.com is for sale. To purchase, call Afternic.com.</body>'
+    const body = Buffer.from(html)
+    await assert.rejects(
+      () => runAudit('parked', { url, strategy: 'mobile', categories: ['performance'], crawlLimit: 1, checkLinks: false }, {
+        policy: { ...strictPolicy, resolve: async () => [{ address: '93.184.216.34', family: 4 }] },
+        pagespeed: { configured: false, run: async () => { throw new Error('Unavailable') } },
+        userAgentToken: 'ChazonTest',
+        requireInspectablePage: true,
+        fetcher: {
+          userAgent: 'ChazonTest',
+          close: async () => {},
+          fetch: async () => ({
+            requestedUrl: url, finalUrl: url, status: 200, headers: {}, contentType: 'text/html',
+            body, bytes: body.length, truncated: false, bodySkipped: false, redirects: [], timeMs: 5,
+            text: () => html,
+          }),
+        },
+      }),
+      (err: unknown) => err instanceof AuditError && err.code === 'PARKED_DOMAIN'
     )
   })
 })

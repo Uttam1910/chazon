@@ -114,16 +114,6 @@ export function AuditAuthModal({
     }
   }, [initialDomain])
 
-  // Lock background scroll when modal is open
-  useEffect(() => {
-    if (!isOpen) return
-    const originalOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = originalOverflow
-    }
-  }, [isOpen])
-
   useEffect(() => {
     if (!isOpen) {
       setError(null)
@@ -343,6 +333,7 @@ export function AuditAuthModal({
 
   return (
     <div
+      className="audit-modal"
       role="dialog"
       aria-modal="true"
       aria-labelledby="audit-auth-title"
@@ -360,6 +351,7 @@ export function AuditAuthModal({
       }}
     >
       <div
+        className="audit-modal-panel"
         style={{
           width: '100%',
           maxWidth: '480px',
@@ -368,7 +360,6 @@ export function AuditAuthModal({
           borderRadius: '16px',
           boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.35)',
           border: '1px solid #e5e7eb',
-          overflow: 'hidden',
           animation: 'fadeInModal 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >

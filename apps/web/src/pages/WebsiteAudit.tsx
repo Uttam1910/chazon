@@ -134,6 +134,7 @@ export function WebsiteAudit() {
     return Boolean(new URLSearchParams(window.location.search).get('url')?.trim())
   })
   const [error, setError] = useState<string | null>(null)
+  const [canRetryAudit, setCanRetryAudit] = useState(false)
   const [shareToast, setShareToast] = useState(false)
   const [activeCategoryTab, setActiveCategoryTab] = useState<AuditTabKey>('all')
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null)
@@ -168,7 +169,7 @@ export function WebsiteAudit() {
   const isMountedRef = useRef(true)
   const userCancelledRef = useRef(false)
   const unmountAbortedRef = useRef(new WeakSet<AbortController>())
-  const startAuditRef = useRef<(e?: FormEvent, targetUrl?: string) => Promise<void>>(async () => {})
+  const startAuditRef = useRef<(e?: FormEvent, targetUrl?: string, user?: AuditUser | null) => Promise<void>>(async () => {})
 
   // Clean up timers and in-flight requests on actual unmount
   useEffect(() => {
@@ -188,18 +189,6 @@ export function WebsiteAudit() {
       }
     }
   }, [])
-
-  // Lock background scroll when any dialog/modal is open
-  useEffect(() => {
-    if (typeof document === 'undefined') return
-    if (showAuthModal || showLimitModal) {
-      const originalOverflow = document.body.style.overflow
-      document.body.style.overflow = 'hidden'
-      return () => {
-        document.body.style.overflow = originalOverflow
-      }
-    }
-  }, [showAuthModal, showLimitModal])
 
   // Load user and initialize URL / search target on mount & on search param change
   useEffect(() => {
@@ -282,7 +271,7 @@ export function WebsiteAudit() {
         // Logged in and hasn't audited yet -> auto start
         setReport(null)
         setInitializing(false)
-        void startAuditRef.current(undefined, formattedQueryUrl)
+        void startAuditRef.current(undefined, formattedQueryUrl, user)
         return
       }
 
@@ -313,7 +302,7 @@ export function WebsiteAudit() {
   }, [search])
 
   // Start Real Audit
-  const handleStartAudit = async (e?: FormEvent, targetUrl?: string) => {
+  const handleStartAudit = async (e?: FormEvent, targetUrl?: string, user = auditUser) => {
     if (e) e.preventDefault()
     if (isScanningRef.current) return
     let trimmed = (targetUrl ?? url).trim()
@@ -331,7 +320,7 @@ export function WebsiteAudit() {
     const targetDomain = extractDomain(trimmed)
 
     // If an existing logged-in user already audited a DIFFERENT domain, log them out so user can sign in fresh
-    if (auditUser?.hasAudited && auditUser.domain && extractDomain(auditUser.domain) !== targetDomain) {
+    if (user?.hasAudited && user.domain && extractDomain(user.domain) !== targetDomain) {
       setReport(null)
       await auditAuthApi.logout().catch(() => {})
       setAuditUser(null)
@@ -341,7 +330,7 @@ export function WebsiteAudit() {
     }
 
     // Require sign-up/login before launching audit
-    if (!auditUser) {
+    if (!user) {
       setReport(null)
       setAuthModalDomain(trimmed)
       setShowAuthModal(true)
@@ -349,7 +338,7 @@ export function WebsiteAudit() {
     }
 
     // Enforce 1 audit per signup rule: RESTRICT AND SHOW LIMIT MODAL!
-    if (auditUser.hasAudited) {
+    if (user.hasAudited) {
       setShowLimitModal(true)
       return
     }
@@ -358,6 +347,7 @@ export function WebsiteAudit() {
     isScanningRef.current = true
     setScanning(true)
     setError(null)
+    setCanRetryAudit(false)
     setReport(null)
     setJobStatus(null)
     setProgressPercent(18)
@@ -402,7 +392,12 @@ export function WebsiteAudit() {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current)
       setProgressPercent(100)
       setReport(completedReport)
-      setAuditUser((prev) => (prev ? { ...prev, hasAudited: true, auditJobId: completedReport.id } : null))
+      setAuditUser((prev) => (prev ? {
+        ...prev,
+        domain: completedReport.finalUrl || completedReport.inputUrl,
+        hasAudited: true,
+        auditJobId: completedReport.id,
+      } : null))
       track('form_submission', {
         form: 'website_audit',
         url: completedReport.finalUrl || completedReport.inputUrl,
@@ -420,28 +415,40 @@ export function WebsiteAudit() {
           setShowAuthModal(true)
           return
         } else if (err.code === 'AUDIT_LIMIT_REACHED') {
-          setAuditUser((prev) => (prev ? { ...prev, hasAudited: true } : null))
+          const refreshedUser = await auditAuthApi.getMe().catch(() => null)
+          setAuditUser(refreshedUser ?? { ...user, hasAudited: true })
           setError(err.message)
           return
         } else if (err.code === 'CANCELLED') {
           setError(
             userCancelledRef.current
-              ? 'The audit scan was cancelled.'
+              ? 'The audit scan was cancelled. Your free audit is still available. Edit the URL or enter another website to try again.'
               : 'The connection to the audit service was interrupted. Please run the audit again.'
           )
+          setCanRetryAudit(userCancelledRef.current)
         } else if (err.code === 'DNS_FAILURE') {
-          setError(
-            `Unable to resolve domain "${trimmed}". Please verify the URL spelling and check that the website is online.`
-          )
+          setError('We couldn’t find that domain. Check the spelling or enter another website. Your free audit is still available.')
+          setCanRetryAudit(true)
+        } else if (err.code === 'PARKED_DOMAIN') {
+          setError('This domain shows a parking or for-sale page. Enter an active website to try again. Your free audit is still available.')
+          setCanRetryAudit(true)
+        } else if (err.code === 'SITE_UNREACHABLE' || err.code === 'AUDIT_FAILED' || err.code === 'INTERNAL_ERROR') {
+          setError(`${err.message} Your free audit is still available. Check the URL or enter another website to try again.`)
+          setCanRetryAudit(true)
+        } else if (err.code === 'INVALID_URL') {
+          setError('Enter a valid website address, such as https://example.com, or try another website. Your free audit is still available.')
+          setCanRetryAudit(true)
         } else if (
           err.code === 'INVALID_TARGET' ||
           err.code === 'FORBIDDEN_HOST' ||
           err.code === 'SSRF_BLOCKED' ||
-          err.code === 'UNSAFE_TARGET'
+          err.code === 'UNSAFE_TARGET' ||
+          err.code === 'UNSAFE_URL'
         ) {
           setError(
-            'Security Policy: Internal network addresses, localhost, and private IP ranges cannot be scanned.'
+            'Enter a public website address to try again. Your free audit is still available.'
           )
+          setCanRetryAudit(true)
         } else if (err.code === 'RATE_LIMITED') {
           setError(
             'Audit rate limit reached: Too many scans started from this IP address. Please wait a few minutes before trying again.'
@@ -476,19 +483,9 @@ export function WebsiteAudit() {
 
   // Cancel Scan
   const handleCancelScan = async () => {
+    if (!jobStatus?.id) return
     userCancelledRef.current = true
-    isScanningRef.current = false
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-    if (jobStatus?.id) {
-      await auditApi.cancel(jobStatus.id).catch(() => {})
-    }
-    setScanning(false)
-    if (progressTimerRef.current) {
-      clearInterval(progressTimerRef.current)
-      progressTimerRef.current = null
-    }
+    await auditApi.cancel(jobStatus.id)
   }
 
   // Load user's completed single report
@@ -526,7 +523,7 @@ export function WebsiteAudit() {
       setReport(null)
       const target = url || authModalDomain || user.domain || ''
       if (target) {
-        void handleStartAudit(undefined, target)
+        void handleStartAudit(undefined, target, user)
       }
     }
   }
@@ -959,6 +956,7 @@ export function WebsiteAudit() {
                       type="button"
                       className="asv-cancel-btn"
                       onClick={handleCancelScan}
+                      disabled={!jobStatus?.id}
                     >
                       Cancel Scan
                     </button>
@@ -2075,7 +2073,7 @@ export function WebsiteAudit() {
                         aria-label="Website URL to audit"
                       />
                       <button type="submit" className="button button-primary arc-submit-btn">
-                        <span>Run Free Audit</span>
+                        <span>{canRetryAudit ? 'Retry Free Audit' : 'Run Free Audit'}</span>
                         <ArrowRight size={18} />
                       </button>
                     </div>
@@ -2108,6 +2106,7 @@ export function WebsiteAudit() {
       {/* EXPLICIT RESTRICTION MODAL: Pops up when a user whose limit is finished tries to audit */}
       {showLimitModal && (
         <div
+          className="audit-modal"
           role="dialog"
           aria-modal="true"
           aria-labelledby="audit-limit-dialog-title"
@@ -2124,6 +2123,7 @@ export function WebsiteAudit() {
           }}
         >
           <div
+            className="audit-modal-panel"
             style={{
               width: '100%',
               maxWidth: '460px',
@@ -2131,7 +2131,6 @@ export function WebsiteAudit() {
               borderRadius: '16px',
               border: '1px solid #fed7aa',
               boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.35)',
-              overflow: 'hidden',
               padding: '28px 24px 24px',
               textAlign: 'center',
             }}
